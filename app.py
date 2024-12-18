@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, flash, session
-from db_utils import execute_query, get_user_by_email, get_inventory_by_code
+from db_utils import execute_query, get_user_by_email, get_inventory_by_code, get_all_inventories
 from encryption import encrypt_message, decrypt_message
 
 app = Flask(__name__)
@@ -91,6 +91,16 @@ def addinventory():
                 flash("Error: Unable to create a new Inventory. Please try again later.", "danger")
         return redirect("/addinventory")
     return render_template("addinventory.html", user=session)
+
+
+@app.route("/inventorylist", methods=["GET", "POST"])
+def inventorylist():
+    if not session["email"]:
+        return redirect("/login")
+    print("inventorylist")
+    inventories = get_all_inventories()
+    print(inventories)
+    return render_template("inventorylist.html", user=session, inventories=inventories)
 
 
 if __name__ == "__main__":

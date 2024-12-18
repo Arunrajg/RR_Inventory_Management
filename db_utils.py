@@ -81,6 +81,17 @@ def get_inventory_by_code(inventory_code):
     conn.close()
     print(f"inventory -- {inventory}")
     return inventory
+
+
+def get_all_inventories():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM inventory')
+    inventories = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    print(f"inventories -- {inventories}")
+    return inventories
 # # Check if the provided password matches the stored encrypted password
 
 
