@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, flash, session
-from db_utils import execute_query, get_user_by_email, get_inventory_by_code, get_all_inventories
+from db_utils import execute_query, get_user_by_email, get_inventory_by_code, get_all_inventories, get_kitchen_by_code, get_all_kitchens
 from encryption import encrypt_message, decrypt_message
 
 app = Flask(__name__)
@@ -101,6 +101,40 @@ def inventorylist():
     inventories = get_all_inventories()
     print(inventories)
     return render_template("inventorylist.html", user=session, inventories=inventories)
+
+
+@app.route("/addkitchen", methods=["GET", "POST"])
+def addkitchen():
+    if not session["email"]:
+        return redirect("/login")
+    if request.method == "POST":
+        kitchen_name = request.form["kitchen_name"].strip()
+        kitchen_code = request.form["kitchen_code"].strip()
+        address = request.form["address"].strip()
+        existing_kitchen = get_kitchen_by_code(kitchen_code)
+        if existing_kitchen:
+            flash("Kitchen with same code already exists. Please use a different Kitchen Code.", "danger")
+        else:
+            insert_query = """
+                INSERT INTO kitchen (kitchenname, kitchencode, address)
+                VALUES (%s, %s, %s)
+            """
+            if execute_query(insert_query, (kitchen_name, kitchen_code, address)):
+                flash("Kitchen created successfully!", "success")
+            else:
+                flash("Error: Unable to create a new Kitchen. Please try again later.", "danger")
+        return redirect("/addkitchen")
+    return render_template("addkitchen.html", user=session)
+
+
+@app.route("/kitchenlist", methods=["GET", "POST"])
+def kitchenlist():
+    if not session["email"]:
+        return redirect("/login")
+    print("kitchenlist")
+    kitchens = get_all_kitchens()
+    print(kitchens)
+    return render_template("kitchenlist.html", user=session, kitchens=kitchens)
 
 
 if __name__ == "__main__":

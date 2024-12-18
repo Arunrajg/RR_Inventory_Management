@@ -16,3 +16,10 @@ CREATE TABLE inventory (
     inventorycode VARCHAR(100) NOT NULL UNIQUE,
     address VARCHAR(1000) NOT NULL
 );
+
+CREATE TABLE kitchen (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    kitchenname VARCHAR(100) NOT NULL,
+    kitchencode VARCHAR(100) NOT NULL UNIQUE,
+    address VARCHAR(1000) NOT NULL
+);

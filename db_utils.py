@@ -83,6 +83,17 @@ def get_inventory_by_code(inventory_code):
     return inventory
 
 
+def get_kitchen_by_code(kitchen_code):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM kitchen WHERE kitchencode = %s', (kitchen_code,))
+    kitchen = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    print(f"kitchen -- {kitchen}")
+    return kitchen
+
+
 def get_all_inventories():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -92,15 +103,14 @@ def get_all_inventories():
     conn.close()
     print(f"inventories -- {inventories}")
     return inventories
-# # Check if the provided password matches the stored encrypted password
 
 
-# def check_password(stored_encrypted_password, provided_password):
-#     decrypted_password = decrypt_message(stored_encrypted_password, ENCRYPTION_KEY)
-#     return decrypted_password == provided_password
-
-# # Encrypt password before saving it to the database
-
-
-# def encrypt_password(password):
-#     return encrypt_message(password, ENCRYPTION_KEY)
+def get_all_kitchens():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM kitchen')
+    kitchens = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    print(f"kitchens -- {kitchens}")
+    return kitchens
