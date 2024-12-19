@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Restaurant list</h4>
+            </div>
+            <div class="page-btn">
+                <a href="/addrestaurant" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Restaurant
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="table-responsive">
+                    <table class="table  datanew">
+                        <thead>
+                            <tr>
+                                <th>Restaurant Number</th>
+                                <th>Restaurant name</th>
+                                <th>Restaurant Code</th>
+                                <th>Address</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for restaurant in restaurants %}
+                            <tr>
+                                <td>{{ restaurant.id }}</td>
+                                <td>{{ restaurant.restaurantname }}</td>
+                                <td>{{ restaurant.restaurantcode }}</td>
+                                <td>{{ restaurant.address }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+{% endblock %}

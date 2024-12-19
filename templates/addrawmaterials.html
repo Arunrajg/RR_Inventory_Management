@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Add New Raw Material</h4>
+            </div>
+        </div>
+
+        <form action="/addrawmaterials" method="POST">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Raw Material Name</label>
+                                <input type="text" name="rawmaterial_name" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Unit</label>
+                                <select class="select" name="metric">
+                                    <option value="kg">kg</option>
+                                    <option value="liters">liters</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                            <ul>
+                                {% for category, message in messages %}
+                                <li class="{{ category }}"><b>**{{ message }}</b></li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+                        <div class="col-lg-12">
+                            <button type="submit" class="btn btn-submit me-2">Submit</button>
+                            <a href="/rawmaterialslist" class="btn btn-cancel">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endblock %}

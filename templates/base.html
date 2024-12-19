@@ -23,6 +23,7 @@
         <link rel="stylesheet" href="../static/plugins/fontawesome/css/all.min.css">
 
         <link rel="stylesheet" href="../static/css/style.css">
+        <link rel="stylesheet" href="../static/plugins/select2/css/select2.min.css">
     </head>
 
     <body>
@@ -117,6 +118,24 @@
                                     <li><a href="/addkitchen">Add Kitchen</a></li>
                                 </ul>
                             </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
+                                        alt="img"><span>
+                                        Restaurant</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/restaurantlist">Restaurant List</a></li>
+                                    <li><a href="/addrestaurant">Add Restaurant</a></li>
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
+                                        alt="img"><span>
+                                        Raw Materials</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/rawmaterialslist">Raw Materials List</a></li>
+                                    <li><a href="/addrawmaterials">Add Raw Material</a></li>
+                                </ul>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -142,6 +161,10 @@
         <script src="../static/plugins/apexchart/chart-data.js"></script>
 
         <script src="../static/js/script.js"></script>
+        <script src="../static/plugins/select2/js/select2.min.js"></script>
+        <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+        <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+        <script src="../static/plugins/select2/js/select2.min.js"></script>
 
         {% block scripts %}
         <!-- Additional javascript files can be added here -->

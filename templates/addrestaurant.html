@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Add New Restaurant</h4>
+            </div>
+        </div>
+
+        <form action="/addrestaurant" method="POST">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Restaurant Name</label>
+                                <input type="text" name="restaurant_name" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Restaurant Code</label>
+                                <input type="text" name="restaurant_code" id="restaurant_code" class="form-control"
+                                    maxlength="20" required oninput="validateRestaurantCode(this)"
+                                    title="Restaurant Code must be uppercase, no spaces/special characters, and less than 20 characters">
+                            </div>
+                            <small id="error_message" style="color: red; display: none;">
+                                Restaurant Code must be uppercase, no spaces/special characters, and less than 20
+                                characters.
+                            </small>
+                        </div>
+                        <div class="col-lg-12">
+                            <div class="form-group">
+                                <label>Address</label>
+                                <textarea name="address" class="form-control" required></textarea>
+                            </div>
+                        </div>
+                        <div>
+                            {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                            <ul>
+                                {% for category, message in messages %}
+                                <li class="{{ category }}"><b>**{{ message }}</b></li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+                        <div class="col-lg-12">
+                            <button type="submit" class="btn btn-submit me-2">Submit</button>
+                            <a href="/restaurantlist" class="btn btn-cancel">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    function validateRestaurantCode(input) {
+        let value = input.value;
+
+        // 1. Remove all spaces and special characters
+        value = value.replace(/[^A-Z0-9]/g, ""); // Allow only uppercase letters and numbers
+
+        // 2. Convert to uppercase
+        value = value.toUpperCase();
+
+        // 3. Limit to 20 characters (optional as maxlength handles this)
+        if (value.length > 20) {
+            value = value.slice(0, 20);
+        }
+
+        // Update the input field value
+        input.value = value;
+
+        // Display an error message if needed
+        const errorMessage = document.getElementById("error_message");
+        if (/[^A-Z0-9]/.test(input.value)) {
+            errorMessage.style.display = "block";
+        } else {
+            errorMessage.style.display = "none";
+        }
+    }
+</script>
+
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Raw Materials list</h4>
+            </div>
+            <div class="page-btn">
+                <a href="/addrawmaterials" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Raw Material
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="table-responsive">
+                    <table class="table  datanew">
+                        <thead>
+                            <tr>
+                                <th>Raw Material Number</th>
+                                <th>Raw Material Name</th>
+                                <th>Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for material in rawmaterials %}
+                            <tr>
+                                <td>{{ material.id }}</td>
+                                <td>{{ material.name }}</td>
+                                <td>{{ material.metric }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+{% endblock %}

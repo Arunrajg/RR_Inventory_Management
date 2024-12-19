@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, flash, session
-from db_utils import execute_query, get_user_by_email, get_inventory_by_code, get_all_inventories, get_kitchen_by_code, get_all_kitchens
+from db_utils import *
 from encryption import encrypt_message, decrypt_message
 
 app = Flask(__name__)
@@ -135,6 +135,73 @@ def kitchenlist():
     kitchens = get_all_kitchens()
     print(kitchens)
     return render_template("kitchenlist.html", user=session, kitchens=kitchens)
+
+
+@app.route("/addrestaurant", methods=["GET", "POST"])
+def addrestaurant():
+    if not session["email"]:
+        return redirect("/login")
+    if request.method == "POST":
+        restaurant_name = request.form["restaurant_name"].strip()
+        restaurant_code = request.form["restaurant_code"].strip()
+        address = request.form["address"].strip()
+        existing_restaurant = get_restaurant_by_code(restaurant_code)
+        if existing_restaurant:
+            flash("Restaurant with same code already exists. Please use a different Restaurant Code.", "danger")
+        else:
+            insert_query = """
+                INSERT INTO restaurant (restaurantname, restaurantcode, address)
+                VALUES (%s, %s, %s)
+            """
+            if execute_query(insert_query, (restaurant_name, restaurant_code, address)):
+                flash("Restaurant created successfully!", "success")
+            else:
+                flash("Error: Unable to create a new Restaurant. Please try again later.", "danger")
+        return redirect("/addrestaurant")
+    return render_template("addrestaurant.html", user=session)
+
+
+@app.route("/restaurantlist", methods=["GET", "POST"])
+def restaurantlist():
+    if not session["email"]:
+        return redirect("/login")
+    print("restaurantlist")
+    restaurants = get_all_restaurants()
+    print(restaurants)
+    return render_template("restaurantlist.html", user=session, restaurants=restaurants)
+
+
+@app.route("/addrawmaterials", methods=["GET", "POST"])
+def addrawmaterials():
+    if not session["email"]:
+        return redirect("/login")
+    if request.method == "POST":
+        raw_material = request.form["rawmaterial_name"].strip().lower()
+        metric = request.form["metric"].strip()
+        existing_material = get_raw_material_by_name(raw_material)
+        if existing_material:
+            flash("Raw material already exists.", "danger")
+        else:
+            insert_query = """
+                INSERT INTO raw_materials (name, metric)
+                VALUES (%s, %s)
+            """
+            if execute_query(insert_query, (raw_material, metric)):
+                flash("Raw material added successfully!", "success")
+            else:
+                flash("Error: Unable to add the raw material. Please try again later.", "danger")
+        return redirect("/addrawmaterials")
+    return render_template("addrawmaterials.html", user=session)
+
+
+@app.route("/rawmaterialslist", methods=["GET", "POST"])
+def rawmaterialslist():
+    if not session["email"]:
+        return redirect("/login")
+    print("rawmaterialslist")
+    rawmaterials = get_all_rawmaterials()
+    print(rawmaterials)
+    return render_template("rawmaterialslist.html", user=session, rawmaterials=rawmaterials)
 
 
 if __name__ == "__main__":

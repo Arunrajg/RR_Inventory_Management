@@ -94,6 +94,17 @@ def get_kitchen_by_code(kitchen_code):
     return kitchen
 
 
+def get_restaurant_by_code(restaurant_code):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM restaurant WHERE restaurantcode = %s', (restaurant_code,))
+    restaurant = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    print(f"restaurant -- {restaurant}")
+    return restaurant
+
+
 def get_all_inventories():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -114,3 +125,36 @@ def get_all_kitchens():
     conn.close()
     print(f"kitchens -- {kitchens}")
     return kitchens
+
+
+def get_all_restaurants():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM restaurant')
+    restaurants = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    print(f"restaurants -- {restaurants}")
+    return restaurants
+
+
+def get_raw_material_by_name(material_name):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM raw_materials WHERE name = %s', (material_name,))
+    material = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    print(f"material -- {material}")
+    return material
+
+
+def get_all_rawmaterials():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM raw_materials')
+    raw_materials = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    print(f"raw_materials -- {raw_materials}")
+    return raw_materials
