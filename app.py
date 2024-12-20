@@ -204,5 +204,91 @@ def rawmaterialslist():
     return render_template("rawmaterialslist.html", user=session, rawmaterials=rawmaterials)
 
 
+@app.route('/add_dish', methods=['GET', 'POST'])
+def add_dish():
+    if not session["email"]:
+        return redirect("/login")
+    if request.method == 'POST':
+        category = request.form['category']
+        name = request.form['name']
+        raw_materials = request.form.getlist('raw_materials[]')
+        quantities = request.form.getlist('quantities[]')
+        units = request.form.getlist('units[]')
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        try:
+            # Insert into dishes table
+            cursor.execute("INSERT INTO dishes (category, name) VALUES (%s, %s)", (category, name))
+            dish_id = cursor.lastrowid
+
+            # Insert into dish_raw_materials table
+            for raw_material, quantity, unit in zip(raw_materials, quantities, units):
+                cursor.execute(
+                    "INSERT INTO dish_raw_materials (dish_id, raw_material_id, quantity, unit) VALUES (%s, %s, %s, %s)",
+                    (dish_id, raw_material, quantity, unit)
+                )
+
+            conn.commit()
+            flash('Dish added successfully!', 'success')
+        except Exception as e:
+            conn.rollback()
+            flash(f'Error: {str(e)}', 'danger')
+        finally:
+            cursor.close()
+            conn.close()
+
+        return redirect('/add_dish')
+
+    # Fetch raw materials from the database
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name FROM raw_materials")
+    raw_materials = cursor.fetchall()  # Fetch all raw materials
+    cursor.close()
+    conn.close()
+    print(raw_materials)
+
+    return render_template('add_dish.html', user=session, raw_materials=raw_materials)
+
+
+@app.route('/list_dishes')
+def list_dishes():
+    if not session["email"]:
+        return redirect("/login")
+    # Fetch dishes and their raw materials from the database
+    query = """
+        SELECT d.id, d.name AS dish_name, d.category, 
+               rm.name AS raw_material_name, dr.quantity, dr.unit 
+        FROM dishes d
+        JOIN dish_raw_materials dr ON d.id = dr.dish_id
+        JOIN raw_materials rm ON dr.raw_material_id = rm.id
+        ORDER BY d.id, rm.name
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query)
+    data = cursor.fetchall()
+
+    # Organize data into a dictionary grouped by dishes
+    dishes = {}
+    for row in data:
+        dish_id, dish_name, category, raw_material_name, quantity, unit = row
+        if dish_id not in dishes:
+            dishes[dish_id] = {
+                "name": dish_name,
+                "category": category,
+                "raw_materials": []
+            }
+        dishes[dish_id]["raw_materials"].append({
+            "name": raw_material_name,
+            "quantity": quantity,
+            "unit": unit
+        })
+
+    return render_template('list_dishes.html', user=session, dishes=dishes)
+
+
 if __name__ == "__main__":
     app.run(debug=True)

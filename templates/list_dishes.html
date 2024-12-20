@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Dishes list</h4>
+            </div>
+            <div class="page-btn">
+                <a href="/add_dish" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Dish
+                </a>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title">List of Dishes and Their Raw Materials</h4>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped dataTable">
+                                <thead>
+                                    <tr>
+                                        <th>Dish Id</th>
+                                        <th>Dish Name</th>
+                                        <th>Category</th>
+                                        <th>Raw Materials</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for dish_id, dish_details in dishes.items() %}
+                                    <tr>
+                                        <td>{{ dish_id }}</td>
+                                        <td>{{ dish_details.name }}</td>
+                                        <td>{{ dish_details.category }}</td>
+                                        <td>
+                                            <ul class="list-unstyled">
+                                                {% for material in dish_details.raw_materials %}
+                                                <li>
+                                                    {{ material.name }} - {{ material.quantity }} {{ material.unit }}
+                                                </li>
+                                                {% endfor %}
+                                            </ul>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

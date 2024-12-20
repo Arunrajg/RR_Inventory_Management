@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Add New Dish</h4>
+            </div>
+        </div>
+        <form method="POST" action="/add_dish">
+            <div class="form-group">
+                <label>Category</label>
+                <input type="text" name="category" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label>Dish Name</label>
+                <input type="text" name="name" class="form-control" required>
+            </div>
+
+            <!-- Raw Materials Section -->
+            <div id="raw-materials-container">
+                <div class="row align-items-center raw-material-row mb-2">
+                    <div class="col-md-4">
+                        <label>Raw Material</label>
+                        <select name="raw_materials[]" class="form-control" required>
+                            {% for material in raw_materials %}
+                            <option value="{{ material[0] }}">{{ material[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Quantity</label>
+                        <input type="number" step="0.01" name="quantities[]" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Unit</label>
+                        <select name="units[]" class="form-control" required>
+                            <option value="kg">kg</option>
+                            <option value="liters">liters</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
+                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+            <div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <ul>
+                    {% for category, message in messages %}
+                    <li class="{{ category }}"><b>**{{ message }}</b></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endwith %}
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+    // Event Listener for Adding and Deleting Rows
+    document.getElementById("raw-materials-container").addEventListener("click", function (event) {
+        // Add New Row
+        if (event.target.classList.contains("add-row-btn")) {
+            const container = document.getElementById("raw-materials-container");
+            const newRow = `
+                <div class="row align-items-center raw-material-row mb-2">
+                    <div class="col-md-4">
+                        <select name="raw_materials[]" class="form-control" required>
+                            {% for material in raw_materials %}
+                                <option value="{{ material[0] }}">{{ material[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <input type="number" step="0.01" name="quantities[]" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <select name="units[]" class="form-control" required>
+                            <option value="kg">kg</option>
+                            <option value="liters">liters</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
+                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                    </div>
+                </div>`;
+            container.insertAdjacentHTML("beforeend", newRow);
+        }
+
+        // Delete Existing Row
+        if (event.target.classList.contains("delete-row-btn")) {
+            const row = event.target.closest(".raw-material-row");
+            if (row) {
+                row.remove();
+            }
+        }
+    });
+</script>
+{% endblock %}
