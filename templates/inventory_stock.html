@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Inventory Stock Details</h4>
+            </div>
+            <!-- <div class="page-btn">
+                <a href="/addpurchase" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" alt="img">Add New Purchases
+                </a>
+            </div> -->
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table datanew">
+                        <thead>
+                            <tr>
+                                <th>Inventory Name</th>
+                                <th>Raw Material</th>
+                                <th>Quantity</th>
+                                <th>Unit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stock in inventory_stock %}
+                            <tr>
+                                <td>{{ stock[0]}}</td>
+                                <td>{{ stock[1]}}</td>
+                                <td>{{ stock[2] }}</td>
+                                <td>{{ stock[3] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

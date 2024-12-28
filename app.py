@@ -1,10 +1,14 @@
+import logging
 from flask import Flask, render_template, request, redirect, flash, session
 from db_utils import *
 from encryption import encrypt_message, decrypt_message
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
 encryption_key = b'ES4FoQd6EwUUUY3v-_WwoyYsBEYkWUTOrQD1VEngBkI='
+
+app.logger.setLevel(logging.DEBUG)
 
 
 @app.route("/")
@@ -253,7 +257,7 @@ def add_dish():
     return render_template('add_dish.html', user=session, raw_materials=raw_materials)
 
 
-@app.route('/list_dishes')
+@app.route('/list_dishes', methods=['GET', 'POST'])
 def list_dishes():
     if not session["email"]:
         return redirect("/login")
@@ -288,6 +292,238 @@ def list_dishes():
         })
 
     return render_template('list_dishes.html', user=session, dishes=dishes)
+
+
+@app.route('/add_purchase', methods=['GET', 'POST'])
+def add_purchase():
+    connection = get_db_connection()
+    raw_materials = []
+    inventories = []
+
+    try:
+        with connection.cursor() as cursor:
+            # Fetch raw materials
+            cursor.execute("SELECT id, name FROM raw_materials")
+            raw_materials = cursor.fetchall()
+
+            # Fetch inventory
+            cursor.execute("SELECT id, inventoryname, inventorycode FROM inventory")
+            inventories = cursor.fetchall()
+    finally:
+        connection.close()
+    app.logger.debug(f"raw_materialsraw_materials {raw_materials}")
+    app.logger.debug(inventories)
+
+    if request.method == 'POST':
+        # Handle form submission
+        raw_material_id = request.form.get('raw_material_id')
+        quantity = request.form.get('quantity')
+        unit = request.form.get('unit')
+        total_cost = request.form.get('total_cost')
+        purchase_date = request.form.get('purchase_date')
+        inventory_id = request.form.get('inventory_id')
+        inventory_name = get_inventory_by_id(inventory_id)["inventoryname"]
+        app.logger.debug(raw_materials)
+        app.logger.debug(raw_material_id)
+        app.logger.debug(f"inventory_name {inventory_name}")
+
+        connection = get_db_connection()
+        try:
+            raw_material_name = [m[1] for m in raw_materials if m[0] == int(raw_material_id)][0]
+            app.logger.debug(raw_material_name)
+            with connection.cursor() as cursor:
+                # Insert into purchase_history
+                cursor.execute("""
+                    INSERT INTO purchase_history
+                    (raw_material_id, raw_material_name, quantity, unit, total_cost, purchase_date, inventory_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (raw_material_id, raw_material_name, quantity, unit, total_cost, purchase_date, inventory_id))
+                connection.commit()
+                cursor.execute("""
+                    INSERT INTO inventory_stock
+                    (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, unit)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, unit))
+                connection.commit()
+            flash("Purchase added successfully!", "success")
+
+        except Exception as e:
+            flash(f"Error: {str(e)}", "danger")
+        finally:
+            connection.close()
+        return redirect('/add_purchase')
+
+    return render_template('add_purchase.html', raw_materials=raw_materials, inventories=inventories, user=session)
+
+
+@app.route('/purchase_list')
+def purchase_list():
+    connection = get_db_connection()
+    purchases = []
+
+    try:
+        with connection.cursor() as cursor:
+            # Query the purchase history to retrieve required fields
+            cursor.execute("""
+                SELECT ph.id, rm.name AS raw_material_name, ph.quantity, ph.unit, ph.total_cost, ph.purchase_date, i.inventoryname AS inventory_name
+                FROM purchase_history ph
+                JOIN raw_materials rm ON ph.raw_material_id = rm.id
+                JOIN inventory i ON ph.inventory_id = i.id
+            """)
+            purchases = cursor.fetchall()
+
+            app.logger.debug(f"purchases {purchases}")
+    except Exception as e:
+        app.logger.debug(f"purchases {purchases}")
+        app.logger.error(f"Error retrieving purchase data: {e}")
+        flash(f"Error retrieving purchase data: {str(e)}", "danger")
+    finally:
+        connection.close()
+
+    return render_template('purchase_list.html', purchases=purchases, user=session)
+
+
+@app.route('/inventory_stock')
+def inventory_stock():
+    connection = get_db_connection()
+    purchases = []
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT inventory_name, raw_material_name, quantity, unit FROM inventory_stock")
+            inventory_stock = cursor.fetchall()
+            purchases = cursor.fetchall()
+
+            app.logger.debug(f"inventory_stock {inventory_stock}")
+    except Exception as e:
+        app.logger.debug(f"inventory_stock {inventory_stock}")
+        app.logger.error(f"Error retrieving inventory_stock data: {e}")
+        flash(f"Error retrieving inventory_stock data: {str(e)}", "danger")
+    finally:
+        connection.close()
+
+    return render_template('inventory_stock.html', inventory_stock=inventory_stock, user=session)
+
+
+@app.route('/kitchen_stock')
+def kitchen_stock():
+    connection = get_db_connection()
+    purchases = []
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT kitchen_id, raw_material_name, quantity, unit FROM kitchen_stock")
+            kitchen_stock = cursor.fetchall()
+            purchases = cursor.fetchall()
+
+            app.logger.debug(f"kitchen_stock {kitchen_stock}")
+    except Exception as e:
+        app.logger.debug(f"kitchen_stock {kitchen_stock}")
+        app.logger.error(f"Error retrieving kitchen_stock data: {e}")
+        flash(f"Error retrieving kitchen_stock data: {str(e)}", "danger")
+    finally:
+        connection.close()
+
+    return render_template('kitchen_stock.html', kitchen_stock=kitchen_stock, user=session)
+
+
+@app.route('/transfer_raw_material', methods=['GET', 'POST'])
+def transfer_raw_material():
+    if request.method == 'POST':
+        raw_material_id = request.form['raw_material_id']
+        quantity = request.form['quantity']
+        destination_type = request.form['destination_type']  # restaurant or kitchen
+        destination_id = request.form['destination_id']
+        dish_id = request.form['dish_id']
+
+        # Establish a connection to the database
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Get raw material and dish names
+        cursor.execute('SELECT name, metric FROM raw_materials WHERE id = %s', (raw_material_id,))
+        raw_material = cursor.fetchone()
+
+        cursor.execute('SELECT name FROM dishes WHERE id = %s', (dish_id,))
+        dish = cursor.fetchone()
+
+        if not raw_material or not dish:
+            flash('Invalid raw material or dish ID.')
+            return redirect('/transfer_raw_material')
+
+        # Calculate the new stock after transfer
+        if destination_type == 'restaurant':
+            cursor.execute('SELECT * FROM restaurant_stock WHERE restaurant_id = %s AND raw_material_id = %s',
+                           (destination_id, raw_material_id))
+            stock = cursor.fetchone()
+
+            if stock:
+                # Update the existing stock record
+                new_quantity = float(stock['quantity']) + float(quantity)
+                cursor.execute('UPDATE restaurant_stock SET quantity = %s WHERE id = %s', (new_quantity, stock['id']))
+            else:
+                # Insert new record into restaurant_stock
+                cursor.execute('INSERT INTO restaurant_stock (restaurant_id, raw_material_id, raw_material_name, quantity, unit, dish_id, dish_name) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                               (destination_id, raw_material_id, raw_material['name'], quantity, raw_material['metric'], dish_id, dish['name']))
+
+        elif destination_type == 'kitchen':
+            cursor.execute('SELECT * FROM kitchen_stock WHERE kitchen_id = %s AND raw_material_id = %s',
+                           (destination_id, raw_material_id))
+            stock = cursor.fetchone()
+
+            if stock:
+                # Update the existing stock record
+                new_quantity = float(stock['quantity']) + float(quantity)
+                cursor.execute('UPDATE kitchen_stock SET quantity = %s WHERE id = %s', (new_quantity, stock['id']))
+            else:
+                # Insert new record into kitchen_stock
+                cursor.execute('INSERT INTO kitchen_stock (kitchen_id, raw_material_id, raw_material_name, quantity, unit, dish_id, dish_name) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+                               (destination_id, raw_material_id, raw_material['name'], quantity, raw_material['metric'], dish_id, dish['name']))
+
+        # Create a new transfer record in raw_material_transfer
+        cursor.execute('INSERT INTO raw_material_transfer (raw_material_id, raw_material_name, quantity, unit, dish_id, dish_name, destination_type, destination_id, transaction_date) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)',
+                       (raw_material_id, raw_material['name'], quantity, raw_material['metric'], dish_id, dish['name'], destination_type, destination_id, datetime.now()))
+
+        conn.commit()
+
+        # Close the database connection
+        cursor.close()
+        conn.close()
+
+        flash('Raw material transferred successfully!')
+        return redirect('/transfer_raw_material')
+
+    # Fetch raw materials, dishes, and restaurant/kitchen data to populate in the form
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute('SELECT * FROM raw_materials')
+    raw_materials = cursor.fetchall()
+
+    cursor.execute('SELECT * FROM dishes')
+    dishes = cursor.fetchall()
+
+    cursor.execute('SELECT * FROM restaurant')
+    restaurants = cursor.fetchall()
+
+    cursor.execute('SELECT * FROM kitchen')
+    kitchens = cursor.fetchall()
+
+    cursor.execute('SELECT * FROM inventory')
+    inventories = cursor.fetchall()
+
+    cursor.close()
+    conn.close()
+
+    return render_template('transfer_raw_material.html', inventories=inventories, raw_materials=raw_materials, dishes=dishes, restaurants=restaurants, kitchens=kitchens, user=session)
+
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if not session["email"]:
+        return redirect("/login")
+    user = get_user_by_email(session["email"])
+    return render_template('profile.html', user=user)
 
 
 if __name__ == "__main__":

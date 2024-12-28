@@ -83,6 +83,17 @@ def get_inventory_by_code(inventory_code):
     return inventory
 
 
+def get_inventory_by_id(inventory_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM inventory WHERE id = %s', (inventory_id,))
+    inventory = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    print(f"inventory -- {inventory}")
+    return inventory
+
+
 def get_kitchen_by_code(kitchen_code):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
