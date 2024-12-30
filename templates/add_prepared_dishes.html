@@ -1,0 +1,160 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Add Dish Preparation</h4>
+                <h6>Record dishes prepared in the kitchen or restaurant</h6>
+            </div>
+        </div>
+        <form method="POST" action="/add_prepared_dishes">
+            <div class="form-group">
+                <label>Location Type</label>
+                <select name="location_type" id="location-type" class="form-control" required>
+                    <option value="">Select</option>
+                    <option value="kitchen">Kitchen</option>
+                    <option value="restaurant">Restaurant</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Location Code</label>
+                <select name="location_code" id="location-code" class="form-control" required>
+                    <option value="">Select</option>
+                </select>
+            </div>
+            <div id="dish-container">
+                <div class="row align-items-center dish-row mb-2">
+                    <div class="col-md-3">
+                        <label>Category</label>
+                        <select name="dish_category[]" class="form-control dish-category" required>
+                            <option value="">Select Category</option>
+                            {% for dish in dishes | groupby('category') %}
+                            <option value="{{ dish.grouper }}">{{ dish.grouper }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Dish Name</label>
+                        <select name="dish_name[]" class="form-control dish-name" required>
+                            <option value="">Select Dish</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Quantity</label>
+                        <input type="number" step="1" name="quantity[]" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Prepared On</label>
+                        <input type="date" name="prepared_on[]" class="form-control" value="{{ current_date }}"
+                            required>
+                    </div>
+                    <div class="col-md-1 d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
+                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flash Messages -->
+            <div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <ul class="flash-messages">
+                    {% for category, message in messages %}
+                    <li class="{{ category }}"><b>**{{ message }}</b></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endwith %}
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const kitchens = {{ kitchens | tojson | safe }};
+    const restaurants = {{ restaurants | tojson | safe }};
+    const dishes = {{ dishes | tojson | safe }};
+
+    document.getElementById("location-type").addEventListener("change", function () {
+        const locationType = this.value;
+        const locationCodeSelect = document.getElementById("location-code");
+        locationCodeSelect.innerHTML = "<option value=''>Select</option>";
+
+        let locations = [];
+        if (locationType === "kitchen") {
+            locations = kitchens;
+        } else if (locationType === "restaurant") {
+            locations = restaurants;
+        }
+
+        locations.forEach(location => {
+            locationCodeSelect.innerHTML += `<option value="${location.kitchencode || location.restaurantcode}">${location.kitchenname || location.restaurantname} (${location.kitchencode || location.restaurantcode})</option>`;
+        });
+    });
+
+    document.getElementById("dish-container").addEventListener("change", function (event) {
+        if (event.target.classList.contains("dish-category")) {
+            const category = event.target.value;
+            const dishSelect = event.target.closest(".dish-row").querySelector(".dish-name");
+            dishSelect.innerHTML = "<option value=''>Select Dish</option>";
+
+            dishes.filter(dish => dish.category === category).forEach(dish => {
+                dishSelect.innerHTML += `<option value="${dish.id}_${dish.name}">${dish.name}</option>`;
+            });
+        }
+    });
+
+    document.getElementById("dish-container").addEventListener("click", function (event) {
+        if (event.target.classList.contains("add-row-btn")) {
+            const container = document.getElementById("dish-container");
+            const newRow = `
+                <div class="row align-items-center dish-row mb-2">
+                    <div class="col-md-3">
+                        <label>Category</label>
+                        <select name="dish_category[]" class="form-control dish-category" required>
+                            <option value="">Select Category</option>
+                            {% for dish in dishes | groupby('category') %}
+                            <option value="{{ dish.grouper }}">{{ dish.grouper }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Dish Name</label>
+                        <select name="dish_name[]" class="form-control dish-name" required>
+                            <option value="">Select Dish</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Quantity</label>
+                        <input type="number" step="1" name="quantity[]" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label>Prepared On</label>
+                        <input type="date" name="prepared_on[]" class="form-control" value="{{ current_date }}" required>
+                    </div>
+                    <div class="col-md-1 d-flex justify-content-between">
+                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
+                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                    </div>
+                </div>`;
+            container.insertAdjacentHTML("beforeend", newRow);
+        }
+
+        if (event.target.classList.contains("delete-row-btn")) {
+            const row = event.target.closest(".dish-row");
+            if (row) {
+                row.remove();
+            }
+        }
+    });
+</script>
+{% endblock %}

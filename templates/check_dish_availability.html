@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Dish Availability for Restaurant</h4>
+            </div>
+        </div>
+
+        <!-- Form to select date and restaurant -->
+        <form action="/check_dish_availability" method="POST">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Date Input -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Select Date</label>
+                                <input type="date" name="selected_date" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <!-- Restaurant Dropdown -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Select Restaurant</label>
+                                <select name="restaurant_id" class="form-control" required>
+                                    <option value="" disabled selected>Select Restaurant</option>
+                                    {% for restaurant in restaurants %}
+                                    <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }} ({{
+                                        restaurant.restaurantcode }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="col-lg-12">
+                            <button type="submit" class="btn btn-submit me-2">Check Availability</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- Table to show dish availability -->
+        {% if dishes %}
+        <div class="card mt-4">
+            <div class="card-body">
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Dish Name</th>
+                            <th>Dish Category</th>
+                            <th>Quantity Available</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for dish in dishes %}
+                        <tr>
+                            <td>{{ dish.name }}</td>
+                            <td>{{ dish.category }}</td>
+                            <td>{{ dish.quantity_available }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

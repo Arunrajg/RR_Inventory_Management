@@ -22,35 +22,29 @@
                         </div>
                     </div>
                 </div>
-
-
                 <div class="table-responsive">
                     <table class="table  datanew">
                         <thead>
                             <tr>
                             <tr>
-                                <th>Dish Id</th>
+                                <th>Location Type</th>
+                                <th>Location</th>
+                                <th>Dish Category</th>
                                 <th>Dish Name</th>
-                                <th>Category</th>
-                                <th>Raw Materials</th>
+                                <th>Quantity</th>
+                                <th>Prepared On</th>
                             </tr>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for dish_id, dish_details in dishes.items() %}
+                            {% for detail in data %}
                             <tr>
-                                <td>{{ dish_id }}</td>
-                                <td>{{ dish_details.name }}</td>
-                                <td>{{ dish_details.category }}</td>
-                                <td>
-                                    <ul class="list-unstyled">
-                                        {% for material in dish_details.raw_materials %}
-                                        <li>
-                                            {{ material.name }} - {{ material.quantity }} {{ material.unit }}
-                                        </li>
-                                        {% endfor %}
-                                    </ul>
-                                </td>
+                                <td>{{ detail[1] }}</td>
+                                <td>{{ detail[3] }}({{ detail[4] }})</td>
+                                <td>{{ detail[5] }}</td>
+                                <td>{{ detail[7] }}</td>
+                                <td>{{ detail[8] }}</td>
+                                <td>{{ detail[9] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -19,17 +19,20 @@
                         </div>
                         <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Unit</label>
+                                <label>Metric</label>
                                 <select class="select" name="metric">
                                     <option value="kg">kg</option>
-                                    <option value="liters">liters</option>
+                                    <!-- <option value="grams">grams</option> -->
+                                    <option value="liter">liter</option>
+                                    <!-- <option value="ml">milliliter</option> -->
+                                    <option value="unit">unit</option>
                                 </select>
                             </div>
                         </div>
                         <div>
                             {% with messages = get_flashed_messages(with_categories=true) %}
                             {% if messages %}
-                            <ul>
+                            <ul class="flash-messages">
                                 {% for category, message in messages %}
                                 <li class="{{ category }}"><b>**{{ message }}</b></li>
                                 {% endfor %}

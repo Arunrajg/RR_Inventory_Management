@@ -9,32 +9,38 @@
             content="admin, estimates, bootstrap, business, corporate, creative, invoice, html5, responsive, Projects">
         <meta name="author" content="Dreamguys - Bootstrap Admin Template">
         <meta name="robots" content="noindex, nofollow">
-        <title>Unavu Kanakku</title>
+        <title>Dharani Inventory Solution</title>
 
         <link rel="shortcut icon" type="image/x-icon" href="../static/img/applogo.png">
 
         <link rel="stylesheet" href="../static/css/bootstrap.min.css">
-
         <link rel="stylesheet" href="../static/plugins/fontawesome/css/fontawesome.min.css">
         <link rel="stylesheet" href="../static/plugins/fontawesome/css/all.min.css">
-
         <link rel="stylesheet" href="../static/css/style.css">
+
+        <style>
+            .error-message {
+                color: red;
+                font-size: 0.9em;
+                margin-top: 5px;
+            }
+
+        </style>
     </head>
 
     <body class="account-page">
-
         <div class="main-wrapper">
             <div class="account-content">
                 <div class="login-wrapper">
                     <div class="login-content">
                         <div class="login-userset">
                             <div class="login-logo">
-                                <h1><b>UNAVU KANAKKU</b></h1>
+                                <h1><b>Dharani Inventory Solution</b></h1>
                             </div>
                             <div class="login-userheading">
                                 <h3>Create an Account</h3>
                             </div>
-                            <form action="/signup" method="post">
+                            <form id="signup-form" action="/signup" method="post">
                                 <div class="form-login">
                                     <label>Full Name</label>
                                     <div class="form-addons">
@@ -55,11 +61,22 @@
                                 <div class="form-login">
                                     <label>Password</label>
                                     <div class="pass-group">
-                                        <input type="password" name="password" class="pass-input"
+                                        <input type="password" id="password" name="password" class="pass-input"
                                             placeholder="Enter your password" required>
                                         <span class="fas toggle-password fa-eye-slash"></span>
                                     </div>
                                 </div>
+
+                                <div class="form-login">
+                                    <label>Confirm Password</label>
+                                    <div class="pass-group">
+                                        <input type="password" id="confirm-password" name="confirmpassword"
+                                            class="pass-input" placeholder="Enter your password again" required>
+                                        <span class="fas toggle-password fa-eye-slash"></span>
+                                    </div>
+                                    <span id="error-message" class="error-message"></span>
+                                </div>
+
                                 <!-- Display flashed messages -->
                                 {% with messages = get_flashed_messages(with_categories=true) %}
                                 {% if messages %}
@@ -70,6 +87,7 @@
                                 </ul>
                                 {% endif %}
                                 {% endwith %}
+
                                 <div class="form-login">
                                     <button type="submit" class="btn btn-login">Sign Up</button>
                                 </div>
@@ -86,14 +104,35 @@
             </div>
         </div>
 
-
         <script src="../static/js/jquery-3.6.0.min.js"></script>
-
         <script src="../static/js/feather.min.js"></script>
-
         <script src="../static/js/bootstrap.bundle.min.js"></script>
+        <script>
+            const form = document.getElementById('signup-form');
+            const password = document.getElementById('password');
+            const confirmPassword = document.getElementById('confirm-password');
+            const errorMessage = document.getElementById('error-message');
 
-        <script src="../static/js/script.js"></script>
+            form.addEventListener('submit', function (event) {
+                // Clear previous error message
+                errorMessage.textContent = '';
+
+                // Check if passwords match
+                if (password.value !== confirmPassword.value) {
+                    event.preventDefault(); // Prevent form submission
+                    errorMessage.textContent = 'Passwords do not match.';
+                }
+            });
+
+            // Optional: Real-time validation feedback
+            confirmPassword.addEventListener('input', function () {
+                if (password.value === confirmPassword.value) {
+                    errorMessage.textContent = '';
+                } else {
+                    errorMessage.textContent = 'Passwords do not match.';
+                }
+            });
+        </script>
     </body>
 
 </html>

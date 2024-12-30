@@ -1,3 +1,5 @@
+import random
+import string
 from cryptography.fernet import Fernet
 
 # Generate a key and store it securely
@@ -22,6 +24,10 @@ def decrypt_message(encrypted_message: bytes, key: bytes) -> str:
     decrypted_message = fernet.decrypt(encrypted_message).decode()
     return decrypted_message
 
+
+def generate_random_password(length=10):
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(characters) for _ in range(length))
 
 # If you want to generate a key, you can run this separately and store the key securely
 # key = generate_key()

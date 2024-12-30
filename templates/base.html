@@ -7,9 +7,9 @@
         <meta name="description" content="Restaurant Inventory Management">
         <meta name="keywords"
             content="admin, estimates, bootstrap, business, corporate, creative, management, minimal, modern,  html5, responsive">
-        <meta name="author" content="Dreamguys - Bootstrap Admin Template">
+        <meta name="author" content="Restaurant Inventory Management">
         <meta name="robots" content="noindex, nofollow">
-        <title>Unavu Kanakku</title>
+        <title>Dharani Inventory Solution</title>
 
         <link rel="shortcut icon" type="image/x-icon" href="../static/img/favicon.jpg">
 
@@ -43,8 +43,8 @@
                     <a href="/index" class="logo-small">
                         <img src="../static/img/logo-small.png" alt="">
                     </a>
-                    <a id="toggle_btn" href="javascript:void(0);">
-                    </a>
+                    <!-- <a id="toggle_btn" href="javascript:void(0);">
+                    </a> -->
                 </div>
 
                 <a id="mobile_btn" class="mobile_btn" href="#sidebar">
@@ -69,6 +69,9 @@
                                 <hr class="m-0">
                                 <a class="dropdown-item" href="/profile"> <i class="me-2" data-feather="user"></i>
                                     My Profile</a>
+                                <a class="dropdown-item" href="/changepassword"><i class="me-2"
+                                        data-feather="settings"></i>Change Password</a>
+                                <hr class="m-0">
                                 <a class="dropdown-item" href="generalsettings.html"><i class="me-2"
                                         data-feather="settings"></i>Settings</a>
                                 <hr class="m-0">
@@ -80,7 +83,7 @@
                 </ul>
 
 
-                <div class="dropdown mobile-user-menu">
+                <!-- <div class="dropdown mobile-user-menu">
                     <a href="javascript:void(0);" class="nav-link dropdown-toggle" data-bs-toggle="dropdown"
                         aria-expanded="false"><i class="fa fa-ellipsis-v"></i></a>
                     <div class="dropdown-menu dropdown-menu-right">
@@ -88,7 +91,7 @@
                         <a class="dropdown-item" href="generalsettings.html">Settings</a>
                         <a class="dropdown-item" href="/logout">Logout</a>
                     </div>
-                </div>
+                </div> -->
 
             </div>
 
@@ -135,6 +138,13 @@
                                 <ul>
                                     <li><a href="/rawmaterialslist">Raw Materials List</a></li>
                                     <li><a href="/addrawmaterials">Add Raw Material</a></li>
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
+                                        alt="img"><span>
+                                        Dishes</span> <span class="menu-arrow"></span></a>
+                                <ul>
                                     <li><a href="/add_dish">Add Dish</a></li>
                                     <li><a href="/list_dishes">List Dishes</a></li>
                                 </ul>
@@ -146,6 +156,7 @@
                                 <ul>
                                     <li><a href="/purchase_list">Purchase List</a></li>
                                     <li><a href="/add_purchase">Add Purchase</a></li>
+                                    <li><a href="/bulk_add_purchases">Bulk Add Purchase</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -153,9 +164,19 @@
                                         alt="img"><span> Stock</span> <span class="menu-arrow"></span></a>
                                 <ul>
                                     <li><a href="/inventory_stock">Inventory Stock</a></li>
-                                    <li><a href="/kitchen_stock">Kitchen Stock</a></li>
+                                    <!-- <li><a href="/kitchen_stock">Kitchen Stock</a></li>
                                     <li><a href="/restaurant_stock">Restaurant Stock</a></li>
-                                    <!-- <li><a href="addquotation.html">Add Quotation</a></li> -->
+                                    <li><a href="addquotation.html">Add Quotation</a></li> -->
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
+                                        alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/add_prepared_dishes">Add Prepared Dishes</a></li>
+                                    <li><a href="/list_prepared_dishes">List Prepared Dishes</a></li>
+                                    <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
+                                    <li><a href="addquotation.html">Add Quotation</a></li> -->
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -163,9 +184,21 @@
                                         alt="img"><span>
                                         Transfer</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/transfer_raw_material">Transfer List</a></li>
-                                    <!-- <li><a href="addtransfer.html">Add Transfer </a></li>
-                                    <li><a href="importtransfer.html">Import Transfer </a></li> -->
+                                    <li><a href="/transfer_raw_material">Transfer Raw Materials</a></li>
+                                    <li><a href="/transfer_prepared_dishes">Transfer Prepared Dishes</a></li>
+                                    <li><a href="/bulk_transfer">Bulk Transfer Raw Materials</a></li>
+                                    <li><a href="/list_transfers">List Raw Material Transfers </a></li>
+                                    <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg"
+                                        alt="img"><span>
+                                        Estimate</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/estimate_dishes">Estimate Dishes</a></li>
+                                    <li><a href="/check_dish_availability">Check Dish Availability </a></li>
+                                    <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
                                 </ul>
                             </li>
                         </ul>

@@ -21,7 +21,9 @@
                                     onchange="checkAvailableQuantity()">
                                     <option value="" disabled selected>Select Source Inventory</option>
                                     {% for inventory in inventories %}
-                                    <option value="{{ inventory.id }}">{{ inventory.inventoryname }}</option>
+                                    <option value="{{ inventory.id }}_{{ inventory.inventorycode}}">{{
+                                        inventory.inventoryname }}({{
+                                        inventory.inventorycode }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -48,6 +50,19 @@
                                 <label>Quantity</label>
                                 <input type="number" name="quantity" class="form-control" required min="1" step="any"
                                     id="quantity" oninput="checkAvailableQuantity()">
+                            </div>
+                        </div>
+                        <!-- Metric Input -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <div class="form-group">
+                                    <label>Metric</label>
+                                    <select class="select" name="metric">
+                                        <option value="kg">kg</option>
+                                        <option value="liter">liter</option>
+                                        <option value="unit">unit</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -78,7 +93,7 @@
                         <!-- Dish Dropdown -->
                         <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Dish</label>
+                                <label>For Dish</label>
                                 <select name="dish_id" class="form-control" required>
                                     <option value="" disabled selected>Select Dish</option>
                                     {% for dish in dishes %}
@@ -88,11 +103,10 @@
                             </div>
                         </div>
 
-                        <!-- Flash messages -->
                         <div>
                             {% with messages = get_flashed_messages(with_categories=true) %}
                             {% if messages %}
-                            <ul>
+                            <ul class="flash-messages">
                                 {% for category, message in messages %}
                                 <li class="{{ category }}"><b>**{{ message }}</b></li>
                                 {% endfor %}
@@ -133,7 +147,7 @@
             destinationLabel.innerHTML = 'Restaurant';
             {% for restaurant in restaurants %}
             let option = document.createElement('option');
-            option.value = '{{ restaurant.id }}';
+            option.value = '{{ restaurant.id }}_{{ restaurant.restaurantcode }}';
             option.innerText = '{{ restaurant.restaurantcode }}';
             destinationSelect.appendChild(option);
             {% endfor %}
@@ -141,7 +155,7 @@
             destinationLabel.innerHTML = 'Kitchen';
             {% for kitchen in kitchens %}
             let option = document.createElement('option');
-            option.value = '{{ kitchen.id }}';
+            option.value = '{{ kitchen.id }}_{{ kitchen.kitchencode }}';
             option.innerText = '{{ kitchen.kitchencode }}';
             destinationSelect.appendChild(option);
             {% endfor %}
@@ -171,4 +185,53 @@
         toggleDestinationField();
     });
 </script>
+<script>
+    // Map inventory stock data
+    const inventoryStock = [
+        {% for stock in inventory_stock %}
+    {
+        inventory_id: "{{ stock.inventory_id }}",
+            raw_material_id: "{{ stock.raw_material_id }}",
+                quantity: parseFloat("{{ stock.quantity }}"),
+                    metric: "{{ stock.metric }}"
+    },
+    {% endfor %}
+    ];
+
+    function checkAvailableQuantity() {
+        const sourceInventorySelect = document.querySelector('select[name="source_inventory_id"]');
+        const rawMaterialSelect = document.querySelector('select[name="raw_material_id"]');
+        const quantityInput = document.getElementById('quantity');
+
+        const selectedInventoryId = sourceInventorySelect.value.split('_')[0];
+        const selectedRawMaterialId = rawMaterialSelect.value;
+        const enteredQuantity = parseFloat(quantityInput.value);
+
+        if (!selectedInventoryId || !selectedRawMaterialId || isNaN(enteredQuantity)) {
+            quantityInput.setCustomValidity('');
+            return;
+        }
+
+        // Find the matching stock entry
+        const stock = inventoryStock.find(item =>
+            item.inventory_id === selectedInventoryId && item.raw_material_id === selectedRawMaterialId
+        );
+
+        if (stock && enteredQuantity > stock.quantity) {
+            quantityInput.setCustomValidity(
+                `The quantity cannot exceed ${stock.quantity} ${stock.metric} available in Inventory ID ${stock.inventory_id}.`
+            );
+        } else {
+            quantityInput.setCustomValidity('');
+        }
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelector('select[name="source_inventory_id"]').addEventListener('change', checkAvailableQuantity);
+        document.querySelector('select[name="raw_material_id"]').addEventListener('change', checkAvailableQuantity);
+        document.getElementById('quantity').addEventListener('input', checkAvailableQuantity);
+    });
+</script>
+
 {% endblock %}

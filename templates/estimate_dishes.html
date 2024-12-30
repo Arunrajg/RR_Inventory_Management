@@ -1,17 +1,24 @@
 {% extends 'base.html' %}
+
 {% block content %}
 <div class="page-wrapper">
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Dishes list</h4>
-            </div>
-            <div class="page-btn">
-                <a href="/add_dish" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Dish
-                </a>
+                <h4>Estimates List</h4>
             </div>
         </div>
+
+        <!-- Date Input Form -->
+        <form method="POST" action="{{ url_for('estimate_dishes') }}">
+            <div class="card">
+                <div class="card-body">
+                    <label for="date">Select Date:</label>
+                    <input type="date" id="date" name="date" value="{{ selected_date if selected_date else '' }}">
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </div>
+            </div>
+        </form>
 
         <div class="card">
             <div class="card-body">
@@ -23,30 +30,25 @@
                     </div>
                 </div>
 
-
                 <div class="table-responsive">
-                    <table class="table  datanew">
+                    <table class="table datanew">
                         <thead>
                             <tr>
-                            <tr>
-                                <th>Dish Id</th>
                                 <th>Dish Name</th>
-                                <th>Category</th>
+                                <th>Estimated Quantity</th>
                                 <th>Raw Materials</th>
-                            </tr>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for dish_id, dish_details in dishes.items() %}
+                            {% for estimate in estimates %}
                             <tr>
-                                <td>{{ dish_id }}</td>
-                                <td>{{ dish_details.name }}</td>
-                                <td>{{ dish_details.category }}</td>
+                                <td>{{ estimate.dish_name }}</td>
+                                <td>{{ estimate.estimate }}</td>
                                 <td>
                                     <ul class="list-unstyled">
-                                        {% for material in dish_details.raw_materials %}
+                                        {% for material in estimate.raw_materials %}
                                         <li>
-                                            {{ material.name }} - {{ material.quantity }} {{ material.unit }}
+                                            {{ material.name }} - {{ material.quantity_used }} {{ material.metric }}
                                         </li>
                                         {% endfor %}
                                     </ul>
@@ -62,7 +64,6 @@
     </div>
 </div>
 {% endblock %}
-
 
 {% block scripts %}
 <script src="../static/plugins/select2/js/select2.min.js"></script>

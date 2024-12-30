@@ -8394,3 +8394,6 @@ span.select2-container.select2-container--default.select2-container--open {
     color: #721c24;
     border: 1px solid #f5c6cb;
 }
+.flash-messages {
+    margin-bottom: 20px;
+}

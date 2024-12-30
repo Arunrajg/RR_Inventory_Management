@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Transfer Prepared Dish</h4>
+            </div>
+        </div>
+
+        <form action="/transfer_prepared_dishes" method="POST">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Source Kitchen Dropdown -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Source Kitchen</label>
+                                <select name="source_kitchen_id" class="form-control" required>
+                                    <option value="" disabled selected>Select Source Kitchen</option>
+                                    {% for kitchen in kitchens %}
+                                    <option value="{{ kitchen.id }}_{{ kitchen.kitchencode }}">
+                                        {{ kitchen.kitchenname }} ({{ kitchen.kitchencode }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Destination Restaurant Dropdown -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Destination Restaurant</label>
+                                <select name="destination_restaurant_id" class="form-control" required>
+                                    <option value="" disabled selected>Select Destination Restaurant</option>
+                                    {% for restaurant in restaurants %}
+                                    <option value="{{ restaurant.id }}_{{ restaurant.restaurantcode }}">
+                                        {{ restaurant.restaurantname }} ({{ restaurant.restaurantcode }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dish Category Dropdown -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Dish Category</label>
+                                <select name="dish_category" class="form-control" required
+                                    onchange="populateDishNames()">
+                                    <option value="" disabled selected>Select Dish Category</option>
+                                    {% for dish in dishes %}
+                                    <option value="{{ dish.category }}">{{ dish.category }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Dish Name Dropdown (based on selected category) -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Dish Name</label>
+                                <select name="dish_id" class="form-control" required>
+                                    <option value="" disabled selected>Select Dish</option>
+                                    <!-- Dynamic options based on category will be populated here -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Quantity Input -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Quantity</label>
+                                <input type="number" name="quantity" class="form-control" required min="1" step="any">
+                            </div>
+                        </div>
+
+                        <!-- Transferred Date (Default to today's date) -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Transferred Date</label>
+                                <input type="date" name="transferred_date" class="form-control" value="{{ today_date }}"
+                                    required>
+                            </div>
+                        </div>
+
+                        <div>
+                            {% with messages = get_flashed_messages(with_categories=true) %}
+                            {% if messages %}
+                            <ul class="flash-messages">
+                                {% for category, message in messages %}
+                                <li class="{{ category }}"><b>**{{ message }}</b></li>
+                                {% endfor %}
+                            </ul>
+                            {% endif %}
+                            {% endwith %}
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="col-lg-12">
+                            <button type="submit" class="btn btn-submit me-2">Transfer</button>
+                            <a href="/dashboard" class="btn btn-cancel">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+
+<script>
+    // Function to populate dish names based on selected category
+    function populateDishNames() {
+        const categorySelect = document.querySelector('select[name="dish_category"]');
+        const selectedCategory = categorySelect.value;
+        const dishSelect = document.querySelector('select[name="dish_id"]');
+
+        // Clear existing options
+        dishSelect.innerHTML = '<option value="" disabled selected>Select Dish</option>';
+
+        // Loop through the dishes data passed from backend and populate dish names based on selected category
+        {% for dish in dishes %}
+        if ("{{ dish.category }}" === selectedCategory) {
+            let option = document.createElement('option');
+            option.value = "{{ dish.id }}";
+            option.innerText = "{{ dish.name }}";
+            dishSelect.appendChild(option);
+        }
+        {% endfor %}
+    }
+
+    // Optional: Any other JS functions or event listeners
+    document.addEventListener('DOMContentLoaded', function () {
+        // Set today's date by default in the transferred date field
+        document.querySelector('input[name="transferred_date"]').setAttribute('value', new Date().toISOString().split('T')[0]);
+    });
+</script>
+
+{% endblock %}

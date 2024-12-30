@@ -47,11 +47,12 @@
                         <!-- Unit -->
                         <div class="col-lg-4 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Unit</label>
-                                <select name="unit" class="select form-control" required>
-                                    <option value="">Select Unit</option>
-                                    <option value="kg">Kilograms (kg)</option>
-                                    <option value="liters">Liters</option>
+                                <label>Metric</label>
+                                <select name="metric" class="select form-control" required>
+                                    <option value="">Select Metric</option>
+                                    <option value="kg">Kilogram (kg)</option>
+                                    <option value="liter">liter</option>
+                                    <option value="unit">unit</option>
                                 </select>
                             </div>
                         </div>
@@ -80,7 +81,7 @@
                                 <select name="inventory_id" class="select form-control" required>
                                     <option value="">Select Inventory</option>
                                     {% for inventory in inventories %}
-                                    <option value="{{ inventory[0] }}">{{ inventory[1] }}</option>
+                                    <option value="{{ inventory[0] }}">{{ inventory[1] }} ({{ inventory[2] }})</option>
                                     {% endfor %}
                                 </select>
                             </div>
