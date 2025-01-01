@@ -253,22 +253,51 @@ def restaurantlist():
 def addrawmaterials():
     if "user" not in session:
         return redirect("/login")
+
     if request.method == "POST":
-        raw_material = request.form["rawmaterial_name"].strip().lower()
-        metric = request.form["metric"].strip()
-        existing_material = get_raw_material_by_name(raw_material)
-        if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
-            flash("Raw material already exists.", "danger")
-        else:
+        raw_materials = request.form.getlist("rawmaterial_name[]")
+        metrics = request.form.getlist("metric[]")
+
+        # Check for mismatched lengths (in case of any unexpected UI issues)
+        if len(raw_materials) != len(metrics):
+            flash("Error: Inconsistent data. Please try again.", "danger")
+            return redirect("/addrawmaterials")
+
+        errors = []
+        successes = []
+
+        for raw_material, metric in zip(raw_materials, metrics):
+            raw_material = raw_material.strip().lower()
+            metric = metric.strip()
+
+            if not raw_material:
+                errors.append("Raw material name cannot be empty.")
+                continue
+
+            # Check if the raw material already exists
+            existing_material = get_raw_material_by_name(raw_material)
+            if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
+                errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
+                continue
+
+            # Insert raw material into the database
             insert_query = """
                 INSERT INTO raw_materials (name, metric)
                 VALUES (%s, %s)
             """
             if execute_query(insert_query, (raw_material, metric)):
-                flash("Raw material added successfully!", "success")
+                successes.append(f"({raw_material}-{metric})")
             else:
-                flash("Error: Unable to add the raw material. Please try again later.", "danger")
+                errors.append(f"Error: Unable to add raw material '{raw_material}' with metric '{metric}'.")
+
+        # Flash appropriate messages
+        if successes:
+            flash(f"Raw materials {' ,'.join(successes)} has been added successfully", "success")
+        if errors:
+            flash(" ".join(errors), "danger")
+
         return redirect("/addrawmaterials")
+
     return render_template("addrawmaterials.html", user=session["user"])
 
 
@@ -276,9 +305,7 @@ def addrawmaterials():
 def rawmaterialslist():
     if "user" not in session:
         return redirect("/login")
-    print("rawmaterialslist")
     rawmaterials = get_all_rawmaterials()
-    print(rawmaterials)
     return render_template("rawmaterialslist.html", user=session["user"], rawmaterials=rawmaterials)
 
 

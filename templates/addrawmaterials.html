@@ -11,35 +11,49 @@
             <div class="card">
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Raw Material Name</label>
-                                <input type="text" name="rawmaterial_name" class="form-control" required>
+                        <div class="col-lg-12">
+                            <div id="raw-material-container" class="scrollable-container">
+                                <div class="row raw-material-row">
+                                    <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                                        <label class="sno">1</label>
+                                    </div>
+                                    <div class="col-lg-3 col-sm-6 col-12">
+                                        <div class="form-group">
+                                            <label>Raw Material Name</label>
+                                            <input type="text" name="rawmaterial_name[]" class="form-control" required>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-3 col-sm-6 col-12">
+                                        <div class="form-group">
+                                            <label>Metric</label>
+                                            <select class="select form-control" name="metric[]">
+                                                <option value="kg">kilograms(kg)</option>
+                                                <option value="grams">grams(g)</option>
+                                                <option value="liter">liter(l)</option>
+                                                <option value="ml">milliliter(ml)</option>
+                                                <option value="unit">unit</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                                        <button type="button" class="btn btn-add" onclick="addRawMaterial()">+</button>
+                                    </div>
+                                    <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                                        <button type="button" class="btn btn-remove"
+                                            onclick="removeRawMaterial(this)">x</button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Metric</label>
-                                <select class="select" name="metric">
-                                    <option value="kg">kg</option>
-                                    <!-- <option value="grams">grams</option> -->
-                                    <option value="liter">liter</option>
-                                    <!-- <option value="ml">milliliter</option> -->
-                                    <option value="unit">unit</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div>
-                            {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                            <ul class="flash-messages">
-                                {% for category, message in messages %}
-                                <li class="{{ category }}"><b>**{{ message }}</b></li>
-                                {% endfor %}
-                            </ul>
-                            {% endif %}
-                            {% endwith %}
-                        </div>
+                        {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                        <ul class="flash-messages">
+                            {% for category, message in messages %}
+                            <li class="{{ category }}"><b>**{{ message }}</b></li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                        {% endwith %}
                         <div class="col-lg-12">
                             <button type="submit" class="btn btn-submit me-2">Submit</button>
                             <a href="/rawmaterialslist" class="btn btn-cancel">Cancel</a>
@@ -50,4 +64,107 @@
         </form>
     </div>
 </div>
+
+<script>
+    // Add a new raw material row
+    function addRawMaterial() {
+        const container = document.getElementById('raw-material-container');
+        const newRow = document.createElement('div');
+        newRow.classList.add('row', 'raw-material-row');
+        newRow.innerHTML = `
+            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                <label class="sno"></label>
+            </div>
+            <div class="col-lg-3 col-sm-6 col-12">
+                <div class="form-group">
+                    <label>Raw Material Name</label>
+                    <input type="text" name="rawmaterial_name[]" class="form-control" required>
+                </div>
+            </div>
+            <div class="col-lg-3 col-sm-6 col-12">
+                <div class="form-group">
+                    <label>Metric</label>
+                    <select class="select form-control" name="metric[]">
+                        <option value="kg">kilograms(kg)</option>
+                        <option value="grams">grams(g)</option>
+                        <option value="liter">liter(l)</option>
+                        <option value="ml">milliliter(ml)</option>
+                        <option value="unit">unit</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                <button type="button" class="btn btn-add" onclick="addRawMaterial()">+</button>
+            </div>
+            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+                <button type="button" class="btn btn-remove" onclick="removeRawMaterial(this)">x</button>
+            </div>
+        `;
+        container.appendChild(newRow);
+        updateSerialNumbers();
+    }
+
+    // Remove a raw material row
+    function removeRawMaterial(button) {
+        const row = button.closest('.raw-material-row');
+        row.remove();
+        updateSerialNumbers();
+    }
+
+    // Update serial numbers
+    function updateSerialNumbers() {
+        const rows = document.querySelectorAll('.raw-material-row');
+        rows.forEach((row, index) => {
+            const sno = row.querySelector('.sno');
+            sno.textContent = index + 1;
+        });
+    }
+
+    // Ensure select dropdown styles are applied dynamically
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('select.select').forEach((select) => {
+            // Reapply styles if your CSS framework requires initialization
+        });
+    });
+</script>
+
+<style>
+    .scrollable-container {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-bottom: 15px;
+    }
+
+    .btn-add {
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+
+    .btn-remove {
+        background-color: #f44336;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+
+    .sno {
+        font-weight: bold;
+        font-size: 16px;
+    }
+
+    /* Ensure dropdown styles are applied */
+    .select {
+        width: 100%;
+        padding: 5px;
+    }
+
+</style>
 {% endblock %}

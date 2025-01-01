@@ -148,12 +148,8 @@ def get_raw_material_by_name(material_name):
 
 
 def get_all_rawmaterials():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM raw_materials')
-    raw_materials = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    query = 'SELECT * FROM raw_materials ORDER BY id ASC'
+    raw_materials = fetch_all(query)
     logger.debug(f"raw_materials -- {raw_materials}")
     return raw_materials
 

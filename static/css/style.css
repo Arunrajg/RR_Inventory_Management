@@ -1324,7 +1324,7 @@ div#global-loader,
 
 .btn-cancel {
     min-width: 120px;
-    background: #637381;
+    background: #000;
     color: #fff;
     font-size: 14px;
     font-weight: 700;
@@ -1857,7 +1857,7 @@ div#global-loader,
 }
 
 .card .card-header .dropset {
-    color: #6e6b7b;
+    color: #000;
     padding: 0 10px
 }
 
@@ -3437,7 +3437,7 @@ table.dataTable>thead .sorting_desc_disabled:before {
 
 .pagination li a {
     border-radius: 5px;
-    background: #637381;
+    background: #000;
     color: #fff
 }
 
@@ -3721,7 +3721,7 @@ div.dataTables_wrapper div.dataTables_info {
 }
 
 .header .menu-drop-user .dropdown-item {
-    color: #637381;
+    color: #000;
     padding: 7px 10px !important
 }
 
@@ -4226,7 +4226,7 @@ hr {
 
 .profilename .profileset h5 {
     font-size: 14px;
-    color: #637381
+    color: #000
 }
 
 .profilename .profileset .profilesets {
@@ -4415,7 +4415,7 @@ div#global-loader .whirly-loader:not(:required) {
 }
 
 .select2-container--default .select2-selection--single .select2-selection__rendered {
-    color: #637381;
+    color: #000;
     line-height: 40px;
     border-radius: 5px
 }
@@ -4429,7 +4429,7 @@ div#global-loader .whirly-loader:not(:required) {
     position: absolute;
     top: 50%;
     left: 50%;
-    border-color: #637381;
+    border-color: #000;
     border-style: solid;
     border-width: 0 2px 2px 0;
     padding: 3px;
@@ -4566,7 +4566,7 @@ span.select2-container.select2-container--default.select2-container--open {
     margin-left: 10px;
     font-size: 15px;
     font-weight: 500;
-    color: #637381
+    color: #000
 }
 
 .sidebar .sidebar-menu>ul>li>a .menu-arrow {
@@ -5076,7 +5076,7 @@ span.select2-container.select2-container--default.select2-container--open {
 .notifications .notification-list li .notification-time {
     font-size: 12px;
     line-height: 1.35;
-    color: #637381
+    color: #000
 }
 
 .notifications .notification-list li .list-item {
@@ -5546,7 +5546,7 @@ span.select2-container.select2-container--default.select2-container--open {
 }
 
 .chat-cont-left .chat-scroll .media .media-body .last-chat-time {
-    color: #637381;
+    color: #000;
     font-size: 13px
 }
 
@@ -6412,7 +6412,7 @@ span.select2-container.select2-container--default.select2-container--open {
 }
 
 .graph-sets>ul li span {
-    color: #637381;
+    color: #000;
     font-weight: 400;
     position: relative
 }
@@ -7100,7 +7100,7 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .requiredfield h4 {
     font-size: 14px;
-    color: #637381
+    color: #000
 }
 
 .action-set {
@@ -7139,7 +7139,7 @@ span.select2-container.select2-container--default.select2-container--open {
 }
 
 .badges.bg-lightgrey {
-    background: #637381
+    background: #000
 }
 
 .add-icon span,
@@ -7193,7 +7193,7 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .total-order ul li h4 {
     width: 50%;
-    color: #637381;
+    color: #000;
     font-size: 14px;
     font-weight: 500;
     padding: 10px;
@@ -7360,14 +7360,14 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .product-view .product-viewcontent h4 {
     font-size: 12px;
-    color: #6e6b7b;
+    color: #000;
     font-weight: 500;
     margin-bottom: 5px
 }
 
 .product-view .product-viewcontent h5 {
     font-size: 14px;
-    color: #6e6b7b;
+    color: #000;
     font-weight: 500
 }
 
@@ -7387,7 +7387,7 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .text-underline::after {
     content: "";
-    background: #637381;
+    background: #000;
     width: 10px;
     height: 2px;
     position: absolute;
@@ -7431,13 +7431,13 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .table-product tr th {
     font-weight: 600;
-    color: #6e6b7b;
+    color: #000;
     font-size: 14px
 }
 
 .table-product tr td {
     font-weight: 600;
-    color: #6e6b7b;
+    color: #000;
     font-size: 14px
 }
 
@@ -7805,7 +7805,7 @@ span.select2-container.select2-container--default.select2-container--open {
 }
 
 .btn-pos ul li a.btn-quation {
-    background: #6e6b7b
+    background: #000
 }
 
 .btn-pos ul li a.btn-void {
@@ -8208,7 +8208,7 @@ span.select2-container.select2-container--default.select2-container--open {
 }
 
 .productset .productsetcontent h5 {
-    color: #6e6b7b;
+    color: #000;
     font-size: 12px
 }
 
@@ -8359,7 +8359,7 @@ span.select2-container.select2-container--default.select2-container--open {
     cursor: pointer;
     width: 30px;
     height: 30px;
-    color: #637381;
+    color: #000;
     font-size: 14px;
     border-radius: 50%;
     position: absolute;
