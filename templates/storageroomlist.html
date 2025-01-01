@@ -4,11 +4,11 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Inventory list</h4>
+                <h4>Storage Rooms List</h4>
             </div>
             <div class="page-btn">
-                <a href="/addinventory" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Inventory
+                <a href="/addstorageroom" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Storage Room
                 </a>
             </div>
         </div>
@@ -28,19 +28,17 @@
                     <table class="table  datanew">
                         <thead>
                             <tr>
-                                <th>Inventory Number</th>
-                                <th>Inventory name</th>
-                                <th>Inventory Code</th>
+                                <th>Storage Room Number</th>
+                                <th>Storage Room Name</th>
                                 <th>Address</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for inventory in inventories %}
+                            {% for room in storagerooms %}
                             <tr>
-                                <td>{{ inventory.id }}</td>
-                                <td>{{ inventory.inventoryname }}</td>
-                                <td>{{ inventory.inventorycode }}</td>
-                                <td>{{ inventory.address }}</td>
+                                <td>{{ room.id }}</td>
+                                <td>{{ room.storageroomname }}</td>
+                                <td>{{ room.address }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

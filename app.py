@@ -152,41 +152,39 @@ def change_password():
                 flash('Failed to change the password. Please contact support.', 'error')
             return redirect(url_for("change_password"))
 
-    return render_template('changepassword.html', user=session["user"]["user"])
+    return render_template('changepassword.html', user=session["user"])
 
 
-@app.route("/addinventory", methods=["GET", "POST"])
-def addinventory():
+@app.route("/addstorageroom", methods=["GET", "POST"])
+def addstorageroom():
     if "user" not in session:
         return redirect("/login")
     if request.method == "POST":
-        inventory_name = request.form["inventory_name"].strip()
-        inventory_code = request.form["inventory_code"].strip()
+        storageroom_name = request.form["storageroom_name"].strip()
         address = request.form["address"].strip()
-        existing_inventory = get_inventory_by_code(inventory_code)
-        if existing_inventory:
-            flash("Inventory with same code already exists. Please use a different Inventory Code.", "danger")
+        existing_storageroom = get_storageroom_by_name(storageroom_name)
+        if existing_storageroom:
+            flash("Storage Room with same name already exists. Please use a different Storage Room Name.", "danger")
         else:
             insert_query = """
-                INSERT INTO inventory (inventoryname, inventorycode, address)
-                VALUES (%s, %s, %s)
+                INSERT INTO storagerooms (storageroomname, address)
+                VALUES (%s, %s)
             """
-            if execute_query(insert_query, (inventory_name, inventory_code, address)):
-                flash("Inventory created successfully!", "success")
+            if execute_query(insert_query, (storageroom_name, address)):
+                flash("Storage Room added successfully!", "success")
             else:
-                flash("Error: Unable to create a new Inventory. Please try again later.", "danger")
-        return redirect("/addinventory")
-    return render_template("addinventory.html", user=session["user"])
+                flash("Error: Unable to add a new Storage Room. Please try again later.", "danger")
+        return redirect("/addstorageroom")
+    return render_template("addstorageroom.html", user=session["user"])
 
 
-@app.route("/inventorylist", methods=["GET", "POST"])
-def inventorylist():
+@app.route("/storageroomlist", methods=["GET", "POST"])
+def storageroomlist():
     if "user" not in session:
         return redirect("/login")
-    print("inventorylist")
-    inventories = get_all_inventories()
-    print(inventories)
-    return render_template("inventorylist.html", user=session["user"], inventories=inventories)
+    storagerooms = get_all_storagerooms()
+    print(storagerooms)
+    return render_template("storageroomlist.html", user=session["user"], storagerooms=storagerooms)
 
 
 @app.route("/addkitchen", methods=["GET", "POST"])
@@ -195,20 +193,19 @@ def addkitchen():
         return redirect("/login")
     if request.method == "POST":
         kitchen_name = request.form["kitchen_name"].strip()
-        kitchen_code = request.form["kitchen_code"].strip()
         address = request.form["address"].strip()
-        existing_kitchen = get_kitchen_by_code(kitchen_code)
+        existing_kitchen = get_kitchen_by_name(kitchen_name)
         if existing_kitchen:
-            flash("Kitchen with same code already exists. Please use a different Kitchen Code.", "danger")
+            flash("Kitchen with same name already exists. Please use a different Kitchen name.", "danger")
         else:
             insert_query = """
-                INSERT INTO kitchen (kitchenname, kitchencode, address)
-                VALUES (%s, %s, %s)
+                INSERT INTO kitchen (kitchenname, address)
+                VALUES (%s, %s)
             """
-            if execute_query(insert_query, (kitchen_name, kitchen_code, address)):
-                flash("Kitchen created successfully!", "success")
+            if execute_query(insert_query, (kitchen_name, address)):
+                flash("Kitchen added successfully!", "success")
             else:
-                flash("Error: Unable to create a new Kitchen. Please try again later.", "danger")
+                flash("Error: Unable to add a new Kitchen. Please try again later.", "danger")
         return redirect("/addkitchen")
     return render_template("addkitchen.html", user=session["user"])
 
@@ -217,9 +214,7 @@ def addkitchen():
 def kitchenlist():
     if "user" not in session:
         return redirect("/login")
-    print("kitchenlist")
     kitchens = get_all_kitchens()
-    print(kitchens)
     return render_template("kitchenlist.html", user=session["user"], kitchens=kitchens)
 
 
@@ -229,20 +224,19 @@ def addrestaurant():
         return redirect("/login")
     if request.method == "POST":
         restaurant_name = request.form["restaurant_name"].strip()
-        restaurant_code = request.form["restaurant_code"].strip()
         address = request.form["address"].strip()
-        existing_restaurant = get_restaurant_by_code(restaurant_code)
+        existing_restaurant = get_restaurant_by_name(restaurant_name)
         if existing_restaurant:
-            flash("Restaurant with same code already exists. Please use a different Restaurant Code.", "danger")
+            flash("Restaurant with same name already exists. Please use a different Restaurant name.", "danger")
         else:
             insert_query = """
-                INSERT INTO restaurant (restaurantname, restaurantcode, address)
-                VALUES (%s, %s, %s)
+                INSERT INTO restaurant (restaurantname, address)
+                VALUES (%s, %s)
             """
-            if execute_query(insert_query, (restaurant_name, restaurant_code, address)):
-                flash("Restaurant created successfully!", "success")
+            if execute_query(insert_query, (restaurant_name, address)):
+                flash("Restaurant added successfully!", "success")
             else:
-                flash("Error: Unable to create a new Restaurant. Please try again later.", "danger")
+                flash("Error: Unable to add a new Restaurant. Please try again later.", "danger")
         return redirect("/addrestaurant")
     return render_template("addrestaurant.html", user=session["user"])
 
@@ -251,9 +245,7 @@ def addrestaurant():
 def restaurantlist():
     if "user" not in session:
         return redirect("/login")
-    print("restaurantlist")
     restaurants = get_all_restaurants()
-    print(restaurants)
     return render_template("restaurantlist.html", user=session["user"], restaurants=restaurants)
 
 

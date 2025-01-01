@@ -28,9 +28,9 @@
     </head>
 
     <body>
-        <div id="global-loader">
+        <!-- <div id="global-loader">
             <div class="whirly-loader"> </div>
-        </div>
+        </div> -->
 
         <div class="main-wrapper">
 
@@ -69,11 +69,12 @@
                                 <hr class="m-0">
                                 <a class="dropdown-item" href="/profile"> <i class="me-2" data-feather="user"></i>
                                     My Profile</a>
-                                <a class="dropdown-item" href="/changepassword"><i class="me-2"
-                                        data-feather="settings"></i>Change Password</a>
                                 <hr class="m-0">
+                                <a class="dropdown-item" href="/changepassword"><i class="me-2"
+                                        data-feather="lock"></i>Change Password</a>
+                                <!-- <hr class="m-0">
                                 <a class="dropdown-item" href="generalsettings.html"><i class="me-2"
-                                        data-feather="settings"></i>Settings</a>
+                                        data-feather="settings"></i>Settings</a> -->
                                 <hr class="m-0">
                                 <a class="dropdown-item logout pb-0" href="/logout"><img
                                         src="../static/img/icons/log-out.svg" class="me-2" alt="img">Logout</a>
@@ -100,35 +101,45 @@
                 <div class="sidebar-inner slimscroll">
                     <div id="sidebar-menu" class="sidebar-menu">
                         <ul>
-                            <li class="active">
-                                <a href="/index"><img src="../static/img/icons/dashboard.svg" alt="img"><span>
-                                        Dashboard</span> </a>
+                            <li class="{{ 'active' if request.path == '/index' else '' }}">
+                                <a href="/index"><img src="../static/img/icons/dashboard.svg"
+                                        alt="img"><span>Dashboard</span></a>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
-                                        alt="img"><span>
-                                        Inventory</span> <span class="menu-arrow"></span></a>
+                                <a href="javascript:void(0);"><img src="../static/img/icons/places.svg"
+                                        alt="img"><span>Storage Room</span><span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/inventorylist">Inventory List</a></li>
-                                    <li><a href="/addinventory">Add Inventory</a></li>
+                                    <li><a href="/storageroomlist"
+                                            class="{{ 'active' if request.path == '/storageroomlist' else '' }}">Storage
+                                            Room
+                                            List</a></li>
+                                    <li><a href="/addstorageroom"
+                                            class="{{ 'active' if request.path == '/addstorageroom' else '' }}">Add
+                                            Storage Room</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
-                                        alt="img"><span>
+                                <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                         Kitchen</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/kitchenlist">Kitchen List</a></li>
-                                    <li><a href="/addkitchen">Add Kitchen</a></li>
+                                    <li><a href="/kitchenlist"
+                                            class="{{ 'active' if request.path == '/kitchenlist' else '' }}">Kitchen
+                                            List</a></li>
+                                    <li><a href="/addkitchen"
+                                            class="{{ 'active' if request.path == '/addkitchen' else '' }}">Add
+                                            Kitchen</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
-                                        alt="img"><span>
+                                <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                         Restaurant</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/restaurantlist">Restaurant List</a></li>
-                                    <li><a href="/addrestaurant">Add Restaurant</a></li>
+                                    <li><a href="/restaurantlist"
+                                            class="{{ 'active' if request.path == '/restaurantlist' else '' }}">Restaurant
+                                            List</a></li>
+                                    <li><a href="/addrestaurant"
+                                            class="{{ 'active' if request.path == '/addrestaurant' else '' }}">Add
+                                            Restaurant</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -136,8 +147,12 @@
                                         alt="img"><span>
                                         Raw Materials</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/rawmaterialslist">Raw Materials List</a></li>
-                                    <li><a href="/addrawmaterials">Add Raw Material</a></li>
+                                    <li><a href="/rawmaterialslist"
+                                            class="{{ 'active' if request.path == '/rawmaterialslist' else '' }}">Raw
+                                            Materials List</a></li>
+                                    <li><a href="/addrawmaterials"
+                                            class="{{ 'active' if request.path == '/addrawmaterials' else '' }}">Add Raw
+                                            Material</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -145,8 +160,12 @@
                                         alt="img"><span>
                                         Dishes</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/add_dish">Add Dish</a></li>
-                                    <li><a href="/list_dishes">List Dishes</a></li>
+                                    <li><a href="/add_dish"
+                                            class="{{ 'active' if request.path == '/add_dish' else '' }}">Add Dish</a>
+                                    </li>
+                                    <li><a href="/list_dishes"
+                                            class="{{ 'active' if request.path == '/list_dishes' else '' }}">List
+                                            Dishes</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -154,16 +173,24 @@
                                         alt="img"><span>
                                         Purchase</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/purchase_list">Purchase List</a></li>
-                                    <li><a href="/add_purchase">Add Purchase</a></li>
-                                    <li><a href="/bulk_add_purchases">Bulk Add Purchase</a></li>
+                                    <li><a href="/purchase_list"
+                                            class="{{ 'active' if request.path == '/purchase_list' else '' }}">Purchase
+                                            List</a></li>
+                                    <li><a href="/add_purchase"
+                                            class="{{ 'active' if request.path == '/add_purchase' else '' }}">Add
+                                            Purchase</a></li>
+                                    <li><a href="/bulk_add_purchases"
+                                            class="{{ 'active' if request.path == '/bulk_add_purchases' else '' }}">Bulk
+                                            Add Purchase</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
                                         alt="img"><span> Stock</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/inventory_stock">Inventory Stock</a></li>
+                                    <li><a href="/inventory_stock"
+                                            class="{{ 'active' if request.path == '/inventory_stock' else '' }}">Inventory
+                                            Stock</a></li>
                                     <!-- <li><a href="/kitchen_stock">Kitchen Stock</a></li>
                                     <li><a href="/restaurant_stock">Restaurant Stock</a></li>
                                     <li><a href="addquotation.html">Add Quotation</a></li> -->
@@ -173,8 +200,12 @@
                                 <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
                                         alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/add_prepared_dishes">Add Prepared Dishes</a></li>
-                                    <li><a href="/list_prepared_dishes">List Prepared Dishes</a></li>
+                                    <li><a href="/add_prepared_dishes"
+                                            class="{{ 'active' if request.path == '/add_prepared_dishes' else '' }}">Add
+                                            Prepared Dishes</a></li>
+                                    <li><a href="/list_prepared_dishes"
+                                            class="{{ 'active' if request.path == '/list_prepared_dishes' else '' }}">List
+                                            Prepared Dishes</a></li>
                                     <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
                                     <li><a href="addquotation.html">Add Quotation</a></li> -->
                                 </ul>
@@ -184,20 +215,31 @@
                                         alt="img"><span>
                                         Transfer</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/transfer_raw_material">Transfer Raw Materials</a></li>
-                                    <li><a href="/transfer_prepared_dishes">Transfer Prepared Dishes</a></li>
-                                    <li><a href="/bulk_transfer">Bulk Transfer Raw Materials</a></li>
-                                    <li><a href="/list_transfers">List Raw Material Transfers </a></li>
+                                    <li><a href="/transfer_raw_material"
+                                            class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Transfer
+                                            Raw Materials</a></li>
+                                    <li><a href="/transfer_prepared_dishes"
+                                            class="{{ 'active' if request.path == '/transfer_prepared_dishes' else '' }}">Transfer
+                                            Prepared Dishes</a></li>
+                                    <li><a href="/bulk_transfer"
+                                            class="{{ 'active' if request.path == '/bulk_transfer' else '' }}">Bulk
+                                            Transfer Raw Materials</a></li>
+                                    <li><a href="/list_transfers"
+                                            class="{{ 'active' if request.path == '/list_transfers' else '' }}">List Raw
+                                            Material Transfers </a></li>
                                     <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
                                 </ul>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg"
-                                        alt="img"><span>
+                                <a href="javascript:void(0);"><img src="../static/img/icons/chart.svg" alt="img"><span>
                                         Estimate</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/estimate_dishes">Estimate Dishes</a></li>
-                                    <li><a href="/check_dish_availability">Check Dish Availability </a></li>
+                                    <li><a href="/estimate_dishes"
+                                            class="{{ 'active' if request.path == '/estimate_dishes' else '' }}">Estimate
+                                            Dishes</a></li>
+                                    <li><a href="/check_dish_availability"
+                                            class="{{ 'active' if request.path == '/check_dish_availability' else '' }}">Check
+                                            Dish Availability </a></li>
                                     <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
                                 </ul>
                             </li>

@@ -2096,7 +2096,7 @@ a:hover {
     width: 100%;
     font-size: 14px;
     font-weight: 500;
-    color: #637381;
+    color: #000;
     padding: 10px 15px;
     border-radius: 5px
 }
@@ -5262,7 +5262,7 @@ span.select2-container.select2-container--default.select2-container--open {
 
 .table tbody tr td {
     padding: 10px;
-    color: #637381;
+    color: #000;
     font-weight: 500;
     border-bottom: 1px solid #e9ecef;
     vertical-align: middle;

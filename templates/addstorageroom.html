@@ -4,18 +4,18 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Add New Kitchen</h4>
+                <h4>Add New Storage Room</h4>
             </div>
         </div>
 
-        <form action="/addkitchen" method="POST">
+        <form action="/addstorageroom" method="POST">
             <div class="card">
                 <div class="card-body">
                     <div class="row">
                         <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Kitchen Name</label>
-                                <input type="text" name="kitchen_name" class="form-control" required>
+                                <label>Storage Room Name</label>
+                                <input type="text" name="storageroom_name" class="form-control" required>
                             </div>
                         </div>
                         <div class="col-lg-12">
@@ -37,7 +37,7 @@
                         </div>
                         <div class="col-lg-12">
                             <button type="submit" class="btn btn-submit me-2">Submit</button>
-                            <a href="/kitchenlist" class="btn btn-cancel">Cancel</a>
+                            <a href="/storageroomlist" class="btn btn-cancel">Cancel</a>
                         </div>
                     </div>
                 </div>
@@ -52,4 +52,5 @@
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+
 {% endblock %}

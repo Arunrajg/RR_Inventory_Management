@@ -82,32 +82,21 @@ def get_user_by_email(email):
     return user
 
 
-def get_inventory_by_code(inventory_code):
+def get_storageroom_by_name(storageroom_name):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM inventory WHERE inventorycode = %s', (inventory_code,))
-    inventory = cursor.fetchone()
+    cursor.execute('SELECT * FROM storagerooms WHERE storageroomname = %s', (storageroom_name,))
+    storageroom_name = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"inventory -- {inventory}")
-    return inventory
+    logger.debug(f"storageroom_name -- {storageroom_name}")
+    return storageroom_name
 
 
-def get_inventory_by_id(inventory_id):
+def get_kitchen_by_name(kitchen_name):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM inventory WHERE id = %s', (inventory_id,))
-    inventory = cursor.fetchone()
-    cursor.close()
-    conn.close()
-    logger.debug(f"inventory -- {inventory}")
-    return inventory
-
-
-def get_kitchen_by_code(kitchen_code):
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM kitchen WHERE kitchencode = %s', (kitchen_code,))
+    cursor.execute('SELECT * FROM kitchen WHERE kitchenname = %s', (kitchen_name,))
     kitchen = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -115,10 +104,10 @@ def get_kitchen_by_code(kitchen_code):
     return kitchen
 
 
-def get_restaurant_by_code(restaurant_code):
+def get_restaurant_by_name(restaurant_name):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM restaurant WHERE restaurantcode = %s', (restaurant_code,))
+    cursor.execute('SELECT * FROM restaurant WHERE restaurantname = %s', (restaurant_name,))
     restaurant = cursor.fetchone()
     cursor.close()
     conn.close()
@@ -126,35 +115,23 @@ def get_restaurant_by_code(restaurant_code):
     return restaurant
 
 
-def get_all_inventories():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM inventory')
-    inventories = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    logger.debug(f"inventories -- {inventories}")
-    return inventories
+def get_all_storagerooms():
+    query = 'SELECT * FROM storagerooms ORDER BY id ASC'
+    storagerooms = fetch_all(query)
+    logger.debug(f"storagerooms -- {storagerooms}")
+    return storagerooms
 
 
 def get_all_kitchens():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM kitchen')
-    kitchens = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    query = 'SELECT * FROM kitchen ORDER BY id ASC'
+    kitchens = fetch_all(query)
     logger.debug(f"kitchens -- {kitchens}")
     return kitchens
 
 
 def get_all_restaurants():
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM restaurant')
-    restaurants = cursor.fetchall()
-    cursor.close()
-    conn.close()
+    query = 'SELECT * FROM restaurant ORDER BY id ASC'
+    restaurants = fetch_all(query)
     logger.debug(f"restaurants -- {restaurants}")
     return restaurants
 
