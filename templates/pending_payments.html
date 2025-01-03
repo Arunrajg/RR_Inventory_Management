@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>PAYMENTS</h4>
+                <h6>Manage your payments</h6>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table datanew">
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Total Outstanding Amount</th>
+                                <th>Total Amount Paid</th>
+                                <th>Total Due</th>
+                                <th>Pay Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for payment in pending_payments %}
+                            <tr>
+                                <td>{{ payment['vendor_name'] }}</td>
+                                <td>{{ payment['outstanding_cost'] }}</td>
+                                <td>{{ payment['total_paid'] }}</td>
+                                <td>{{ payment['total_due'] }}</td>
+                                <td>
+                                    <button class="btn btn-primary btn-pay" data-vendor="{{ payment['vendor_name'] }}"
+                                        data-vendor-id="{{ payment['vendor_id'] }}" data-toggle="modal"
+                                        data-target="#payModal">
+                                        Pay
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div><!-- Display flashed messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    <ul>
+                        {% for category, message in messages %}
+                        <li class="{{ category }}">{{ message }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Payment -->
+<div class="modal fade" id="payModal" tabindex="-1" role="dialog" aria-labelledby="payModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payModalLabel">Pay Amount</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="payForm">
+                    <div class="form-group">
+                        <label for="vendorName">Vendor</label>
+                        <input type="text" id="vendorName" class="form-control" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="amountPaid">Amount Paid</label>
+                        <input type="number" id="amountPaid" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="paymentDate">Date</label>
+                        <input type="date" id="paymentDate" class="form-control" value="{{ todays_date }}" required>
+                    </div>
+                    <input type="hidden" id="vendorId" name="vendorId">
+                    <button type="submit" class="btn btn-primary">Submit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const payButtons = document.querySelectorAll('.btn-pay');
+        const vendorNameInput = document.getElementById('vendorName');
+        const vendorIdInput = document.getElementById('vendorId');
+        const payForm = document.getElementById('payForm');
+        const payModal = $('#payModal'); // jQuery to target the modal
+
+        payButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                const vendorName = this.getAttribute('data-vendor');
+                const vendorId = this.getAttribute('data-vendor-id');
+                vendorNameInput.value = vendorName;
+                vendorIdInput.value = vendorId;
+            });
+        });
+
+        payForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const vendorName = vendorNameInput.value;
+            const vendorId = vendorIdInput.value;
+            const amountPaid = document.getElementById('amountPaid').value;
+            const paymentDate = document.getElementById('paymentDate').value;
+
+            fetch('/pending_payments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ vendorId, vendorName, amountPaid, paymentDate })
+            })
+                .then(response => {
+                    if (response.ok) {
+                        // Close modal and reload page
+                        payModal.modal('hide');
+                        location.reload(); // This will force the page to reload after successful submission
+                    } else {
+                        alert('Failed to update payment.');
+                    }
+                })
+                .catch(err => console.error('Error:', err));
+        });
+    });
+</script>
+{% endblock %}

@@ -4,11 +4,10 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>PAYMENTS</h4>
-                <h6>Manage your payments</h6>
+                <h4>Restaurant Stock Details</h4>
             </div>
             <!-- <div class="page-btn">
-                <a href="/add_purchase" class="btn btn-added">
+                <a href="/addpurchase" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" alt="img">Add New Purchases
                 </a>
             </div> -->
@@ -28,19 +27,19 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
-                                <th>Vendor</th>
-                                <th>Total Outstanding Amount</th>
-                                <th>Total Amount Paid</th>
-                                <th>Total Due</th>
+                                <th>Resturant Name</th>
+                                <th>Raw Material</th>
+                                <th>Quantity</th>
+                                <th>Metric</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for payment in payments %}
+                            {% for stock in restaurantinv_stock %}
                             <tr>
-                                <td>{{ payment['vendor_name']}}</td>
-                                <td>{{ payment['outstanding_cost'] }}</td>
-                                <td>{{ payment['total_paid'] }}</td>
-                                <td>{{ payment['total_due'] }}</td>
+                                <td>{{ stock['restaurantname']}}</td>
+                                <td>{{ stock['rawmaterial_name']}}</td>
+                                <td>{{ stock['quantity'] }}</td>
+                                <td>{{ stock['metric'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -48,6 +47,7 @@
                 </div>
             </div>
         </div>
+
     </div>
 </div>
 {% endblock %}

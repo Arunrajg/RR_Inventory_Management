@@ -203,20 +203,31 @@
                                         alt="img"><span>
                                         Payments</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/payments"
-                                            class="{{ 'active' if request.path == '/payments' else '' }}">Payment
-                                            List</a></li>
+                                    <li><a href="/pending_payments"
+                                            class="{{ 'active' if request.path == '/payments' else '' }}">Pending
+                                            Payments</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
-                                        alt="img"><span> Stock</span> <span class="menu-arrow"></span></a>
+                                <a href="javascript:void(0);"><img src="../static/img/icons/sales1.svg" alt="img"><span>
+                                        Stock</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/inventory_stock"
-                                            class="{{ 'active' if request.path == '/inventory_stock' else '' }}">Inventory
-                                            Stock</a></li>
-                                    <!-- <li><a href="/kitchen_stock">Kitchen Stock</a></li>
-                                    <li><a href="/restaurant_stock">Restaurant Stock</a></li>
+                                    <li><a href="/storageroom_stock"
+                                            class="{{ 'active' if request.path == '/storageroom_stock' else '' }}">Storage
+                                            Room Stock
+                                        </a></li>
+                                    <li><a href="/kitchen_inventory_stock"
+                                            class="{{ 'active' if request.path == '/kitchen_inventory_stock' else '' }}">Kitchen
+                                            Inventory
+                                            Stock
+                                        </a></li>
+                                    <li><a href="/restaurant_inventory_stock"
+                                            class="{{ 'active' if request.path == '/restaurant_inventory_stock' else '' }}">Restaurant
+                                            Inventory
+                                            Stock
+                                        </a></li>
+                                    <!-- <li><a href="/kitchen_inventory_stock">Kitchen Inventory Stock</a></li> -->
+                                    <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
                                     <li><a href="addquotation.html">Add Quotation</a></li> -->
                                 </ul>
                             </li>

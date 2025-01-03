@@ -555,6 +555,8 @@ def add_purchase():
             connection.commit()
 
         flash('Purchases added successfully!', 'success')
+        cursor.close()
+        connection.close()
         return redirect('/add_purchase')
 
     return render_template('add_purchase.html', vendors=vendors, raw_materials=raw_materials, storage_rooms=storage_rooms, user=session["user"], today_date=datetime.now().strftime("%Y-%m-%d"))
@@ -568,55 +570,64 @@ def purchase_list():
     return render_template('purchase_list.html', purchases=purchases, user=session["user"])
 
 
-@app.route("/payments", methods=["GET", "POST"])
-def payments():
+@app.route("/pending_payments", methods=["GET", "POST"])
+def pending_payments():
     if "user" not in session:
         return redirect("/login")
-    payments = get_all_payments()
-    return render_template("payments.html", user=session["user"], payments=payments)
-
-
-@app.route('/inventory_stock')
-def inventory_stock():
-    connection = get_db_connection()
-    inventory_stock = []
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT inventory_name, raw_material_name, quantity, metric FROM inventory_stock")
-            inventory_stock = cursor.fetchall()
-
-            app.logger.debug(f"inventory_stock {inventory_stock}")
-    except Exception as e:
-        app.logger.debug(f"inventory_stock {inventory_stock}")
-        app.logger.error(f"Error retrieving inventory_stock data: {e}")
-        flash(f"Error retrieving inventory_stock data: {str(e)}", "danger")
-    finally:
+    if request.method == "POST":
+        # Handle form submission
+        vendor_id = request.json.get("vendorId")
+        vendor_name = request.json.get("vendorName")
+        amount_paid = float(request.json.get("amountPaid"))
+        payment_date = request.json.get("paymentDate")
+        app.logger.debug(f"vendor_id {vendor_id}")
+        app.logger.debug(f"vendor_name {vendor_name}")
+        app.logger.debug(f"amount_paid {amount_paid}")
+        app.logger.debug(f"payment_date {payment_date}")
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+                INSERT INTO vendor_payment_tracker (vendor_id, total_paid) 
+                VALUES (%s, %s) 
+                ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
+                """,
+            (vendor_id, amount_paid, amount_paid)
+        )
+        connection.commit()
+        cursor.close()
         connection.close()
+        flash('Payment done successfully!', "success")
+        return redirect(url_for("pending_payments"))
+    pending_payments = get_all_pending_payments()
+    return render_template("pending_payments.html", user=session["user"], pending_payments=pending_payments, todays_date=datetime.now().strftime("%Y-%m-%d"))
 
-    return render_template('inventory_stock.html', inventory_stock=inventory_stock, user=session["user"])
+
+@app.route('/storageroom_stock')
+def storageroom_stock():
+    if "user" not in session:
+        return redirect("/login")
+    storage_stock = get_storageroom_stock()
+
+    return render_template('storageroom_stock.html', storage_stock=storage_stock, user=session["user"])
 
 
-@app.route('/kitchen_stock')
-def kitchen_stock():
-    connection = get_db_connection()
-    purchases = []
+@app.route('/kitchen_inventory_stock')
+def kitchen_inventory_stock():
+    if "user" not in session:
+        return redirect("/login")
+    kitcheninv_stock = get_kitchen_inventory_stock()
 
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT kitchen_id, raw_material_name, quantity, unit FROM kitchen_stock")
-            kitchen_stock = cursor.fetchall()
-            purchases = cursor.fetchall()
+    return render_template('kitchen_inventory_stock.html', kitcheninv_stock=kitcheninv_stock, user=session["user"])
 
-            app.logger.debug(f"kitchen_stock {kitchen_stock}")
-    except Exception as e:
-        app.logger.debug(f"kitchen_stock {kitchen_stock}")
-        app.logger.error(f"Error retrieving kitchen_stock data: {e}")
-        flash(f"Error retrieving kitchen_stock data: {str(e)}", "danger")
-    finally:
-        connection.close()
 
-    return render_template('kitchen_stock.html', kitchen_stock=kitchen_stock, user=session["user"])
+@app.route('/restaurant_inventory_stock')
+def restaurant_inventory_stock():
+    if "user" not in session:
+        return redirect("/login")
+    restaurantinv_stock = get_restaurant_inventory_stock()
+
+    return render_template('restaurant_inventory_stock.html', restaurantinv_stock=restaurantinv_stock, user=session["user"])
 
 
 @app.route('/transfer_raw_material', methods=['GET', 'POST'])

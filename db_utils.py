@@ -161,7 +161,7 @@ def get_all_purchases():
     return purchases
 
 
-def get_all_payments():
+def get_all_pending_payments():
     query = """
     SELECT 
         vpt.id AS payment_id,
@@ -174,11 +174,74 @@ def get_all_payments():
     FROM 
         vendor_payment_tracker AS vpt
     JOIN 
-        vendor_list AS vl ON vpt.vendor_id = vl.id;
+        vendor_list AS vl ON vpt.vendor_id = vl.id
+    WHERE 
+        vpt.total_due != 0;
     """
     payments = fetch_all(query)
     logger.debug(f"payments -- {payments}")
     return payments
+
+
+def get_storageroom_stock():
+    query = """
+    SELECT 
+        sr.id, 
+        sr.storageroomname, 
+        rm.id, 
+        rm.name as rawmaterial_name, 
+        srm.quantity, 
+        srm.metric
+    FROM 
+        storageroom_stock AS srm
+    JOIN 
+        storagerooms AS sr ON sr.id = srm.storageroom_id
+    JOIN 
+        raw_materials AS rm ON rm.id = srm.raw_material_id;
+    """
+    storage_stock = fetch_all(query)
+    logger.debug(f"storage_stock -- {storage_stock}")
+    return storage_stock
+
+
+def get_kitchen_inventory_stock():
+    query = """
+        SELECT 
+            k.kitchenname, 
+            rm.id, 
+            rm.name as rawmaterial_name, 
+            kis.quantity, 
+            kis.metric
+        FROM 
+            kitchen_inventory_stock AS kis
+        JOIN 
+            kitchen AS k ON k.id = kis.kitchen_id
+        JOIN 
+            raw_materials AS rm ON rm.id = kis.raw_material_id;
+        """
+    kitchen_inventory_stock = fetch_all(query)
+    logger.debug(f"kitchen_inventory_stock -- {kitchen_inventory_stock}")
+    return kitchen_inventory_stock
+
+
+def get_restaurant_inventory_stock():
+    query = """
+        SELECT r.id AS restaurant_id,
+            r.restaurantname AS restaurant_name,
+            rm.id AS raw_material_id,
+            rm.name AS raw_material_name,
+            ris.quantity,
+            ris.metric
+        FROM 
+            restaurant_inventory_stock as ris
+        JOIN 
+            restaurant r ON ris.id = r.id
+        JOIN 
+            raw_materials rm ON ris.raw_material_id = rm.id;
+        """
+    restaurant_inventory_stock = fetch_all(query)
+    logger.debug(f"restaurant_inventory_stock -- {restaurant_inventory_stock}")
+    return restaurant_inventory_stock
 
 
 def get_raw_material_by_name(material_name):
