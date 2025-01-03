@@ -109,37 +109,37 @@
                                 <a href="javascript:void(0);"><img src="../static/img/icons/places.svg"
                                         alt="img"><span>Storage Room</span><span class="menu-arrow"></span></a>
                                 <ul>
+                                    <li><a href="/addstorageroom"
+                                            class="{{ 'active' if request.path == '/addstorageroom' else '' }}">Add
+                                            Storage Room</a></li>
                                     <li><a href="/storageroomlist"
                                             class="{{ 'active' if request.path == '/storageroomlist' else '' }}">Storage
                                             Room
                                             List</a></li>
-                                    <li><a href="/addstorageroom"
-                                            class="{{ 'active' if request.path == '/addstorageroom' else '' }}">Add
-                                            Storage Room</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                         Kitchen</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/kitchenlist"
-                                            class="{{ 'active' if request.path == '/kitchenlist' else '' }}">Kitchen
-                                            List</a></li>
                                     <li><a href="/addkitchen"
                                             class="{{ 'active' if request.path == '/addkitchen' else '' }}">Add
                                             Kitchen</a></li>
+                                    <li><a href="/kitchenlist"
+                                            class="{{ 'active' if request.path == '/kitchenlist' else '' }}">Kitchen
+                                            List</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                         Restaurant</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/restaurantlist"
-                                            class="{{ 'active' if request.path == '/restaurantlist' else '' }}">Restaurant
-                                            List</a></li>
                                     <li><a href="/addrestaurant"
                                             class="{{ 'active' if request.path == '/addrestaurant' else '' }}">Add
                                             Restaurant</a></li>
+                                    <li><a href="/restaurantlist"
+                                            class="{{ 'active' if request.path == '/restaurantlist' else '' }}">Restaurant
+                                            List</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -147,12 +147,12 @@
                                         alt="img"><span>
                                         Raw Materials</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/rawmaterialslist"
-                                            class="{{ 'active' if request.path == '/rawmaterialslist' else '' }}">Raw
-                                            Materials List</a></li>
                                     <li><a href="/addrawmaterials"
                                             class="{{ 'active' if request.path == '/addrawmaterials' else '' }}">Add Raw
                                             Material</a></li>
+                                    <li><a href="/rawmaterialslist"
+                                            class="{{ 'active' if request.path == '/rawmaterialslist' else '' }}">Raw
+                                            Materials List</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -169,19 +169,43 @@
                                 </ul>
                             </li>
                             <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
+                                        alt="img"><span>
+                                        Vendors</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/add_vendor"
+                                            class="{{ 'active' if request.path == '/add_vendor' else '' }}">Add
+                                            Vendor</a>
+                                    </li>
+                                    <li><a href="/list_vendors"
+                                            class="{{ 'active' if request.path == '/list_vendors' else '' }}">Vendor
+                                            List</a></li>
+                                </ul>
+                            </li>
+                            <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/purchase1.svg"
                                         alt="img"><span>
                                         Purchase</span> <span class="menu-arrow"></span></a>
                                 <ul>
-                                    <li><a href="/purchase_list"
-                                            class="{{ 'active' if request.path == '/purchase_list' else '' }}">Purchase
-                                            List</a></li>
                                     <li><a href="/add_purchase"
                                             class="{{ 'active' if request.path == '/add_purchase' else '' }}">Add
                                             Purchase</a></li>
-                                    <li><a href="/bulk_add_purchases"
+                                    <li><a href="/purchase_list"
+                                            class="{{ 'active' if request.path == '/purchase_list' else '' }}">Purchase
+                                            List</a></li>
+                                    <!-- <li><a href="/bulk_add_purchases"
                                             class="{{ 'active' if request.path == '/bulk_add_purchases' else '' }}">Bulk
-                                            Add Purchase</a></li>
+                                            Add Purchase</a></li> -->
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/expense1.svg"
+                                        alt="img"><span>
+                                        Payments</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/payments"
+                                            class="{{ 'active' if request.path == '/payments' else '' }}">Payment
+                                            List</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">

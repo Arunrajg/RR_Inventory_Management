@@ -11,7 +11,13 @@
         <form method="POST" action="/add_dish">
             <div class="form-group">
                 <label>Category</label>
-                <input type="text" name="category" class="form-control" required>
+                <input type="text" name="category" class="form-control" list="categories-list"
+                    placeholder="Search or add a category..." required>
+                <datalist id="categories-list">
+                    {% for category in dish_categories %}
+                    <option value="{{ category['category'] }}"></option>
+                    {% endfor %}
+                </datalist>
             </div>
             <div class="form-group">
                 <label>Dish Name</label>
@@ -23,11 +29,14 @@
                 <div class="row align-items-center raw-material-row mb-2">
                     <div class="col-md-4">
                         <label>Raw Material</label>
-                        <select name="raw_materials[]" class="form-control" required>
+                        <input type="text" name="raw_materials[]" class="form-control raw-material-input"
+                            list="raw-materials-list" placeholder="Search raw materials..." required>
+                        <datalist id="raw-materials-list">
                             {% for material in raw_materials %}
-                            <option value="{{ material[0] }}">{{ material[1] }}</option>
+                            <option value="{{ material['name'] }}" data-id="{{ material['id'] }}"
+                                data-metric="{{ material['metric'] }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
                     <div class="col-md-3">
                         <label>Quantity</label>
@@ -35,18 +44,22 @@
                     </div>
                     <div class="col-md-3">
                         <label>Metric</label>
-                        <select name="metric[]" class="form-control" required>
-                            <option value="kg">kg</option>
-                            <option value="liter">liter</option>
+                        <select name="metric[]" class="form-control metric-input" required>
+                            <option value="kg">kilograms (kg)</option>
+                            <option value="grams">grams (g)</option>
+                            <option value="liter">liter (l)</option>
+                            <option value="ml">milliliter (ml)</option>
                             <option value="unit">unit</option>
                         </select>
                     </div>
                     <div class="col-md-2 d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
+                        <button type="button" class="btn btn-success add-row-btn">+</button>
                         <button type="button" class="btn btn-danger delete-row-btn">x</button>
                     </div>
                 </div>
             </div>
+
+            <!-- Flash Messages -->
             <div>
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -66,45 +79,98 @@
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    // Event Listener for Adding and Deleting Rows
-    document.getElementById("raw-materials-container").addEventListener("click", function (event) {
-        // Add New Row
-        if (event.target.classList.contains("add-row-btn")) {
-            const container = document.getElementById("raw-materials-container");
-            const newRow = `
-                <div class="row align-items-center raw-material-row mb-2">
-                    <div class="col-md-4">
-                        <select name="raw_materials[]" class="form-control" required>
-                            {% for material in raw_materials %}
-                                <option value="{{ material[0] }}">{{ material[1] }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <input type="number" step="0.01" name="quantities[]" class="form-control" required>
-                    </div>
-                    <div class="col-md-3">
-                        <select name="metric[]" class="form-control" required>
-                            <option value="kg">kg</option>
-                            <option value="liter">liter</option>
-                            <option value="unit">unit</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2 d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
-                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
-                    </div>
-                </div>`;
-            container.insertAdjacentHTML("beforeend", newRow);
+    document.getElementById('raw-materials-container').addEventListener('click', function (event) {
+        if (event.target.classList.contains('add-row-btn')) {
+            addNewRow();
         }
 
-        // Delete Existing Row
-        if (event.target.classList.contains("delete-row-btn")) {
-            const row = event.target.closest(".raw-material-row");
-            if (row) {
-                row.remove();
+        if (event.target.classList.contains('delete-row-btn')) {
+            const row = event.target.closest('.raw-material-row');
+            if (row) row.remove();
+        }
+    });
+
+    // Prevent form submission and add a new row on Enter key press
+    document.querySelector('form').addEventListener('keypress', function (event) {
+        const rawMaterialsContainer = document.getElementById('raw-materials-container');
+        if (event.target.closest('#raw-materials-container') && event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            const newRow = addNewRow();
+            // Focus on the first input field of the newly added row
+            newRow.querySelector('input[name="raw_materials[]"]').focus();
+        }
+    });
+
+    // Function to add a new row and return the row element
+    function addNewRow() {
+        const container = document.getElementById('raw-materials-container');
+        const newRowHTML = `
+            <div class="row align-items-center raw-material-row mb-2">
+                <div class="col-md-4">
+                    <input 
+                        type="text" 
+                        name="raw_materials[]" 
+                        class="form-control raw-material-input"
+                        list="raw-materials-list" 
+                        placeholder="Search raw materials..." 
+                        required>
+                    <datalist id="raw-materials-list">
+                        {% for material in raw_materials %}
+                        <option value="{{ material['name'] }}" data-id="{{ material['id'] }}" data-metric="{{ material['metric'] }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-3">
+                    <input type="number" step="0.01" name="quantities[]" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <select name="metric[]" class="form-control metric-input" required>
+                        <option value="kg">kilograms(kg)</option>
+                        <option value="grams">grams(g)</option>
+                        <option value="liter">liter(l)</option>
+                        <option value="ml">milliliter(ml)</option>
+                        <option value="unit">unit</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex justify-content-between">
+                    <button type="button" class="btn btn-success add-row-btn">+</button>
+                    <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', newRowHTML);
+        return container.lastElementChild; // Return the newly added row
+    }
+
+    // Handle raw material selection and auto-populate metric
+    document.getElementById('raw-materials-container').addEventListener('input', function (event) {
+        if (event.target.classList.contains('raw-material-input')) {
+            const input = event.target;
+            const rawMaterialValue = input.value;
+            const dataList = document.getElementById('raw-materials-list');
+            const options = dataList.options;
+
+            // Find the selected option
+            let selectedOption = null;
+            for (let option of options) {
+                if (option.value === rawMaterialValue) {
+                    selectedOption = option;
+                    break;
+                }
+            }
+
+            // If the selected option exists, update the corresponding metric
+            if (selectedOption) {
+                const metric = selectedOption.getAttribute('data-metric');
+                const row = input.closest('.raw-material-row');
+                if (row) {
+                    const metricDropdown = row.querySelector('.metric-input');
+                    if (metricDropdown) {
+                        metricDropdown.value = metric;
+                    }
+                }
             }
         }
     });

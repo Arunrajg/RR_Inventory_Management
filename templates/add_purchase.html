@@ -21,73 +21,93 @@
         <form method="POST" action="/add_purchase">
             <div class="card">
                 <div class="card-body">
+                    <!-- First Row -->
                     <div class="row">
-                        <!-- Raw Material Selection -->
+                        <!-- Vendor Name -->
                         <div class="col-lg-4 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Raw Material</label>
-                                <select name="raw_material_id" class="select form-control" required>
-                                    <option value="">Select Raw Material</option>
-                                    {% for material in raw_materials %}
-                                    <option value="{{ material[0] }}">{{ material[1] }}</option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Quantity -->
-                        <div class="col-lg-4 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Quantity</label>
-                                <input type="number" name="quantity" class="form-control" step="0.01"
-                                    placeholder="Enter Quantity" required>
-                            </div>
-                        </div>
-
-                        <!-- Unit -->
-                        <div class="col-lg-4 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Metric</label>
-                                <select name="metric" class="select form-control" required>
-                                    <option value="">Select Metric</option>
-                                    <option value="kg">Kilogram (kg)</option>
-                                    <option value="liter">liter</option>
-                                    <option value="unit">unit</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Total Cost -->
-                        <div class="col-lg-4 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Total Cost</label>
-                                <input type="number" name="total_cost" class="form-control" step="0.01"
-                                    placeholder="Enter Total Cost" required>
+                                <label>Vendor</label>
+                                <input list="vendors" name="vendor" class="form-control" placeholder="Select Vendor"
+                                    required>
+                                <datalist id="vendors">
+                                    {% for vendor in vendors %}
+                                    <option value="{{ vendor.vendor_name }}">
+                                        {% endfor %}
+                                </datalist>
                             </div>
                         </div>
 
                         <!-- Purchase Date -->
                         <div class="col-lg-4 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Purchase Date</label>
-                                <input type="date" name="purchase_date" class="form-control" required>
+                                <label>Date</label>
+                                <input type="date" name="purchase_date" class="form-control" value="{{ today_date }}"
+                                    required>
                             </div>
                         </div>
 
-                        <!-- Inventory Selection -->
+                        <!-- Destination -->
                         <div class="col-lg-4 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Inventory</label>
-                                <select name="inventory_id" class="select form-control" required>
-                                    <option value="">Select Inventory</option>
-                                    {% for inventory in inventories %}
-                                    <option value="{{ inventory[0] }}">{{ inventory[1] }} ({{ inventory[2] }})</option>
-                                    {% endfor %}
-                                </select>
+                                <label>Destination Storage Room</label>
+                                <input list="storage_rooms" name="storage_room" class="form-control"
+                                    placeholder="Select Storage Room" required>
+                                <datalist id="storage_rooms">
+                                    {% for room in storage_rooms %}
+                                    <option value="{{ room.storageroomname }}">
+                                        {% endfor %}
+                                </datalist>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Raw Material Rows -->
+                    <div id="raw-material-container">
+                        <!-- First Row with Headings -->
+                        <div class="row align-items-center raw-material-row">
+                            <div class="col-lg-10 col-sm-12 col-12">
+                                <div class="form-group row">
+                                    <!-- Labels -->
+                                    <div class="col-lg-3">
+                                        <label>Raw Material</label>
+                                        <input list="raw_materials" name="raw_material[]"
+                                            class="form-control raw-material-input" placeholder="Select Raw Material"
+                                            required>
+                                        <datalist id="raw_materials">
+                                            {% for material in raw_materials %}
+                                            <option value="{{ material.name }}" data-metric="{{ material.metric }}">
+                                                {% endfor %}
+                                        </datalist>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label>Quantity</label>
+                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
+                                            placeholder="Enter Quantity" required>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label>Metric</label>
+                                        <select name="metric[]" class="form-control metric-dropdown" required>
+                                            <option value="kg">Kilogram (kg)</option>
+                                            <option value="grams">Grams</option>
+                                            <option value="liter">Liter</option>
+                                            <option value="ml">Milliliter (ml)</option>
+                                            <option value="unit">Unit</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label>Total Cost(Rs)</label>
+                                        <input type="number" name="total_cost[]" class="form-control" step="0.01"
+                                            placeholder="Enter Total Cost" required>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-2 d-flex align-items-center">
+                                <button type="button" class="btn btn-success btn-add-row">+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Buttons -->
                     <div class="row mt-3">
                         <div class="col-lg-12">
                             <button type="submit" class="btn btn-submit me-2">Submit</button>
@@ -99,4 +119,97 @@
         </form>
     </div>
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('raw-material-container');
+
+        // Add new row
+        container.addEventListener('click', function (e) {
+            if (e.target.classList.contains('btn-add-row')) {
+                const newRow = e.target.closest('.raw-material-row').cloneNode(true);
+                newRow.querySelectorAll('input, select').forEach(input => input.value = ''); // Clear inputs
+
+                // Remove any existing 'X' buttons before cloning
+                const existingRemoveBtn = newRow.querySelector('.btn-remove-row');
+                if (existingRemoveBtn) {
+                    existingRemoveBtn.remove();
+                }
+
+                // Ensure both + and X buttons for the new row
+                const addBtn = newRow.querySelector('.btn-add-row');
+                addBtn.textContent = '+';
+                addBtn.classList.replace('btn-remove-row', 'btn-add-row');
+                addBtn.classList.replace('btn-danger', 'btn-success');
+
+                // Add an X button
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = 'X';
+                removeBtn.classList.add('btn', 'btn-danger', 'btn-remove-row');
+                newRow.querySelector('.d-flex').appendChild(removeBtn);
+
+                // Hide labels for subsequent rows
+                const labels = newRow.querySelectorAll('label');
+                labels.forEach(label => label.style.display = 'none');
+
+                // Append new row to the container
+                container.appendChild(newRow);
+
+                // Focus the raw material input field in the new row
+                const rawMaterialInput = newRow.querySelector('input[name="raw_material[]"]');
+                if (rawMaterialInput) {
+                    rawMaterialInput.focus();
+                }
+
+                // Re-render the metric dropdown for the new row
+                const metricDropdown = newRow.querySelector('.metric-dropdown');
+                const rawMaterialInputField = newRow.querySelector('input[name="raw_material[]"]');
+
+                if (metricDropdown && rawMaterialInputField) {
+                    metricDropdown.innerHTML = `
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="grams">Grams</option>
+                    <option value="liter">Liter</option>
+                    <option value="ml">Milliliter (ml)</option>
+                    <option value="unit">Unit</option>
+                `;
+                }
+            }
+        });
+
+        // Remove row
+        container.addEventListener('click', function (e) {
+            if (e.target.classList.contains('btn-remove-row')) {
+                e.target.closest('.raw-material-row').remove();
+            }
+        });
+
+        // Handle Enter Key
+        container.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent form submission
+                const addBtn = e.target.closest('.raw-material-row').querySelector('.btn-add-row');
+                if (addBtn) addBtn.click();
+            }
+        });
+
+        // Auto-select metric based on raw material
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('raw-material-input')) {
+                const selectedMaterial = e.target.value;
+                const dataList = document.getElementById('raw_materials');
+                const options = Array.from(dataList.options);
+                const matchingOption = options.find(option => option.value === selectedMaterial);
+
+                if (matchingOption) {
+                    const metric = matchingOption.dataset.metric;
+                    const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+                    metricDropdown.value = metric;
+                }
+            }
+        });
+    });
+
+</script>
 {% endblock %}

@@ -1,13 +1,12 @@
 import mysql.connector
 from mysql.connector import Error
-from encryption import encrypt_message, decrypt_message
 import logging
 
 # Set up logger
 logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO, ERROR, etc.
                     format='%(asctime)s - %(levelname)s - %(message)s',
                     handlers=[
-                        logging.FileHandler("app.log"),  # Log to a file
+                        # logging.FileHandler("app.log"),  # Log to a file
                         logging.StreamHandler()          # Log to console
                     ])
 logger = logging.getLogger()
@@ -136,6 +135,52 @@ def get_all_restaurants():
     return restaurants
 
 
+def get_all_purchases():
+    query = """
+                SELECT 
+                    ph.id,
+                    rm.name AS raw_material_name,
+                    ph.quantity,
+                    ph.metric,
+                    ph.total_cost,
+                    v.vendor_name,
+                    ph.purchase_date,
+                    sr.storageroomname AS storage_room_name
+                FROM purchase_history ph
+                JOIN raw_materials rm ON ph.raw_material_id = rm.id
+                JOIN storagerooms sr ON ph.storageroom_id = sr.id
+                JOIN vendor_list v ON v.id = (
+                    SELECT vp.vendor_id 
+                    FROM vendor_payment_tracker vp 
+                    WHERE vp.outstanding_cost > 0 AND vp.vendor_id = v.id
+                    LIMIT 1
+                )
+            """
+    purchases = fetch_all(query)
+    logger.debug(f"purchases -- {purchases}")
+    return purchases
+
+
+def get_all_payments():
+    query = """
+    SELECT 
+        vpt.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        vpt.outstanding_cost,
+        vpt.total_paid,
+        vpt.total_due,
+        vpt.last_updated
+    FROM 
+        vendor_payment_tracker AS vpt
+    JOIN 
+        vendor_list AS vl ON vpt.vendor_id = vl.id;
+    """
+    payments = fetch_all(query)
+    logger.debug(f"payments -- {payments}")
+    return payments
+
+
 def get_raw_material_by_name(material_name):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -152,6 +197,20 @@ def get_all_rawmaterials():
     raw_materials = fetch_all(query)
     logger.debug(f"raw_materials -- {raw_materials}")
     return raw_materials
+
+
+def get_all_dish_categories():
+    query = 'SELECT DISTINCT category from dishes'
+    dish_categories = fetch_all(query)
+    logger.debug(f"dish_categories -- {dish_categories}")
+    return dish_categories
+
+
+def get_all_vendors():
+    query = 'SELECT * from vendor_list'
+    vendors = fetch_all(query)
+    logger.debug(f"vendors -- {vendors}")
+    return vendors
 
 
 def update_user_password(new_encrypted_password, email):

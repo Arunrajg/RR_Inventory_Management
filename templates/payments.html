@@ -4,14 +4,14 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>PURCHASE LIST</h4>
-                <h6>Manage your purchases</h6>
+                <h4>PAYMENTS</h4>
+                <h6>Manage your payments</h6>
             </div>
-            <div class="page-btn">
+            <!-- <div class="page-btn">
                 <a href="/add_purchase" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" alt="img">Add New Purchases
                 </a>
-            </div>
+            </div> -->
         </div>
 
         <div class="card">
@@ -28,25 +28,19 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
-                                <th>Raw Material</th>
-                                <th>Quantity</th>
-                                <th>Metric</th>
-                                <th>Total Cost</th>
                                 <th>Vendor</th>
-                                <th>Purchase Date</th>
-                                <th>Storage Room</th>
+                                <th>Total Outstanding Amount</th>
+                                <th>Total Amount Paid</th>
+                                <th>Total Due</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for purchase in purchases %}
+                            {% for payment in payments %}
                             <tr>
-                                <td>{{ purchase['raw_material_name']}}</td>
-                                <td>{{ purchase['quantity'] }}</td>
-                                <td>{{ purchase['metric'] }}</td>
-                                <td>{{ purchase['total_cost'] }}</td>
-                                <td>{{ purchase['vendor_name'] }}</td>
-                                <td>{{ purchase['purchase_date'] }}</td>
-                                <td>{{ purchase['storage_room_name'] }}</td>
+                                <td>{{ payment['vendor_name']}}</td>
+                                <td>{{ payment['outstanding_cost'] }}</td>
+                                <td>{{ payment['total_paid'] }}</td>
+                                <td>{{ payment['total_due'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

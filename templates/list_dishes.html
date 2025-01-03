@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+
 {% block content %}
 <div class="page-wrapper">
     <div class="content">
@@ -23,17 +24,14 @@
                     </div>
                 </div>
 
-
                 <div class="table-responsive">
                     <table class="table  datanew">
                         <thead>
-                            <tr>
                             <tr>
                                 <th>Dish Id</th>
                                 <th>Dish Name</th>
                                 <th>Category</th>
                                 <th>Raw Materials</th>
-                            </tr>
                             </tr>
                         </thead>
                         <tbody>
@@ -43,13 +41,12 @@
                                 <td>{{ dish_details.name }}</td>
                                 <td>{{ dish_details.category }}</td>
                                 <td>
-                                    <ul class="list-unstyled">
-                                        {% for material in dish_details.raw_materials %}
-                                        <li>
-                                            {{ material.name }} - {{ material.quantity }} {{ material.unit }}
-                                        </li>
-                                        {% endfor %}
-                                    </ul>
+                                    <!-- Button to trigger modal and pass raw materials data -->
+                                    <button type="button" class="btn btn-info show-materials-btn"
+                                        data-dish-id="{{ dish_id }}" data-dish-name="{{ dish_details.name }}"
+                                        data-raw-materials='{{ dish_details.raw_materials | tojson }}'>
+                                        View Raw Materials
+                                    </button>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -58,14 +55,81 @@
                 </div>
             </div>
         </div>
-
     </div>
 </div>
-{% endblock %}
 
+<!-- Modal to display raw materials -->
+<div class="modal fade" id="rawMaterialsModal" tabindex="-1" aria-labelledby="rawMaterialsModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rawMaterialsModalLabel">Raw Materials for Dish <span
+                        id="modal-dish-name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="max-height: 400px; overflow-y: auto;">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Raw Material</th>
+                            <th>Quantity</th>
+                            <th>Metric</th>
+                        </tr>
+                    </thead>
+                    <tbody id="raw-materials-list">
+                        <!-- Raw materials will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
 
 {% block scripts %}
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+
+<script>
+    document.querySelectorAll('.show-materials-btn').forEach(function (button) {
+        button.addEventListener('click', function () {
+            const rawMaterialsJSON = this.getAttribute('data-raw-materials');
+            const dishName = this.getAttribute('data-dish-name');
+
+            // Try parsing the JSON data
+            let rawMaterials = [];
+            try {
+                rawMaterials = JSON.parse(rawMaterialsJSON);
+            } catch (error) {
+                console.error("Failed to parse JSON data: ", error);
+                return;
+            }
+
+            // Set the dish name in the modal header
+            document.getElementById('modal-dish-name').innerText = dishName;
+
+            // Clear the existing raw materials list
+            const rawMaterialsList = document.getElementById('raw-materials-list');
+            rawMaterialsList.innerHTML = '';
+
+            // Add the raw materials to the modal
+            rawMaterials.forEach(function (material) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                <td>${material.name}</td>
+                <td>${material.quantity}</td>
+                <td>${material.metric}</td>
+            `;
+                rawMaterialsList.appendChild(row);
+            });
+
+            // Open the modal
+            const modal = new bootstrap.Modal(document.getElementById('rawMaterialsModal'));
+            modal.show();
+        });
+    });
+</script>
 {% endblock %}

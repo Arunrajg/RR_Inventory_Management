@@ -313,12 +313,13 @@ def rawmaterialslist():
 def add_dish():
     if "user" not in session:
         return redirect("/login")
+
     if request.method == 'POST':
         category = request.form['category']
         name = request.form['name']
         raw_materials = request.form.getlist('raw_materials[]')
         quantities = request.form.getlist('quantities[]')
-        metric = request.form.getlist('metric[]')
+        metrics = request.form.getlist('metric[]')
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -328,11 +329,31 @@ def add_dish():
             cursor.execute("INSERT INTO dishes (category, name) VALUES (%s, %s)", (category, name))
             dish_id = cursor.lastrowid
 
-            # Insert into dish_raw_materials table
-            for raw_material, quantity, metric in zip(raw_materials, quantities, metric):
+            # Process raw materials
+            for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
+                app.logger.debug(f"raw_material {raw_material}")
+                app.logger.debug(f"quantity {quantity}")
+                app.logger.debug(f"metric {metric}")
+                # Check if the raw material exists
+                cursor.execute("SELECT id FROM raw_materials WHERE name = %s", (raw_material,))
+                raw_material_data = cursor.fetchone()
+                app.logger.debug(f"raw_material_data {raw_material_data}")
+
+                if not raw_material_data:
+                    # Raw material does not exist; create it with a metric
+                    cursor.execute(
+                        "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
+                        (raw_material, metric)
+                    )
+                    raw_material_id = cursor.lastrowid
+                    app.logger.debug(f"raw_material_id {raw_material_id}")
+                else:
+                    raw_material_id = raw_material_data[0]
+
+                # Insert into dish_raw_materials table
                 cursor.execute(
                     "INSERT INTO dish_raw_materials (dish_id, raw_material_id, quantity, metric) VALUES (%s, %s, %s, %s)",
-                    (dish_id, raw_material, quantity, metric)
+                    (dish_id, raw_material_id, quantity, metric)
                 )
 
             conn.commit()
@@ -342,20 +363,14 @@ def add_dish():
             flash(f'Error: {str(e)}', 'danger')
         finally:
             cursor.close()
-            conn.close()
+        conn.close()
 
         return redirect('/add_dish')
 
-    # Fetch raw materials from the database
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, name FROM raw_materials")
-    raw_materials = cursor.fetchall()  # Fetch all raw materials
-    cursor.close()
-    conn.close()
-    print(raw_materials)
+    raw_materials = get_all_rawmaterials()
+    dish_categories = get_all_dish_categories()
 
-    return render_template('add_dish.html', user=session["user"], raw_materials=raw_materials)
+    return render_template('add_dish.html', user=session["user"], raw_materials=raw_materials, dish_categories=dish_categories)
 
 
 @app.route('/list_dishes', methods=['GET', 'POST'])
@@ -395,99 +410,170 @@ def list_dishes():
     return render_template('list_dishes.html', user=session["user"], dishes=dishes)
 
 
+@app.route('/add_vendor', methods=['GET', 'POST'])
+def add_vendor():
+    if "user" not in session:
+        return redirect("/login")
+
+    if request.method == "POST":
+        vendor_names = request.form.getlist("vendor_name[]")
+        phone_numbers = request.form.getlist("phone_number[]")
+        addresses = request.form.getlist("address[]")
+        app.logger.debug(f"vendor_names {vendor_names}")
+        app.logger.debug(f"phone_numbers {phone_numbers}")
+        app.logger.debug(f"addresses {addresses}")
+        if vendor_names and phone_numbers and addresses:
+            app.logger.debug("if")
+            try:
+                db_connection = get_db_connection()
+                cursor = db_connection.cursor()
+
+                # Insert each vendor's data into the database
+                for name, phone, address in zip(vendor_names, phone_numbers, addresses):
+                    cursor.execute(
+                        "INSERT INTO vendor_list (vendor_name, phone, address) VALUES (%s, %s, %s)",
+                        (name, phone, address)
+                    )
+
+                db_connection.commit()
+                cursor.close()
+                db_connection.close()
+                flash('Vendor added successfully!', 'success')
+            except Exception as e:
+                app.logger.error(f"Error: {e}")
+                flash("An error occurred while adding vendor details.", 'danger')
+            return redirect("/add_vendor")
+    return render_template('add_vendor.html', user=session["user"])
+
+
+@app.route("/list_vendors", methods=["GET", "POST"])
+def list_vendors():
+    if "user" not in session:
+        return redirect("/login")
+    vendors = get_all_vendors()
+    return render_template("list_vendors.html", user=session["user"], vendors=vendors)
+
+
 @app.route('/add_purchase', methods=['GET', 'POST'])
 def add_purchase():
+    if "user" not in session:
+        return redirect("/login")
     connection = get_db_connection()
-    raw_materials = []
-    inventories = []
-
-    try:
-        with connection.cursor() as cursor:
-            # Fetch raw materials
-            cursor.execute("SELECT id, name FROM raw_materials")
-            raw_materials = cursor.fetchall()
-
-            # Fetch inventory
-            cursor.execute("SELECT id, inventoryname, inventorycode FROM inventory")
-            inventories = cursor.fetchall()
-    finally:
-        connection.close()
-    app.logger.debug(f"raw_materialsraw_materials {raw_materials}")
-    app.logger.debug(inventories)
+    raw_materials = get_all_rawmaterials()
+    storage_rooms = get_all_storagerooms()
+    vendors = get_all_vendors()
 
     if request.method == 'POST':
-        # Handle form submission
-        raw_material_id = request.form.get('raw_material_id')
-        quantity = request.form.get('quantity')
-        metric = request.form.get('metric')
-        total_cost = request.form.get('total_cost')
-        purchase_date = request.form.get('purchase_date')
-        inventory_id = request.form.get('inventory_id')
-        inventory_name = get_inventory_by_id(inventory_id)["inventoryname"]
-        app.logger.debug(raw_materials)
-        app.logger.debug(raw_material_id)
-        app.logger.debug(f"inventory_name {inventory_name}")
+        app.logger.debug(f"request {request.form}")
+        vendor_name = request.form.get('vendor')
+        storageroom_name = request.form.get('storage_room')
+        raw_material_names = request.form.getlist('raw_material[]')  # List of raw materials
+        quantities = request.form.getlist('quantity[]')             # List of quantities
+        metrics = request.form.getlist('metric[]')                  # List of metrics
+        total_costs = request.form.getlist('total_cost[]')          # List of total costs
+        purchase_date = request.form.get("purchase_date")
 
-        connection = get_db_connection()
-        try:
-            raw_material_name = [m[1] for m in raw_materials if m[0] == int(raw_material_id)][0]
-            app.logger.debug(raw_material_name)
-            with connection.cursor() as cursor:
-                # Insert into purchase_history
-                cursor.execute("""
-                    INSERT INTO purchase_history
-                    (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id))
+        app.logger.debug(f"vendors {vendors}")
+        app.logger.debug(f"raw_materials {raw_materials}")
+        app.logger.debug(f"storage_rooms {storage_rooms}")
+        app.logger.debug(f"vendor_name {vendor_name}")
+        app.logger.debug(f"storageroom_name {storageroom_name}")
+        app.logger.debug(f"raw_material_names {raw_material_names}")
+        app.logger.debug(f"quantities {quantities}")
+        app.logger.debug(f"metrics {metrics}")
+        app.logger.debug(f"total_costs {total_costs}")
+
+        # Check for valid vendor
+        vendor = next((v for v in vendors if v['vendor_name'] == vendor_name), None)
+        if not vendor:
+            flash('Vendor does not exist. Please add the vendor first.', 'danger')
+            return redirect('/add_purchase')
+
+        # Check for valid storageroom
+        storageroom = next((s for s in storage_rooms if s['storageroomname'] == storageroom_name), None)
+        if not storageroom:
+            flash('Storage room does not exist. Please add the storage room first.', 'danger')
+            return redirect('/add_purchase')
+
+        # Iterate over the multiple raw materials
+        for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
+            # Check and add raw material if not exists
+            raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
+            if not raw_material:
+                cursor = connection.cursor()
+                cursor.execute(
+                    "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
+                    (raw_material_name, metric)
+                )
                 connection.commit()
-                cursor.execute("""
-                    INSERT INTO inventory_stock
-                    (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
+                raw_material_id = cursor.lastrowid
+            else:
+                raw_material_id = raw_material['id']
+
+            # Metric conversion
+            if metric == 'grams':
+                quantity = float(quantity) / 1000  # Convert to kg
+                metric = 'kg'
+            elif metric == 'ml':
+                quantity = float(quantity) / 1000  # Convert to liters
+                metric = 'liter'
+
+            # Insert into purchase_history
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                INSERT INTO purchase_history 
+                (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (raw_material_id, raw_material_name, quantity, metric, cost, purchase_date, storageroom['id'])
+            )
+            connection.commit()
+
+            # Update vendor_payment_tracker
+            cursor.execute(
+                """
+                INSERT INTO vendor_payment_tracker (vendor_id, outstanding_cost) 
+                VALUES (%s, %s) 
+                ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + %s
+                """,
+                (vendor['id'], cost, cost)
+            )
+            connection.commit()
+
+            # Update storageroom_stock
+            cursor.execute(
+                """
+                INSERT INTO storageroom_stock (storageroom_id, raw_material_id, quantity, metric) 
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
                     quantity = quantity + VALUES(quantity),
-                    metric = VALUES(metric),
-                    inventory_name = VALUES(inventory_name),
-                    raw_material_name = VALUES(raw_material_name)
-                """, (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric))
+                    metric = VALUES(metric)
+                """,
+                (storageroom['id'], raw_material_id, quantity, metric)
+            )
+            connection.commit()
 
-                connection.commit()
-            flash("Purchase added successfully!", "success")
-
-        except Exception as e:
-            flash(f"Error: {str(e)}", "danger")
-        finally:
-            connection.close()
+        flash('Purchases added successfully!', 'success')
         return redirect('/add_purchase')
 
-    return render_template('add_purchase.html', raw_materials=raw_materials, inventories=inventories, user=session["user"])
+    return render_template('add_purchase.html', vendors=vendors, raw_materials=raw_materials, storage_rooms=storage_rooms, user=session["user"], today_date=datetime.now().strftime("%Y-%m-%d"))
 
 
 @app.route('/purchase_list')
 def purchase_list():
-    connection = get_db_connection()
-    purchases = []
-
-    try:
-        with connection.cursor() as cursor:
-            # Query the purchase history to retrieve required fields
-            cursor.execute("""
-                SELECT ph.id, rm.name AS raw_material_name, ph.quantity, ph.metric, ph.total_cost, ph.purchase_date, i.inventoryname AS inventory_name
-                FROM purchase_history ph
-                JOIN raw_materials rm ON ph.raw_material_id = rm.id
-                JOIN inventory i ON ph.inventory_id = i.id
-            """)
-            purchases = cursor.fetchall()
-
-            app.logger.debug(f"purchases {purchases}")
-    except Exception as e:
-        app.logger.debug(f"purchases {purchases}")
-        app.logger.error(f"Error retrieving purchase data: {e}")
-        flash(f"Error retrieving purchase data: {str(e)}", "danger")
-    finally:
-        connection.close()
-
+    if "user" not in session:
+        return redirect("/login")
+    purchases = get_all_purchases()
     return render_template('purchase_list.html', purchases=purchases, user=session["user"])
+
+
+@app.route("/payments", methods=["GET", "POST"])
+def payments():
+    if "user" not in session:
+        return redirect("/login")
+    payments = get_all_payments()
+    return render_template("payments.html", user=session["user"], payments=payments)
 
 
 @app.route('/inventory_stock')

@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Add New Vendor</h4>
+                <h6>Add vendor details like name, phone number, and address</h6>
+            </div>
+        </div>
+        <form id="vendor-form" method="POST" action="/add_vendor">
+            <!-- Vendor Details Section -->
+            <div id="vendor-details-container">
+                <!-- First Row -->
+                <div class="row align-items-center vendor-row mb-2">
+                    <div class="col-md-4">
+                        <label>Vendor Name</label>
+                        <input type="text" name="vendor_name[]" class="form-control" placeholder="Vendor Name" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label>Phone Number</label>
+                        <input type="text" name="phone_number[]" class="form-control" placeholder="Phone Number"
+                            required>
+                    </div>
+                    <div class="col-md-4">
+                        <label>Address</label>
+                        <input type="text" name="address[]" class="form-control" placeholder="Address" required>
+                    </div>
+                    <div class="col-md-2 d-flex justify-content-start mt-2">
+                        <button type="button" class="btn btn-success add-row-btn me-2">+</button>
+                        <button type="button" class="btn btn-danger delete-row-btn" style="display: none;">x</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Flash Messages -->
+            <div>
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <ul class="flash-messages">
+                    {% for category, message in messages %}
+                    <li class="{{ category }}"><b>**{{ message }}</b></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                {% endwith %}
+            </div>
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const vendorContainer = document.getElementById('vendor-details-container');
+    const vendorForm = document.getElementById('vendor-form');
+
+    vendorContainer.addEventListener('click', function (event) {
+        // Add new row
+        if (event.target.classList.contains('add-row-btn')) {
+            addNewRow();
+        }
+
+        // Delete row
+        if (event.target.classList.contains('delete-row-btn')) {
+            const row = event.target.closest('.vendor-row');
+            if (row) row.remove();
+        }
+
+        updateFirstRowButtons();
+    });
+
+    vendorForm.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            moveToNextRow(event.target);
+        }
+    });
+
+    // Function to add a new row
+    function addNewRow() {
+        const container = document.getElementById('vendor-details-container');
+        const newRowHTML = `
+            <div class="row align-items-center vendor-row mb-2">
+                <div class="col-md-4">
+                    <input type="text" name="vendor_name[]" class="form-control" placeholder="Vendor Name" required>
+                </div>
+                <div class="col-md-2">
+                    <input type="text" name="phone_number[]" class="form-control" placeholder="Phone Number" required>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" name="address[]" class="form-control" placeholder="Address" required>
+                </div>
+                <div class="col-md-2 d-flex justify-content-start mt-2">
+                    <button type="button" class="btn btn-success add-row-btn me-2">+</button>
+                    <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', newRowHTML);
+
+        updateFirstRowButtons();
+    }
+
+    // Function to move to the next input field or add a new row
+    function moveToNextRow(currentInput) {
+        const inputs = Array.from(document.querySelectorAll('#vendor-details-container input'));
+        const currentIndex = inputs.indexOf(currentInput);
+
+        if (currentIndex !== -1) {
+            const nextInput = inputs[currentIndex + 1];
+            if (nextInput) {
+                nextInput.focus(); // Focus the next input
+            } else {
+                // Add a new row if there are no more inputs
+                addNewRow();
+                const newInputs = Array.from(document.querySelectorAll('#vendor-details-container input'));
+                newInputs[newInputs.length - 3].focus(); // Focus the first field of the new row
+            }
+        }
+    }
+
+    // Function to ensure the first row has only "+" and no "x"
+    function updateFirstRowButtons() {
+        const rows = document.querySelectorAll('.vendor-row');
+        rows.forEach((row, index) => {
+            const addButton = row.querySelector('.add-row-btn');
+            const deleteButton = row.querySelector('.delete-row-btn');
+
+            if (index === 0) {
+                // First row: Show only "+"
+                addButton.style.display = 'inline-block';
+                deleteButton.style.display = 'none';
+            } else {
+                // Other rows: Show both "+" and "x"
+                addButton.style.display = 'inline-block';
+                deleteButton.style.display = 'inline-block';
+            }
+        });
+    }
+
+    // Initialize button behavior
+    updateFirstRowButtons();
+</script>
+{% endblock %}
