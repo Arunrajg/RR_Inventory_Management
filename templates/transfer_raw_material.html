@@ -1,5 +1,4 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <div class="page-wrapper">
     <div class="content">
@@ -9,116 +8,112 @@
             </div>
         </div>
 
-        <form action="/transfer_raw_material" method="POST">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/transfer_raw_material">
             <div class="card">
                 <div class="card-body">
+                    <!-- First Row -->
                     <div class="row">
-                        <!-- Source Inventory Dropdown -->
-                        <div class="col-lg-6 col-sm-6 col-12">
+                        <!-- Vendor Name (Transfer From) -->
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Source Inventory</label>
-                                <select name="source_inventory_id" class="form-control" required
-                                    onchange="checkAvailableQuantity()">
-                                    <option value="" disabled selected>Select Source Inventory</option>
-                                    {% for inventory in inventories %}
-                                    <option value="{{ inventory.id }}_{{ inventory.inventorycode}}">{{
-                                        inventory.inventoryname }}({{
-                                        inventory.inventorycode }})</option>
+                                <label>Transfer From</label>
+                                <select name="storageroom" class="form-control" required>
+                                    <option value="" disabled selected>Select Storage Room</option>
+                                    {% for room in storage_rooms %}
+                                    <option value="{{ room.id }}">{{ room.storageroomname }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </div>
 
-                        <!-- Raw Material Dropdown -->
-                        <div class="col-lg-6 col-sm-6 col-12">
+                        <!-- Transfer Date -->
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Raw Material</label>
-                                <select name="raw_material_id" class="form-control" required
-                                    onchange="checkAvailableQuantity()">
-                                    <option value="" disabled selected>Select Raw Material</option>
-                                    {% for material in raw_materials %}
-                                    <option value="{{ material.id }}" data-max="{{ material.max_quantity }}">{{
-                                        material.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <label>Transfer Date</label>
+                                <input type="date" name="transfer_date" class="form-control" value="{{ today_date }}"
+                                    required>
                             </div>
                         </div>
 
-                        <!-- Quantity Input -->
-                        <div class="col-lg-6 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Quantity</label>
-                                <input type="number" name="quantity" class="form-control" required min="1" step="any"
-                                    id="quantity" oninput="checkAvailableQuantity()">
-                            </div>
-                        </div>
-                        <!-- Metric Input -->
-                        <div class="col-lg-6 col-sm-6 col-12">
-                            <div class="form-group">
-                                <div class="form-group">
-                                    <label>Metric</label>
-                                    <select class="select" name="metric">
-                                        <option value="kg">kg</option>
-                                        <option value="liter">liter</option>
-                                        <option value="unit">unit</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Destination Type (Restaurant/Kitchen) -->
-                        <div class="col-lg-6 col-sm-6 col-12">
+                        <!-- Destination -->
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Destination Type</label>
-                                <select name="destination_type" class="form-control" required
-                                    onchange="toggleDestinationField()">
-                                    <option value="" disabled selected>Select Destination</option>
-                                    <option value="restaurant">Restaurant</option>
+                                <select name="destination_type" class="form-control" id="destination_type" required>
                                     <option value="kitchen">Kitchen</option>
+                                    <option value="restaurant">Restaurant</option>
                                 </select>
                             </div>
                         </div>
 
-                        <!-- Destination ID (Dynamic based on Destination Type) -->
-                        <div class="col-lg-6 col-sm-6 col-12" id="destination_id_field" style="display: none;">
+                        <!-- Destination Name based on selection -->
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
-                                <label id="destination_label">Destination</label>
-                                <select name="destination_id" class="form-control" required>
-                                    <option value="" disabled selected>Select Destination</option>
-                                    <!-- Dynamic options based on destination type will be populated here -->
+                                <label>Destination Name</label>
+                                <select name="destination_name" class="form-control" id="destination_name" required>
+                                    <!-- Dynamic options will be added here -->
                                 </select>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Dish Dropdown -->
-                        <div class="col-lg-6 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>For Dish</label>
-                                <select name="dish_id" class="form-control" required>
-                                    <option value="" disabled selected>Select Dish</option>
-                                    {% for dish in dishes %}
-                                    <option value="{{ dish.id }}">{{ dish.name }}</option>
-                                    {% endfor %}
-                                </select>
+
+                    <!-- Raw Material Rows -->
+                    <div id="raw-material-container">
+                        <!-- First Row with Headings -->
+                        <div class="row align-items-center raw-material-row">
+                            <div class="col-lg-10 col-sm-12 col-12">
+                                <div class="form-group row">
+                                    <!-- Labels -->
+                                    <div class="col-lg-3">
+                                        <label>Raw Material</label>
+                                        <input list="raw_materials" name="raw_material[]"
+                                            class="form-control raw-material-input" placeholder="Select Raw Material"
+                                            required>
+                                        <datalist id="raw_materials">
+                                            {% for material in raw_materials %}
+                                            <option value="{{ material.name }}" data-metric="{{ material.metric }}">
+                                                {% endfor %}
+                                        </datalist>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label>Quantity</label>
+                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
+                                            placeholder="Enter Quantity" required>
+                                    </div>
+                                    <div class="col-lg-3">
+                                        <label>Metric</label>
+                                        <select name="metric[]" class="form-control metric-dropdown" required>
+                                            <option value="kg">Kilogram (kg)</option>
+                                            <option value="grams">Grams</option>
+                                            <option value="liter">Liter</option>
+                                            <option value="ml">Milliliter (ml)</option>
+                                            <option value="unit">Unit</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-lg-2 d-flex align-items-center">
+                                <button type="button" class="btn btn-success btn-add-row">+</button>
                             </div>
                         </div>
+                    </div>
 
-                        <div>
-                            {% with messages = get_flashed_messages(with_categories=true) %}
-                            {% if messages %}
-                            <ul class="flash-messages">
-                                {% for category, message in messages %}
-                                <li class="{{ category }}"><b>**{{ message }}</b></li>
-                                {% endfor %}
-                            </ul>
-                            {% endif %}
-                            {% endwith %}
-                        </div>
-
-                        <!-- Submit Button -->
+                    <!-- Submit Buttons -->
+                    <div class="row mt-3">
                         <div class="col-lg-12">
-                            <button type="submit" class="btn btn-submit me-2">Transfer</button>
-                            <a href="/dashboard" class="btn btn-cancel">Cancel</a>
+                            <button type="submit" class="btn btn-submit me-2">Submit</button>
+                            <a href="/" class="btn btn-cancel">Cancel</a>
                         </div>
                     </div>
                 </div>
@@ -126,111 +121,132 @@
         </form>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script src="../static/plugins/select2/js/select2.min.js"></script>
-<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
-<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
 
 <script>
-    function toggleDestinationField() {
-        let destinationType = document.querySelector('select[name="destination_type"]').value;
-        let destinationField = document.getElementById('destination_id_field');
-        let destinationLabel = document.getElementById('destination_label');
-        let destinationSelect = document.querySelector('select[name="destination_id"]');
-
-        // Clear the existing options
-        destinationSelect.innerHTML = '<option value="" disabled selected>Select Destination</option>';
-
-        if (destinationType === 'restaurant') {
-            destinationLabel.innerHTML = 'Restaurant';
-            {% for restaurant in restaurants %}
-            let option = document.createElement('option');
-            option.value = '{{ restaurant.id }}_{{ restaurant.restaurantcode }}';
-            option.innerText = '{{ restaurant.restaurantcode }}';
-            destinationSelect.appendChild(option);
-            {% endfor %}
-        } else if (destinationType === 'kitchen') {
-            destinationLabel.innerHTML = 'Kitchen';
-            {% for kitchen in kitchens %}
-            let option = document.createElement('option');
-            option.value = '{{ kitchen.id }}_{{ kitchen.kitchencode }}';
-            option.innerText = '{{ kitchen.kitchencode }}';
-            destinationSelect.appendChild(option);
-            {% endfor %}
-        }
-
-        // Show or hide the destination field based on the selected destination type
-        destinationField.style.display = destinationType ? 'block' : 'none';
-    }
-
-    // Check if the quantity exceeds the available stock
-    function checkAvailableQuantity() {
-        const rawMaterialSelect = document.querySelector('select[name="raw_material_id"]');
-        const quantityInput = document.getElementById('quantity');
-        const selectedMaterial = rawMaterialSelect.options[rawMaterialSelect.selectedIndex];
-        const maxQuantity = parseFloat(selectedMaterial ? selectedMaterial.getAttribute('data-max') : 0);
-
-        const quantity = parseFloat(quantityInput.value);
-        if (quantity > maxQuantity) {
-            quantityInput.setCustomValidity(`Quantity cannot exceed ${maxQuantity} units`);
-        } else {
-            quantityInput.setCustomValidity('');
-        }
-    }
-
-    // Initialize destination field visibility based on selected destination type on page load
     document.addEventListener('DOMContentLoaded', function () {
-        toggleDestinationField();
+        const container = document.getElementById('raw-material-container');
+        const destinationTypeSelect = document.getElementById('destination_type');
+        const destinationNameSelect = document.getElementById('destination_name');
+        const kitchens = {{ kitchens | tojson
+    }};  // Passing kitchens data
+    const restaurants = {{ restaurants | tojson }};  // Passing restaurants data
+
+    // Update the Destination Name options based on the selected Destination Type
+    function updateDestinationNameOptions() {
+        const selectedType = destinationTypeSelect.value;
+        let options = [];
+
+        if (selectedType === 'kitchen') {
+            options = kitchens;
+        } else if (selectedType === 'restaurant') {
+            options = restaurants;
+        }
+
+        // Clear the dropdown and add new options dynamically
+        destinationNameSelect.innerHTML = ''; // Clear existing options
+        const defaultOption = document.createElement('option');
+        defaultOption.text = 'Select Destination';
+        defaultOption.disabled = true;
+        defaultOption.selected = true;
+        destinationNameSelect.appendChild(defaultOption);
+
+        options.forEach(option => {
+            const newOption = document.createElement('option');
+            newOption.value = option.id;
+            newOption.textContent = option[`${selectedType}name`];  // kitchenname or restaurantname
+            destinationNameSelect.appendChild(newOption);
+        });
+    }
+
+    // Event listener for Destination Type change
+    destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
+
+    // Initial update of Destination Name options
+    updateDestinationNameOptions();
+
+    // Add new row
+    container.addEventListener('click', function (e) {
+        if (e.target.classList.contains('btn-add-row')) {
+            const newRow = e.target.closest('.raw-material-row').cloneNode(true);
+            newRow.querySelectorAll('input, select').forEach(input => input.value = ''); // Clear inputs
+
+            // Remove any existing 'X' buttons before cloning
+            const existingRemoveBtn = newRow.querySelector('.btn-remove-row');
+            if (existingRemoveBtn) {
+                existingRemoveBtn.remove();
+            }
+
+            // Ensure both + and X buttons for the new row
+            const addBtn = newRow.querySelector('.btn-add-row');
+            addBtn.textContent = '+';
+            addBtn.classList.replace('btn-remove-row', 'btn-add-row');
+            addBtn.classList.replace('btn-danger', 'btn-success');
+
+            // Add an X button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.textContent = 'X';
+            removeBtn.classList.add('btn', 'btn-danger', 'btn-remove-row');
+            newRow.querySelector('.d-flex').appendChild(removeBtn);
+
+            // Hide labels for subsequent rows
+            const labels = newRow.querySelectorAll('label');
+            labels.forEach(label => label.style.display = 'none');
+
+            // Append new row to the container
+            container.appendChild(newRow);
+
+            // Focus the raw material input field in the new row
+            const rawMaterialInput = newRow.querySelector('input[name="raw_material[]"]');
+            if (rawMaterialInput) {
+                rawMaterialInput.focus();
+            }
+
+            // Re-render the metric dropdown for the new row
+            const metricDropdown = newRow.querySelector('.metric-dropdown');
+            const rawMaterialInputField = newRow.querySelector('input[name="raw_material[]"]');
+
+            if (metricDropdown && rawMaterialInputField) {
+                metricDropdown.innerHTML = `
+                    <option value="kg">Kilogram (kg)</option>
+                    <option value="grams">Grams</option>
+                    <option value="liter">Liter</option>
+                    <option value="ml">Milliliter (ml)</option>
+                    <option value="unit">Unit</option>
+                `;
+            }
+        }
     });
-</script>
-<script>
-    // Map inventory stock data
-    const inventoryStock = [
-        {% for stock in inventory_stock %}
-    {
-        inventory_id: "{{ stock.inventory_id }}",
-            raw_material_id: "{{ stock.raw_material_id }}",
-                quantity: parseFloat("{{ stock.quantity }}"),
-                    metric: "{{ stock.metric }}"
-    },
-    {% endfor %}
-    ];
 
-    function checkAvailableQuantity() {
-        const sourceInventorySelect = document.querySelector('select[name="source_inventory_id"]');
-        const rawMaterialSelect = document.querySelector('select[name="raw_material_id"]');
-        const quantityInput = document.getElementById('quantity');
-
-        const selectedInventoryId = sourceInventorySelect.value.split('_')[0];
-        const selectedRawMaterialId = rawMaterialSelect.value;
-        const enteredQuantity = parseFloat(quantityInput.value);
-
-        if (!selectedInventoryId || !selectedRawMaterialId || isNaN(enteredQuantity)) {
-            quantityInput.setCustomValidity('');
-            return;
+    // Remove row
+    container.addEventListener('click', function (e) {
+        if (e.target.classList.contains('btn-remove-row')) {
+            e.target.closest('.raw-material-row').remove();
         }
-
-        // Find the matching stock entry
-        const stock = inventoryStock.find(item =>
-            item.inventory_id === selectedInventoryId && item.raw_material_id === selectedRawMaterialId
-        );
-
-        if (stock && enteredQuantity > stock.quantity) {
-            quantityInput.setCustomValidity(
-                `The quantity cannot exceed ${stock.quantity} ${stock.metric} available in Inventory ID ${stock.inventory_id}.`
-            );
-        } else {
-            quantityInput.setCustomValidity('');
+    });
+    // Handle Enter Key
+    container.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            const addBtn = e.target.closest('.raw-material-row').querySelector('.btn-add-row');
+            if (addBtn) addBtn.click();
         }
-    }
+    });
+    // Auto-select metric based on raw material
+    container.addEventListener('input', function (e) {
+        if (e.target.classList.contains('raw-material-input')) {
+            const selectedMaterial = e.target.value;
+            const dataList = document.getElementById('raw_materials');
+            const options = Array.from(dataList.options);
+            const matchingOption = options.find(option => option.value === selectedMaterial);
 
-    // Event listeners
-    document.addEventListener('DOMContentLoaded', function () {
-        document.querySelector('select[name="source_inventory_id"]').addEventListener('change', checkAvailableQuantity);
-        document.querySelector('select[name="raw_material_id"]').addEventListener('change', checkAvailableQuantity);
-        document.getElementById('quantity').addEventListener('input', checkAvailableQuantity);
+            if (matchingOption) {
+                const metric = matchingOption.dataset.metric;
+                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+                metricDropdown.value = metric;
+            }
+        }
+    });
     });
 </script>
 

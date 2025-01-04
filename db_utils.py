@@ -186,9 +186,9 @@ def get_all_pending_payments():
 def get_storageroom_stock():
     query = """
     SELECT 
-        sr.id, 
+        sr.id as storageroom_id, 
         sr.storageroomname, 
-        rm.id, 
+        rm.id as rawmaterial_id, 
         rm.name as rawmaterial_name, 
         srm.quantity, 
         srm.metric
@@ -202,6 +202,49 @@ def get_storageroom_stock():
     storage_stock = fetch_all(query)
     logger.debug(f"storage_stock -- {storage_stock}")
     return storage_stock
+
+
+def get_rawmaterial_transfer_history():
+    query = """
+    SELECT 
+        rm.name AS raw_material_name,
+        rmt.quantity,
+        rmt.metric,
+        sr.storageroomname AS transferred_from,
+        rmt.destination_type,
+        CASE 
+            WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
+            WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
+            ELSE 'Unknown'
+        END AS transferred_to,
+        rmt.transferred_date
+    FROM 
+        raw_material_transfer_details rmt
+    JOIN 
+        raw_materials rm ON rmt.raw_material_id = rm.id
+    JOIN 
+        storagerooms sr ON rmt.source_storage_room_id = sr.id
+    LEFT JOIN 
+        kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
+    LEFT JOIN 
+        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id;
+    """
+    rawmaterial_transfer = fetch_all(query)
+    logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
+    return rawmaterial_transfer
+
+# Helper function to execute SELECT queries
+
+
+def get_data(query, params=None):
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(query, params)
+            result = cursor.fetchall()
+        return result
+    finally:
+        connection.close()
 
 
 def get_kitchen_inventory_stock():

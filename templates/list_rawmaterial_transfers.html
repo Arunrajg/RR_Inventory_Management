@@ -31,24 +31,22 @@
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
-                                <th>Dish Name</th>
-                                <th>Source Inventory</th>
+                                <th>Transferred From</th>
                                 <th>Destination Type</th>
-                                <th>Destination Id</th>
+                                <th>Transferred To</th>
                                 <th>Transfered on</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for transfer in transfers %}
                             <tr>
-                                <td>{{ transfer[0]}}</td>
-                                <td>{{ transfer[1]}}</td>
-                                <td>{{ transfer[2] }}</td>
-                                <td>{{ transfer[3] }}</td>
-                                <td>{{ transfer[4] }}</td>
-                                <td>{{ transfer[5] }}</td>
-                                <td>{{ transfer[6] }}</td>
-                                <td>{{ transfer[7] }}</td>
+                                <td>{{ transfer['raw_material_name']}}</td>
+                                <td>{{ transfer['quantity']}}</td>
+                                <td>{{ transfer['metric'] }}</td>
+                                <td>{{ transfer['transferred_from'] }}</td>
+                                <td>{{ transfer['destination_type'] }}</td>
+                                <td>{{ transfer['transferred_to'] }}</td>
+                                <td>{{ transfer['transferred_date'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

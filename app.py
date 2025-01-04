@@ -1,3 +1,4 @@
+from decimal import Decimal
 import logging
 from flask import Flask, render_template, request, redirect, flash, session, url_for, jsonify
 from flask_mail import Mail, Message
@@ -630,131 +631,151 @@ def restaurant_inventory_stock():
     return render_template('restaurant_inventory_stock.html', restaurantinv_stock=restaurantinv_stock, user=session["user"])
 
 
+# Utility function for converting metric units
+
+def convert_to_base_units(quantity, metric):
+    if metric == "grams":
+        return quantity / 1000  # Convert grams to kg
+    elif metric == "ml":
+        return quantity / 1000  # Convert ml to liters
+    return quantity  # Return as is for kg, liters, and units
+
+
 @app.route('/transfer_raw_material', methods=['GET', 'POST'])
 def transfer_raw_material():
+    if "user" not in session:
+        return redirect("/login")
+
     if request.method == 'POST':
-        source_inventory_id = request.form['source_inventory_id'].split("_")[0]
-        source_inventory_code = request.form['source_inventory_id'].split("_")[1]
-        raw_material_id = request.form['raw_material_id']
-        quantity = request.form['quantity']
-        metric = request.form['metric']
-        destination_type = request.form['destination_type']  # restaurant or kitchen
-        destination_id, destination_code = request.form['destination_id'].split("_")
-        dish_id = request.form['dish_id']
+        # Get form data
+        source_storageroom_id = request.form.get("storageroom")
+        app.logger.debug(f"        source_storageroom_id  {source_storageroom_id}")
+        destination_type = request.form.get("destination_type")
+        app.logger.debug(f"        destination_type  {destination_type}")
+        destination_id = request.form.get("destination_name")
+        app.logger.debug(f"        destination_id  {destination_id}")
+        transfer_date = request.form.get("transfer_date")
+        app.logger.debug(f"        transfer_date  {transfer_date}")
 
-        # Establish a connection to the database
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
+        raw_materials = request.form.getlist("raw_material[]")
+        app.logger.debug(f"        raw_materials  {raw_materials}")
+        quantities = request.form.getlist("quantity[]")
+        app.logger.debug(f"        quantities  {quantities}")
+        metrics = request.form.getlist("metric[]")
+        app.logger.debug(f"        metrics  {metrics}")
 
-        # Get raw material and dish names
-        cursor.execute('SELECT name, metric FROM raw_materials WHERE id = %s', (raw_material_id,))
-        raw_material = cursor.fetchone()
+        # Convert quantities based on metric before processing
+        transfer_details = []
+        for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
+            raw_material_data = get_raw_material_by_name(raw_material)
+            app.logger.debug(f"raw_material_data {raw_material_data}")
+            if not raw_material_data:
+                flash(f"raw material {raw_material} is not available. Please add the raw material to continue", "danger")
+                return redirect(url_for("transfer_raw_material"))
+            quantity = Decimal(quantity)
+            converted_quantity = convert_to_base_units(quantity, metric)
+            transfer_details.append({
+                "raw_material_id": raw_material_data["id"],
+                "raw_material_name": raw_material,
+                "quantity": converted_quantity,
+                "metric": metric,
+            })
+        app.logger.debug(f"transfer_details {transfer_details}")
 
-        cursor.execute('SELECT name FROM dishes WHERE id = %s', (dish_id,))
-        dish = cursor.fetchone()
+        # try:
+        # Process each transfer
+        for detail in transfer_details:
+            raw_material_id = detail["raw_material_id"]
+            quantity = detail["quantity"]
+            metric = detail["metric"]
 
-        if not raw_material or not dish:
-            flash('Invalid raw material or dish ID.', "danger")
-            return redirect('/transfer_raw_material')
+            # Step 1: Check if sufficient stock is available in the source storeroom
+            storageroom_check_query = """
+                SELECT quantity FROM storageroom_stock
+                WHERE storageroom_id = %s AND raw_material_id = %s
+            """
+            storageroom_stock = get_data(storageroom_check_query, (source_storageroom_id, raw_material_id))
+            app.logger.debug(f"storageroom_stock {storageroom_stock}")
+            if storageroom_stock and storageroom_stock[0][0] >= quantity:
+                # Step 2: Update storageroom stock (decrease quantity)
+                update_storageroom_query = """
+                    UPDATE storageroom_stock
+                    SET quantity = quantity - %s
+                    WHERE storageroom_id = %s AND raw_material_id = %s
+                """
+                execute_query(update_storageroom_query, (quantity, source_storageroom_id, raw_material_id))
 
-        # Calculate the new stock after transfer
-        if destination_type == 'restaurant':
-            cursor.execute('SELECT * FROM restaurant_stock WHERE restaurant_id = %s AND raw_material_id = %s',
-                           (destination_id, raw_material_id))
-            stock = cursor.fetchone()
+                # Step 3: Update or insert into the destination stock table (kitchen or restaurant)
+                if destination_type == 'kitchen':
+                    destination_table = 'kitchen_inventory_stock'
+                elif destination_type == 'restaurant':
+                    destination_table = 'restaurant_inventory_stock'
+                else:
+                    flash('Invalid destination type', 'danger')
+                    return redirect('/transfer_raw_material')
 
-            if stock:
-                # Update the existing stock record
-                new_quantity = float(stock['quantity']) + float(quantity)
-                cursor.execute('UPDATE restaurant_stock SET quantity = %s WHERE id = %s', (new_quantity, stock['id']))
+                # Check if the raw material already exists in the destination table
+                destination_check_query = f"""
+                    SELECT quantity FROM {destination_table}
+                    WHERE {destination_type}_id = %s AND raw_material_id = %s
+                """
+                destination_stock = get_data(destination_check_query, (destination_id, raw_material_id))
+                app.logger.debug(f"destination_stock {destination_stock}")
+                if destination_stock:
+                    # Update existing entry in the destination table
+                    update_destination_query = f"""
+                        UPDATE {destination_table}
+                        SET quantity = quantity + %s
+                        WHERE {destination_type}_id = %s AND raw_material_id = %s
+                    """
+                    execute_query(update_destination_query, (quantity, destination_id, raw_material_id))
+                else:
+                    # Insert a new record if no entry exists for this raw material in the destination table
+                    insert_destination_query = f"""
+                        INSERT INTO {destination_table} ({destination_type}_id, raw_material_id, quantity, metric)
+                        VALUES (%s, %s, %s, %s)
+                    """
+                    execute_query(insert_destination_query, (destination_id, raw_material_id, quantity, metric))
+
+                # Step 4: Log the transfer details into raw_material_transfer_details table
+                insert_transfer_query = """
+                    INSERT INTO raw_material_transfer_details (
+                        source_storage_room_id, destination_type, destination_id,
+                        raw_material_id, quantity, metric, transferred_date
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """
+                execute_query(insert_transfer_query, (source_storageroom_id, destination_type, destination_id,
+                                                      raw_material_id, quantity, metric, transfer_date))
+
             else:
-                # Insert new record into restaurant_stock
-                cursor.execute('INSERT INTO restaurant_stock (restaurant_id, raw_material_id, raw_material_name, quantity, metric, dish_id, dish_name) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                               (destination_id, raw_material_id, raw_material['name'], quantity, metric, dish_id, dish['name']))
+                flash(f'Insufficient stock in storageroom for raw_material {detail["raw_material_name"]}', 'danger')
+                return redirect('/transfer_raw_material')
 
-        elif destination_type == 'kitchen':
-            cursor.execute('SELECT * FROM kitchen_stock WHERE kitchen_id = %s AND raw_material_id = %s',
-                           (destination_id, raw_material_id))
-            stock = cursor.fetchone()
-
-            if stock:
-                # Update the existing stock record
-                new_quantity = float(stock['quantity']) + float(quantity)
-                cursor.execute('UPDATE kitchen_stock SET quantity = %s WHERE id = %s', (new_quantity, stock['id']))
-            else:
-                # Insert new record into kitchen_stock
-                cursor.execute('INSERT INTO kitchen_stock (kitchen_id, raw_material_id, raw_material_name, quantity, metric, dish_id, dish_name) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                               (destination_id, raw_material_id, raw_material['name'], quantity, metric, dish_id, dish['name']))
-
-        # Create a new transfer record in raw_material_transfer
-        cursor.execute('INSERT INTO raw_material_transfer (raw_material_id, raw_material_name, quantity, metric, dish_id, dish_name, source_inventory_id, destination_type, destination_id, destination_code, transaction_date) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
-                       (raw_material_id, raw_material['name'], quantity, metric, dish_id, dish['name'], source_inventory_id, destination_type, destination_id, destination_code, datetime.now()))
-
-        # Update the inventory stock by subtracting the transferred quantity
-        cursor.execute("""
-            UPDATE inventory_stock
-            SET quantity = quantity - %s
-            WHERE raw_material_id = %s AND inventory_id = %s
-        """, (quantity, raw_material_id, source_inventory_id))
-
-        conn.commit()
-
-        # Close the database connection
-        cursor.close()
-        conn.close()
-
-        flash('Raw material transferred successfully!', "success")
+        flash('Transfer successful', 'success')
         return redirect('/transfer_raw_material')
 
-    # Fetch raw materials, dishes, and restaurant/kitchen data to populate in the form
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+        # except Exception as e:
+        #     flash(f"An error occurred: {e}", 'danger')
+        #     return redirect('/transfer_raw_material')
 
-    cursor.execute('SELECT * FROM raw_materials')
-    raw_materials = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM dishes')
-    dishes = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM restaurant')
-    restaurants = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM kitchen')
-    kitchens = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM inventory')
-    inventories = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM inventory_stock')
-    inventory_stock_result = cursor.fetchall()
-    inventory_stock = [dict(row) for row in inventory_stock_result]
-
-    cursor.close()
-    conn.close()
-
-    return render_template('transfer_raw_material.html', inventory_stock=inventory_stock, inventories=inventories, raw_materials=raw_materials, dishes=dishes, restaurants=restaurants, kitchens=kitchens, user=session["user"])
+    # GET request - fetch necessary data to render form
+    storagerooms = get_all_storagerooms()
+    restaurants = get_all_restaurants()
+    kitchens = get_all_kitchens()
+    raw_materials = get_all_rawmaterials()
+    storageroom_stock = get_storageroom_stock()
+    return render_template('transfer_raw_material.html', raw_materials=raw_materials,
+                           storage_rooms=storagerooms, restaurants=restaurants, kitchens=kitchens,
+                           user=session["user"], today_date=datetime.now().strftime("%Y-%m-%d"),
+                           storageroom_stock=storageroom_stock)
 
 
 @app.route('/list_transfers')
 def list_transfers():
-    connection = get_db_connection()
-    transfers = []
-
-    try:
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT raw_material_name, quantity, metric , dish_name, source_inventory_id, destination_type, destination_id, transaction_date FROM raw_material_transfer")
-            transfers = cursor.fetchall()
-
-            app.logger.debug(f"transfers {transfers}")
-    except Exception as e:
-        app.logger.debug(f"transfers {transfers}")
-        app.logger.error(f"Error retrieving transfers data: {e}")
-        flash(f"Error retrieving transfers data: {str(e)}", "danger")
-    finally:
-        connection.close()
-
-    return render_template('list_transfers.html', transfers=transfers, user=session["user"])
+    if "user" not in session:
+        return redirect("/login")
+    transfers = get_rawmaterial_transfer_history()
+    return render_template('list_rawmaterial_transfers.html', transfers=transfers, user=session["user"])
 
 
 @app.route('/profile', methods=['GET', 'POST'])
