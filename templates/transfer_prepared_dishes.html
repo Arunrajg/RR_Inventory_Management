@@ -20,8 +20,8 @@
                                 <select name="source_kitchen_id" class="form-control" required>
                                     <option value="" disabled selected>Select Source Kitchen</option>
                                     {% for kitchen in kitchens %}
-                                    <option value="{{ kitchen.id }}_{{ kitchen.kitchencode }}">
-                                        {{ kitchen.kitchenname }} ({{ kitchen.kitchencode }})
+                                    <option value="{{ kitchen.id }}">
+                                        {{ kitchen.kitchenname }}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -35,8 +35,8 @@
                                 <select name="destination_restaurant_id" class="form-control" required>
                                     <option value="" disabled selected>Select Destination Restaurant</option>
                                     {% for restaurant in restaurants %}
-                                    <option value="{{ restaurant.id }}_{{ restaurant.restaurantcode }}">
-                                        {{ restaurant.restaurantname }} ({{ restaurant.restaurantcode }})
+                                    <option value="{{ restaurant.id }}">
+                                        {{ restaurant.restaurantname }}
                                     </option>
                                     {% endfor %}
                                 </select>
@@ -51,22 +51,36 @@
                                     onchange="populateDishNames()">
                                     <option value="" disabled selected>Select Dish Category</option>
                                     {% for dish in dishes %}
-                                    <option value="{{ dish.category }}">{{ dish.category }}</option>
+                                    <option value="{{ dish.id }}">{{ dish.prepared_dish_category }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <!-- Dish Name Dropdown -->
+                        <div class="col-lg-6 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Dish Name</label>
+                                <select name="dish_name" class="form-control" required onchange="populateDishNames()">
+                                    <option value="" disabled selected>Select Dish Name</option>
+                                    {% for dish in dishes %}
+                                    <option value="{{ dish.id }}">{{ dish.prepared_dish_name }}
+                                    </option>
                                     {% endfor %}
                                 </select>
                             </div>
                         </div>
 
                         <!-- Dish Name Dropdown (based on selected category) -->
-                        <div class="col-lg-6 col-sm-6 col-12">
+                        <!-- <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Dish Name</label>
                                 <select name="dish_id" class="form-control" required>
                                     <option value="" disabled selected>Select Dish</option>
-                                    <!-- Dynamic options based on category will be populated here -->
-                                </select>
+                                    Dynamic options based on category will be populated here -->
+                        <!-- </select>
                             </div>
-                        </div>
+                        </div> -->
 
                         <!-- Quantity Input -->
                         <div class="col-lg-6 col-sm-6 col-12">
@@ -127,10 +141,10 @@
 
         // Loop through the dishes data passed from backend and populate dish names based on selected category
         {% for dish in dishes %}
-        if ("{{ dish.category }}" === selectedCategory) {
+        if ("{{ dish.prepared_dish_Category }}" === selectedCategory) {
             let option = document.createElement('option');
             option.value = "{{ dish.id }}";
-            option.innerText = "{{ dish.name }}";
+            option.innerText = "{{ dish.prepared_dish_name }}";
             dishSelect.appendChild(option);
         }
         {% endfor %}

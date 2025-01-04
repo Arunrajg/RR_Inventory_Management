@@ -1,6 +1,7 @@
 import mysql.connector
 from mysql.connector import Error
 import logging
+from datetime import datetime
 
 # Set up logger
 logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO, ERROR, etc.
@@ -135,6 +136,33 @@ def get_all_restaurants():
     return restaurants
 
 
+def get_prepared_dishes_today():
+    query = """
+    SELECT d.id, d.category as prepared_dish_category, d.name AS prepared_dish_name, k.kitchenname AS prepared_kitchen_name, kpd.prepared_quantity
+    FROM kitchen_prepared_dishes kpd
+    JOIN dishes d ON kpd.prepared_dish_id = d.id
+    JOIN kitchen k ON kpd.prepared_in_kitchen = k.id
+    WHERE prepared_on = %s
+    """
+    prepared_dishes = fetch_all(query, (datetime.now().strftime("%Y-%m-%d"),))
+    logger.debug(f"prepared_dishes -- {prepared_dishes}")
+    return prepared_dishes
+
+
+def get_all_prepared_dishes():
+    query = """
+    SELECT kpd.id, kpd.prepared_dish_id, kpd.prepared_quantity, kpd.prepared_in_kitchen, kpd.prepared_on,
+        d.name AS dish_name, d.category AS dish_category, k.kitchenname AS kitchen_name
+    FROM kitchen_prepared_dishes kpd
+    JOIN dishes d ON kpd.prepared_dish_id = d.id
+    JOIN kitchen k ON kpd.prepared_in_kitchen = k.id;
+
+    """
+    prepared_dishes = fetch_all(query)
+    logger.debug(f"prepared_dishes -- {prepared_dishes}")
+    return prepared_dishes
+
+
 def get_all_purchases():
     query = """
                 SELECT 
@@ -232,6 +260,21 @@ def get_rawmaterial_transfer_history():
     rawmaterial_transfer = fetch_all(query)
     logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
     return rawmaterial_transfer
+
+
+def get_all_dishes():
+    query = 'SELECT * FROM dishes ORDER BY id ASC'
+    dishes = fetch_all(query)
+    logger.debug(f"dishes -- {dishes}")
+    return dishes
+
+
+def get_unique_dish_categories():
+    query = 'SELECT DISTINCT(category) FROM dishes'
+    dish_categories = fetch_all(query)
+    logger.debug(f"dish_categories -- {dish_categories}")
+    return dish_categories
+
 
 # Helper function to execute SELECT queries
 

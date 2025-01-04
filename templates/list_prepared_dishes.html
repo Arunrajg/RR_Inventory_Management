@@ -27,24 +27,22 @@
                         <thead>
                             <tr>
                             <tr>
-                                <th>Location Type</th>
-                                <th>Location</th>
+                                <th>Prepared In Kitchen</th>
                                 <th>Dish Category</th>
                                 <th>Dish Name</th>
-                                <th>Quantity</th>
+                                <th>Prepared Quantity</th>
                                 <th>Prepared On</th>
                             </tr>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for detail in data %}
+                            {% for detail in prepared_dishes %}
                             <tr>
-                                <td>{{ detail[1] }}</td>
-                                <td>{{ detail[3] }}({{ detail[4] }})</td>
-                                <td>{{ detail[5] }}</td>
-                                <td>{{ detail[7] }}</td>
-                                <td>{{ detail[8] }}</td>
-                                <td>{{ detail[9] }}</td>
+                                <td>{{ detail['kitchen_name'] }}</td>
+                                <td>{{ detail['dish_category'] }}</td>
+                                <td>{{ detail['dish_name'] }}</td>
+                                <td>{{ detail['prepared_quantity'] }}</td>
+                                <td>{{ detail['prepared_on'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

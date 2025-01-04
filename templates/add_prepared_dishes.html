@@ -1,58 +1,59 @@
 {% extends 'base.html' %}
-
 {% block content %}
 <div class="page-wrapper">
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Add Dish Preparation</h4>
-                <h6>Record dishes prepared in the kitchen or restaurant</h6>
+                <h4>Add Prepared Dishes</h4>
+                <h6>Track prepared dishes in the central kitchen</h6>
             </div>
         </div>
         <form method="POST" action="/add_prepared_dishes">
-            <div class="form-group">
-                <label>Location Type</label>
-                <select name="location_type" id="location-type" class="form-control" required>
-                    <option value="">Select</option>
-                    <option value="kitchen">Kitchen</option>
-                    <option value="restaurant">Restaurant</option>
-                </select>
+            <!-- First row: Prepared in kitchen and prepared on -->
+            <div class="row align-items-center mb-3">
+                <div class="col-md-6">
+                    <label>Prepared In Kitchen</label>
+                    <input type="text" name="kitchen_name" class="form-control" list="kitchens-list"
+                        placeholder="Search or add a kitchen..." required>
+                    <datalist id="kitchens-list">
+                        {% for kitchen in kitchens %}
+                        <option value="{{ kitchen['kitchenname'] }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-6">
+                    <label>Prepared On</label>
+                    <input type="date" name="prepared_on" class="form-control" value="{{ todays_date }}" required>
+                </div>
             </div>
-            <div class="form-group">
-                <label>Location Code</label>
-                <select name="location_code" id="location-code" class="form-control" required>
-                    <option value="">Select</option>
-                </select>
-            </div>
-            <div id="dish-container">
-                <div class="row align-items-center dish-row mb-2">
+
+            <!-- Second row: Dish category, dish name, prepared quantity -->
+            <div id="dishes-container">
+                <div class="row align-items-center dish-row mb-3">
                     <div class="col-md-3">
-                        <label>Category</label>
-                        <select name="dish_category[]" class="form-control dish-category" required>
-                            <option value="">Select Category</option>
-                            {% for dish in dishes | groupby('category') %}
-                            <option value="{{ dish.grouper }}">{{ dish.grouper }}</option>
+                        <label>Dish Category</label>
+                        <input type="text" name="dish_categories[]" class="form-control" list="categories-list"
+                            placeholder="Search a category..." required>
+                        <datalist id="categories-list">
+                            {% for category in dish_categories %}
+                            <option value="{{ category['category'] }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
                     </div>
                     <div class="col-md-3">
                         <label>Dish Name</label>
-                        <select name="dish_name[]" class="form-control dish-name" required>
-                            <option value="">Select Dish</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label>Quantity</label>
-                        <input type="number" step="1" name="quantity[]" class="form-control" required>
+                        <input type="text" name="dish_names[]" class="form-control" list="dish-list"
+                            placeholder="Search a dish..." required>
+                        <datalist id="dish-list"></datalist>
                     </div>
                     <div class="col-md-3">
-                        <label>Prepared On</label>
-                        <input type="date" name="prepared_on[]" class="form-control" value="{{ current_date }}"
+                        <label>Prepared Quantity</label>
+                        <input type="number" name="prepared_quantities[]" class="form-control" step="1" min="1"
                             required>
                     </div>
-                    <div class="col-md-1 d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
-                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
+                    <div class="col-md-3 d-flex justify-content-between align-items-end">
+                        <button type="button" class="btn btn-success add-dish-row">+</button>
+                        <button type="button" class="btn btn-danger delete-dish-row">x</button>
                     </div>
                 </div>
             </div>
@@ -72,7 +73,6 @@
 
             <!-- Submit Button -->
             <button type="submit" class="btn btn-primary mt-3">Submit</button>
-
         </form>
     </div>
 </div>
@@ -80,81 +80,103 @@
 
 {% block scripts %}
 <script>
-    const kitchens = {{ kitchens | tojson | safe }};
-    const restaurants = {{ restaurants | tojson | safe }};
-    const dishes = {{ dishes | tojson | safe }};
+    // Dish mapping from the backend
+    const dishMapping = {{ dish_mapping | tojson }};
 
-    document.getElementById("location-type").addEventListener("change", function () {
-        const locationType = this.value;
-        const locationCodeSelect = document.getElementById("location-code");
-        locationCodeSelect.innerHTML = "<option value=''>Select</option>";
-
-        let locations = [];
-        if (locationType === "kitchen") {
-            locations = kitchens;
-        } else if (locationType === "restaurant") {
-            locations = restaurants;
+    // Add and remove rows in the dishes section
+    document.getElementById('dishes-container').addEventListener('click', function (event) {
+        if (event.target.classList.contains('add-dish-row')) {
+            const newRow = addNewDishRow();
+            // Ensure the "+" button is removed from the previous row
+            updateRowButtons();
+            newRow.querySelector('input[name="dish_categories[]"]').focus();
         }
 
-        locations.forEach(location => {
-            locationCodeSelect.innerHTML += `<option value="${location.kitchencode || location.restaurantcode}">${location.kitchenname || location.restaurantname} (${location.kitchencode || location.restaurantcode})</option>`;
+        if (event.target.classList.contains('delete-dish-row')) {
+            const row = event.target.closest('.dish-row');
+            if (row) row.remove();
+            updateRowButtons();
+        }
+    });
+
+    // Prevent form submission and add a new row on Enter key press
+    document.querySelector('form').addEventListener('keypress', function (event) {
+        if (event.target.closest('#dishes-container') && event.key === 'Enter') {
+            event.preventDefault(); // Prevent form submission
+            const newRow = addNewDishRow();
+            updateRowButtons();
+            newRow.querySelector('input[name="dish_categories[]"]').focus();
+        }
+    });
+
+    // Function to add a new dish row
+    function addNewDishRow() {
+        const container = document.getElementById('dishes-container');
+        const newRowHTML = `
+            <div class="row align-items-center dish-row mb-3">
+                <div class="col-md-3">
+                    <input type="text" name="dish_categories[]" class="form-control" list="categories-list"
+                        placeholder="Search a category..." required>
+                    <datalist id="categories-list">
+                        {% for category in dish_categories %}
+                        <option value="{{ category['category'] }}"></option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div class="col-md-3">
+                    <input type="text" name="dish_names[]" class="form-control" list="dish-list"
+                        placeholder="Search a dish..." required>
+                    <datalist id="dish-list"></datalist>
+                </div>
+                <div class="col-md-3">
+                    <input type="number" name="prepared_quantities[]" class="form-control" step="1" min="1" required>
+                </div>
+                <div class="col-md-3 d-flex justify-content-between align-items-end">
+                    <button type="button" class="btn btn-success add-dish-row">+</button>
+                    <button type="button" class="btn btn-danger delete-dish-row">x</button>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', newRowHTML);
+        return container.lastElementChild; // Return the newly added row
+    }
+
+    // Update buttons to show "+" only for the last row, "x" from the third row onwards
+    function updateRowButtons() {
+        const rows = document.querySelectorAll('.dish-row');
+        rows.forEach((row, index) => {
+            const addButton = row.querySelector('.add-dish-row');
+            const deleteButton = row.querySelector('.delete-dish-row');
+            if (index === rows.length - 1) {
+                addButton.style.display = 'inline-block';
+            } else {
+                addButton.style.display = 'none';
+            }
+            deleteButton.style.display = index > 0 ? 'inline-block' : 'none';
         });
-    });
+    }
 
-    document.getElementById("dish-container").addEventListener("change", function (event) {
-        if (event.target.classList.contains("dish-category")) {
-            const category = event.target.value;
-            const dishSelect = event.target.closest(".dish-row").querySelector(".dish-name");
-            dishSelect.innerHTML = "<option value=''>Select Dish</option>";
+    // Handle dish category selection and update dish names
+    document.getElementById('dishes-container').addEventListener('input', function (event) {
+        if (event.target.name === "dish_categories[]") {
+            const selectedCategory = event.target.value;
+            const dishNameField = event.target.closest('.dish-row').querySelector('datalist#dish-list');
 
-            dishes.filter(dish => dish.category === category).forEach(dish => {
-                dishSelect.innerHTML += `<option value="${dish.id}_${dish.name}">${dish.name}</option>`;
-            });
-        }
-    });
+            // Clear existing options
+            dishNameField.innerHTML = "";
 
-    document.getElementById("dish-container").addEventListener("click", function (event) {
-        if (event.target.classList.contains("add-row-btn")) {
-            const container = document.getElementById("dish-container");
-            const newRow = `
-                <div class="row align-items-center dish-row mb-2">
-                    <div class="col-md-3">
-                        <label>Category</label>
-                        <select name="dish_category[]" class="form-control dish-category" required>
-                            <option value="">Select Category</option>
-                            {% for dish in dishes | groupby('category') %}
-                            <option value="{{ dish.grouper }}">{{ dish.grouper }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="col-md-3">
-                        <label>Dish Name</label>
-                        <select name="dish_name[]" class="form-control dish-name" required>
-                            <option value="">Select Dish</option>
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label>Quantity</label>
-                        <input type="number" step="1" name="quantity[]" class="form-control" required>
-                    </div>
-                    <div class="col-md-3">
-                        <label>Prepared On</label>
-                        <input type="date" name="prepared_on[]" class="form-control" value="{{ current_date }}" required>
-                    </div>
-                    <div class="col-md-1 d-flex justify-content-between">
-                        <button type="button" class="btn btn-secondary add-row-btn">+</button>
-                        <button type="button" class="btn btn-danger delete-row-btn">x</button>
-                    </div>
-                </div>`;
-            container.insertAdjacentHTML("beforeend", newRow);
-        }
-
-        if (event.target.classList.contains("delete-row-btn")) {
-            const row = event.target.closest(".dish-row");
-            if (row) {
-                row.remove();
+            // Populate new options
+            if (dishMapping[selectedCategory]) {
+                dishMapping[selectedCategory].forEach(dish => {
+                    const option = document.createElement('option');
+                    option.value = dish;
+                    dishNameField.appendChild(option);
+                });
             }
         }
     });
+
+    // Initialize the row buttons on page load
+    document.addEventListener('DOMContentLoaded', updateRowButtons);
 </script>
+
 {% endblock %}

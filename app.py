@@ -5,6 +5,19 @@ from flask_mail import Mail, Message
 from db_utils import *
 from encryption import encrypt_message, decrypt_message, generate_random_password
 from datetime import datetime, date
+from werkzeug.utils import secure_filename
+import os
+# Get the current working directory
+current_workspace = os.getcwd()
+
+# Define the path for the uploads folder
+UPLOAD_FOLDER = os.path.join(current_workspace, 'uploads')
+
+# Create the uploads folder if it doesn't already exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+ALLOWED_EXTENSIONS = {'txt', 'csv', 'xlsx'}
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
@@ -18,6 +31,7 @@ app.config['MAIL_USERNAME'] = 'arungraj23@gmail.com'  # Replace with your Gmail 
 app.config['MAIL_PASSWORD'] = 'wbusccstpfgmizcd'  # Replace with your Gmail app password
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 mail = Mail(app)
 
 
@@ -795,99 +809,99 @@ def logout():
     return redirect("/login")
 
 
-@app.route('/bulk_add_purchases', methods=['GET', 'POST'])
-def bulk_add_purchases():
-    try:
-        conn = get_db_connection()
-        with conn.cursor() as cursor:
-            # Fetch inventory
-            cursor.execute("SELECT id, inventoryname, inventorycode FROM inventory")
-            inventories = cursor.fetchall()
+# @app.route('/bulk_add_purchases', methods=['GET', 'POST'])
+# def bulk_add_purchases():
+#     try:
+#         conn = get_db_connection()
+#         with conn.cursor() as cursor:
+#             # Fetch inventory
+#             cursor.execute("SELECT id, inventoryname, inventorycode FROM inventory")
+#             inventories = cursor.fetchall()
 
-        if request.method == 'POST':
-            app.logger.debug(f"Request data: {request.data}")
-            app.logger.debug(f"Form keys: {list(request.form.keys())}")
+#         if request.method == 'POST':
+#             app.logger.debug(f"Request data: {request.data}")
+#             app.logger.debug(f"Form keys: {list(request.form.keys())}")
 
-            inventory_id = request.form.get('inventory_id')
-            if not inventory_id:
-                flash('Inventory selection is required.', 'danger')
-                return redirect(url_for('bulk_add_purchases'))
+#             inventory_id = request.form.get('inventory_id')
+#             if not inventory_id:
+#                 flash('Inventory selection is required.', 'danger')
+#                 return redirect(url_for('bulk_add_purchases'))
 
-            inventory_name = get_inventory_by_id(inventory_id).get("inventoryname", "Unknown Inventory")
-            raw_material_data = []
+#             inventory_name = get_inventory_by_id(inventory_id).get("inventoryname", "Unknown Inventory")
+#             raw_material_data = []
 
-            for key, value in request.form.items():
-                if key.startswith('material_'):
-                    raw_material_id = key.split('_')[1]
-                    raw_material_name = value
-                    try:
-                        quantity = float(request.form[f'quantity_{raw_material_id}'])
-                        metric = request.form[f'metric_{raw_material_id}']
-                        total_cost = float(request.form[f'total_cost_{raw_material_id}'])
-                        purchase_date = request.form[f'purchase_date_{raw_material_id}']
-                        raw_material_data.append((raw_material_id, raw_material_name,
-                                                 quantity, metric, total_cost, purchase_date))
-                    except KeyError as e:
-                        flash(f'Missing data for raw material {raw_material_name}: {str(e)}', 'danger')
-                        return redirect(url_for('bulk_add_purchases'))
+#             for key, value in request.form.items():
+#                 if key.startswith('material_'):
+#                     raw_material_id = key.split('_')[1]
+#                     raw_material_name = value
+#                     try:
+#                         quantity = float(request.form[f'quantity_{raw_material_id}'])
+#                         metric = request.form[f'metric_{raw_material_id}']
+#                         total_cost = float(request.form[f'total_cost_{raw_material_id}'])
+#                         purchase_date = request.form[f'purchase_date_{raw_material_id}']
+#                         raw_material_data.append((raw_material_id, raw_material_name,
+#                                                  quantity, metric, total_cost, purchase_date))
+#                     except KeyError as e:
+#                         flash(f'Missing data for raw material {raw_material_name}: {str(e)}', 'danger')
+#                         return redirect(url_for('bulk_add_purchases'))
 
-            with conn.cursor() as cursor:
-                for raw_material in raw_material_data:
-                    raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date = raw_material
-                    # Insert or update purchase history
-                    cursor.execute("""
-                        INSERT INTO purchase_history
-                        (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
-                    """, (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id))
+#             with conn.cursor() as cursor:
+#                 for raw_material in raw_material_data:
+#                     raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date = raw_material
+#                     # Insert or update purchase history
+#                     cursor.execute("""
+#                         INSERT INTO purchase_history
+#                         (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id)
+#                         VALUES (%s, %s, %s, %s, %s, %s, %s)
+#                     """, (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id))
 
-                    # Update inventory stock
-                    cursor.execute("""
-                        INSERT INTO inventory_stock
-                        (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric)
-                        VALUES (%s, %s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE
-                        quantity = quantity + VALUES(quantity),
-                        metric = VALUES(metric),
-                        inventory_name = VALUES(inventory_name),
-                        raw_material_name = VALUES(raw_material_name)
-                    """, (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric))
-                conn.commit()
+#                     # Update inventory stock
+#                     cursor.execute("""
+#                         INSERT INTO inventory_stock
+#                         (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric)
+#                         VALUES (%s, %s, %s, %s, %s, %s)
+#                         ON DUPLICATE KEY UPDATE
+#                         quantity = quantity + VALUES(quantity),
+#                         metric = VALUES(metric),
+#                         inventory_name = VALUES(inventory_name),
+#                         raw_material_name = VALUES(raw_material_name)
+#                     """, (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric))
+#                 conn.commit()
 
-            flash('Bulk purchase data submitted successfully!', 'success')
-            return redirect(url_for('bulk_add_purchases'))
+#             flash('Bulk purchase data submitted successfully!', 'success')
+#             return redirect(url_for('bulk_add_purchases'))
 
-        # Fetch raw materials and last purchase details
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                SELECT r.id, r.name, r.metric, 
-                       COALESCE(p.quantity, NULL) AS last_quantity,
-                       COALESCE(p.metric, NULL) AS last_metric,
-                       COALESCE(p.total_cost, NULL) AS last_cost,
-                       COALESCE(p.purchase_date, NULL) AS last_date
-                FROM raw_materials r
-                LEFT JOIN (
-                    SELECT raw_material_id, quantity, metric, total_cost, purchase_date
-                    FROM purchase_history
-                    WHERE purchase_date = (SELECT MAX(purchase_date) 
-                                           FROM purchase_history 
-                                           WHERE raw_material_id = purchase_history.raw_material_id)
-                ) p ON r.id = p.raw_material_id
-            """)
-            raw_materials = cursor.fetchall()
+#         # Fetch raw materials and last purchase details
+#         with conn.cursor() as cursor:
+#             cursor.execute("""
+#                 SELECT r.id, r.name, r.metric,
+#                        COALESCE(p.quantity, NULL) AS last_quantity,
+#                        COALESCE(p.metric, NULL) AS last_metric,
+#                        COALESCE(p.total_cost, NULL) AS last_cost,
+#                        COALESCE(p.purchase_date, NULL) AS last_date
+#                 FROM raw_materials r
+#                 LEFT JOIN (
+#                     SELECT raw_material_id, quantity, metric, total_cost, purchase_date
+#                     FROM purchase_history
+#                     WHERE purchase_date = (SELECT MAX(purchase_date)
+#                                            FROM purchase_history
+#                                            WHERE raw_material_id = purchase_history.raw_material_id)
+#                 ) p ON r.id = p.raw_material_id
+#             """)
+#             raw_materials = cursor.fetchall()
 
-        # Deduplicate raw materials
-        columns = ['id', 'name', 'metric', 'last_quantity', 'last_metric', 'last_cost', 'last_date']
-        raw_materials = [dict(zip(columns, row)) for row in raw_materials]
-        unique_raw_materials = {material['id']: material for material in raw_materials}
-        raw_materials = list(unique_raw_materials.values())
+#         # Deduplicate raw materials
+#         columns = ['id', 'name', 'metric', 'last_quantity', 'last_metric', 'last_cost', 'last_date']
+#         raw_materials = [dict(zip(columns, row)) for row in raw_materials]
+#         unique_raw_materials = {material['id']: material for material in raw_materials}
+#         raw_materials = list(unique_raw_materials.values())
 
-        return render_template('bulk_add_purchases.html', user=session["user"], raw_materials=raw_materials, current_date=date.today(), inventories=inventories)
+#         return render_template('bulk_add_purchases.html', user=session["user"], raw_materials=raw_materials, current_date=date.today(), inventories=inventories)
 
-    except Exception as e:
-        app.logger.error(f"An error occurred: {e}")
-        flash('An unexpected error occurred. Please try again.', 'danger')
-        return redirect(url_for('bulk_add_purchases'))
+#     except Exception as e:
+#         app.logger.error(f"An error occurred: {e}")
+#         flash('An unexpected error occurred. Please try again.', 'danger')
+#         return redirect(url_for('bulk_add_purchases'))
 
 
 def convert_to_base_unit(quantity, metric):
@@ -1015,57 +1029,57 @@ def estimate_dishes():
     return render_template("estimate_dishes.html", user=session["user"], estimates=estimates_data, selected_date=None)
 
 
-@app.route('/bulk_transfer', methods=['GET', 'POST'])
-def bulk_transfer():
-    if request.method == 'GET':
-        # Query the list of available dishes for selection (if applicable)
-        dishes_query = "SELECT id, name FROM dishes"
-        dishes = execute_query(dishes_query)
+# @app.route('/bulk_transfer', methods=['GET', 'POST'])
+# def bulk_transfer():
+#     if request.method == 'GET':
+#         # Query the list of available dishes for selection (if applicable)
+#         dishes_query = "SELECT id, name FROM dishes"
+#         dishes = execute_query(dishes_query)
 
-        return render_template('bulk_raw_material_transfer.html', dishes=dishes)
+#         return render_template('bulk_raw_material_transfer.html', dishes=dishes)
 
-    elif request.method == 'POST':
-        try:
-            # Get form data
-            inventory_id = request.form.get('inventory_id')
-            dish_id = request.form.get('dish_id')
-            transfer_data = {
-                key: value
-                for key, value in request.form.items()
-                if key.startswith("transfer_quantity_")
-            }
+#     elif request.method == 'POST':
+#         try:
+#             # Get form data
+#             inventory_id = request.form.get('inventory_id')
+#             dish_id = request.form.get('dish_id')
+#             transfer_data = {
+#                 key: value
+#                 for key, value in request.form.items()
+#                 if key.startswith("transfer_quantity_")
+#             }
 
-            # Process each raw material transfer
-            for raw_material_id, transfer_quantity in transfer_data.items():
-                raw_material_id = raw_material_id.replace("transfer_quantity_", "")
-                transfer_quantity = float(transfer_quantity)
+#             # Process each raw material transfer
+#             for raw_material_id, transfer_quantity in transfer_data.items():
+#                 raw_material_id = raw_material_id.replace("transfer_quantity_", "")
+#                 transfer_quantity = float(transfer_quantity)
 
-                # Validate available quantity
-                query = """
-                    SELECT quantity 
-                    FROM inventory_stock 
-                    WHERE raw_material_id = %s AND inventory_id = %s
-                """
-                available_quantity = execute_query(query, (raw_material_id, inventory_id))[0][0]
+#                 # Validate available quantity
+#                 query = """
+#                     SELECT quantity
+#                     FROM inventory_stock
+#                     WHERE raw_material_id = %s AND inventory_id = %s
+#                 """
+#                 available_quantity = execute_query(query, (raw_material_id, inventory_id))[0][0]
 
-                if transfer_quantity > available_quantity:
-                    flash(f"Transfer quantity for raw material {raw_material_id} exceeds available quantity.", "danger")
-                    return redirect('/bulk_transfer')
+#                 if transfer_quantity > available_quantity:
+#                     flash(f"Transfer quantity for raw material {raw_material_id} exceeds available quantity.", "danger")
+#                     return redirect('/bulk_transfer')
 
-                # Update inventory
-                update_query = """
-                    UPDATE inventory_stock
-                    SET quantity = quantity - %s
-                    WHERE raw_material_id = %s AND inventory_id = %s
-                """
-                execute_query(update_query, (transfer_quantity, raw_material_id, inventory_id))
+#                 # Update inventory
+#                 update_query = """
+#                     UPDATE inventory_stock
+#                     SET quantity = quantity - %s
+#                     WHERE raw_material_id = %s AND inventory_id = %s
+#                 """
+#                 execute_query(update_query, (transfer_quantity, raw_material_id, inventory_id))
 
-            flash("Bulk transfer completed successfully.", "success")
-            return redirect('/bulk_transfer')
+#             flash("Bulk transfer completed successfully.", "success")
+#             return redirect('/bulk_transfer')
 
-        except Exception as e:
-            flash(f"An error occurred: {e}", "danger")
-            return redirect('/bulk_transfer')
+#         except Exception as e:
+#             flash(f"An error occurred: {e}", "danger")
+#             return redirect('/bulk_transfer')
 
 
 @app.route('/transfer_dish', methods=['GET', 'POST'])
@@ -1075,105 +1089,117 @@ def transfer_dish():
 
 @app.route('/add_prepared_dishes', methods=['GET', 'POST'])
 def add_prepared_dishes():
-    # Fetch raw materials, dishes, and restaurant/kitchen data to populate in the form
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    if "user" not in session:
+        return redirect("/login")
 
-    # cursor.execute('SELECT * FROM raw_materials')
-    # raw_materials = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM dishes')
-    dishes = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM restaurant')
-    restaurants = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM kitchen')
-    kitchens = cursor.fetchall()
-
-    # cursor.execute('SELECT * FROM inventory')
-    # inventories = cursor.fetchall()
-
-    # cursor.execute('SELECT * FROM inventory_stock')
-    # inventory_stock_result = cursor.fetchall()
-    # inventory_stock = [dict(row) for row in inventory_stock_result]
-
-    cursor.close()
-    conn.close()
-    current_date = datetime.now().strftime("%Y-%m-%d")
     if request.method == "POST":
         try:
-            # Parse form data
-            location_type = request.form.get('location_type')
-            location_code = request.form.get('location_code')
+            # Retrieve form data
+            dish_categories = request.form.getlist('dish_categories[]')
+            app.logger.debug(f"dish_categories{dish_categories}")
+            dish_names = request.form.getlist('dish_names[]')
+            app.logger.debug(f"dish_names{dish_names}")
+            prepared_quantities = request.form.getlist('prepared_quantities[]')
+            app.logger.debug(f"prepared_quantities{prepared_quantities}")
+            prepared_in_kitchen = request.form.get('kitchen_name')
+            app.logger.debug(f"prepared_in_kitchen{prepared_in_kitchen}")
+            kitchen_data = get_kitchen_by_name(prepared_in_kitchen)
+            app.logger.debug(f"kitchen_data{kitchen_data}")
 
-            # Multiple entries for dishes
-            dish_categories = request.form.getlist('dish_category[]')
-            dish_names = request.form.getlist('dish_name[]')
-            quantities = request.form.getlist('quantity[]')
-            prepared_on_dates = request.form.getlist('prepared_on[]')
+            # Validate input
+            if not prepared_in_kitchen:
+                flash("Please select a kitchen.", "error")
+                return redirect(request.url)
 
-            # Get location details (name and ID)
-            if location_type == 'kitchen':
-                location = next((k for k in kitchens if k['kitchencode'] == location_code), None)
-            elif location_type == 'restaurant':
-                location = next((r for r in restaurants if r['restaurantcode'] == location_code), None)
-            else:
-                flash("Invalid location type", "error")
-                return redirect('/add_prepared_dishes')
+            if not (dish_categories and dish_names and prepared_quantities):
+                flash("All fields are required.", "error")
+                return redirect(request.url)
 
-            if not location:
-                flash("Invalid location selected", "error")
-                return redirect('/add_prepared_dishes')
+            # Check and insert records
+            for category, dish, quantity in zip(dish_categories, dish_names, prepared_quantities):
+                # Check if dish exists in the category
+                app.logger.debug(f"category{category}")
+                app.logger.debug(f"dish{dish}")
+                app.logger.debug(f"quantity{quantity}")
+                query = f'SELECT * FROM dishes WHERE category ="{category}" AND name ="{dish}"'
+                existing_dish = fetch_all(
+                    query
+                )
+                app.logger.debug(f"existing_dish {existing_dish}")
+                if not existing_dish:
+                    flash(f"Dish '{dish}' under category '{category}' does not exist.", "error")
+                    return redirect(request.url)
 
-            location_id = location['id']
-            location_name = location['kitchenname'] if location_type == 'kitchen' else location['restaurantname']
+                # Query to check if the dish for the given kitchen and date exists
+                check_query = """
+                    SELECT id, prepared_quantity FROM kitchen_prepared_dishes 
+                    WHERE prepared_dish_id = %s AND prepared_in_kitchen = %s AND prepared_on = %s
+                """
+                check_params = (existing_dish[0]['id'], kitchen_data['id'], date.today())
 
-            # Insert data into database
-            conn = get_db_connection()
-            cursor = conn.cursor()
+                # Execute the check query
+                existing_record = fetch_all(check_query, check_params)
 
-            insert_query = """
-                INSERT INTO dishes_prepared_details 
-                (location_type, location_id, location_name, location_code, dish_category, dish_id, dish_name, quantity, prepared_on) 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
+                if existing_record:
+                    # If a record exists, update the quantity by adding the new value
+                    update_query = """
+                        UPDATE kitchen_prepared_dishes
+                        SET prepared_quantity = prepared_quantity + %s
+                        WHERE id = %s
+                    """
+                    update_params = (quantity, existing_record[0]['id'])
+                    status = execute_query(update_query, update_params)
+                else:
+                    # If no record exists, insert a new one
+                    insert_query = """
+                        INSERT INTO kitchen_prepared_dishes (
+                            prepared_dish_id, prepared_quantity, prepared_in_kitchen, prepared_on
+                        ) VALUES (%s, %s, %s, %s)
+                    """
+                    insert_params = (existing_dish[0]['id'], quantity, kitchen_data['id'], date.today())
+                    status = execute_query(insert_query, insert_params)
+                if status:
+                    flash("Prepared dishes added successfully!", "success")
+                else:
+                    flash("Unable to add the prepared dish details", 'danger')
+            return redirect('/add_prepared_dishes')
 
-            for category, name, quantity, date in zip(dish_categories, dish_names, quantities, prepared_on_dates):
-                dish_id = name.split("_")[0]
-                dish_name = name.split("_")[1]
-                app.logger.debug(dish_name)
-                app.logger.debug(dish_id)
-                cursor.execute(insert_query, (location_type, location_id, location_name,
-                               location_code, category, dish_id, dish_name, quantity, date))
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            flash("Dish preparation details added successfully", "success")
         except Exception as e:
-            flash(f"An error occurred: {str(e)}", "error")
-        return redirect('/add_prepared_dishes')
+            app.logger.error(f"Error while adding prepared dishes: {e}")
+            flash("An error occurred while adding prepared dishes.", "error")
+            return redirect(request.url)
 
-    return render_template('add_prepared_dishes.html', current_date=current_date, dishes=dishes, restaurants=restaurants, kitchens=kitchens, user=session["user"])
+    # GET request: fetch data for rendering the page
+    dish_categories = get_unique_dish_categories()
+    dishes = get_all_dishes()
+    kitchens = get_all_kitchens()
+    app.logger.debug(f"dishes {dishes}")
+    app.logger.debug(f"kitchens {kitchens}")
+    dish_mapping = {}
+    for dish in dishes:
+        category = dish['category']
+        if category not in dish_mapping:
+            dish_mapping[category] = []
+        dish_mapping[category].append(dish['name'])
+
+    return render_template(
+        'add_prepared_dishes.html',
+        dish_categories=dish_categories,
+        dishes=dishes,
+        dish_mapping=dish_mapping,
+        kitchens=kitchens,
+        user=session["user"],
+        todays_date=datetime.now().strftime("%Y-%m-%d")
+    )
 
 
 @app.route('/list_prepared_dishes', methods=['GET', 'POST'])
 def list_prepared_dishes():
     if "user" not in session:
         return redirect("/login")
-    # Fetch dishes and their raw materials from the database
-    query = """
-        SELECT * from dishes_prepared_details ORDER BY prepared_on DESC
-    """
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(query)
-    data = cursor.fetchall()
-    app.logger.debug(f"data {data}")
+    prepared_dishes = get_all_prepared_dishes()
 
-    return render_template('list_prepared_dishes.html', user=session["user"], data=data)
+    return render_template('list_prepared_dishes.html', user=session["user"], prepared_dishes=prepared_dishes)
 
 
 @app.route('/transfer_prepared_dishes', methods=['GET', 'POST'])
@@ -1185,31 +1211,28 @@ def transfer_prepared_dishes():
     cursor = conn.cursor(dictionary=True)
 
     # Fetch dishes, restaurants, and kitchens to populate in the form
-    cursor.execute('SELECT * FROM dishes')
-    dishes = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM restaurant')
-    restaurants = cursor.fetchall()
-
-    cursor.execute('SELECT * FROM kitchen')
-    kitchens = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+    prepared_dishes_today = get_prepared_dishes_today()
+    kitchens = get_all_kitchens()
+    restaurants = get_all_restaurants()
 
     current_date = datetime.now().strftime("%Y-%m-%d")
-    app.logger.debug(f"dishes {dishes}")
+    app.logger.debug(f"prepared_dishes_today {prepared_dishes_today}")
     app.logger.debug(f"restaurants {restaurants}")
     app.logger.debug(f"kitchens {kitchens}")
 
     # Handle form submission for dish transfer
     if request.method == 'POST':
-        source_kitchen_id = request.form['source_kitchen_id']
-        destination_restaurant_id = request.form['destination_restaurant_id']
-        dish_id = request.form['dish_id']
-        quantity = request.form['quantity']
-        transferred_date = request.form['transferred_date']
 
+        source_kitchen_id = request.form['source_kitchen_id']
+        app.logger.debug(f"source_kitchen_id {source_kitchen_id}")
+        destination_restaurant_id = request.form['destination_restaurant_id']
+        app.logger.debug(f"destination_restaurant_id {destination_restaurant_id}")
+        dish_id = request.form['dish_name']
+        app.logger.debug(f"dish_id {dish_id}")
+        quantity = request.form['quantity']
+        app.logger.debug(f"quantity {quantity}")
+        transferred_date = request.form['transferred_date']
+        app.logger.debug(f"transferred_date {transferred_date }")
         # Insert the transfer details into the database
         try:
             conn = get_db_connection()
@@ -1224,7 +1247,7 @@ def transfer_prepared_dishes():
                     transferred_date
                 ) VALUES (%s, %s, %s, %s, %s);
             """
-            cursor.execute(insert_query, (source_kitchen_id.split("_")[0], destination_restaurant_id.split("_")[0],
+            cursor.execute(insert_query, (source_kitchen_id, destination_restaurant_id,
                            dish_id, quantity, transferred_date))
             conn.commit()
 
@@ -1240,7 +1263,10 @@ def transfer_prepared_dishes():
 
         return redirect(url_for('transfer_prepared_dishes'))
 
-    return render_template('transfer_prepared_dishes.html', current_date=current_date, dishes=dishes, restaurants=restaurants, kitchens=kitchens, user=session["user"])
+    return render_template('transfer_prepared_dishes.html', current_date=current_date, dishes=prepared_dishes_today, restaurants=restaurants, kitchens=kitchens, user=session["user"])
+
+
+def upload_sales_report():
 
 
 @app.route('/check_dish_availability', methods=['GET', 'POST'])
