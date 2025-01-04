@@ -1,3 +1,4 @@
+import pandas as pd
 from decimal import Decimal
 import logging
 from flask import Flask, render_template, request, redirect, flash, session, url_for, jsonify
@@ -17,7 +18,7 @@ UPLOAD_FOLDER = os.path.join(current_workspace, 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-ALLOWED_EXTENSIONS = {'txt', 'csv', 'xlsx'}
+# ALLOWED_EXTENSIONS = {'txt', 'csv', 'xlsx'}
 
 app = Flask(__name__)
 app.secret_key = "your_secret_key"
@@ -32,6 +33,8 @@ app.config['MAIL_PASSWORD'] = 'wbusccstpfgmizcd'  # Replace with your Gmail app 
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
+
 mail = Mail(app)
 
 
@@ -1082,9 +1085,40 @@ def estimate_dishes():
 #             return redirect('/bulk_transfer')
 
 
-@app.route('/transfer_dish', methods=['GET', 'POST'])
-def transfer_dish():
-    pass
+@app.route('/upload_sales_report', methods=['GET', 'POST'])
+def upload_sales_report():
+    if "user" not in session:
+        return redirect("/login")
+
+    if request.method == 'POST':
+        app.logger.debug(f"request.files {request.files}")
+        file = request.files.get('file')
+
+        if 'file' not in request.files:
+            flash('No file part')
+            return redirect(request.url)
+
+        if file.filename == '':
+            flash('No selected file')
+            return redirect(request.url)
+
+        if file and file.filename.endswith('.xlsx'):
+            # Save the file
+            file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+            file.save(file_path)
+
+            # Process the file
+            missing_recipes = process_data(file_path)
+
+            if missing_recipes:
+                flash(f"Recipe not found for the following dishes: {', '.join(missing_recipes)}", "danger")
+            else:
+                flash('All dishes processed successfully.', "success")
+
+            return redirect(url_for('upload_sales_report'))
+
+    restaurants = get_all_restaurants()
+    return render_template('upload_sales_report.html', user=session["user"], restaurants=restaurants, current_date=datetime.now().strftime("%Y-%m-%d"))
 
 
 @app.route('/add_prepared_dishes', methods=['GET', 'POST'])
@@ -1266,7 +1300,7 @@ def transfer_prepared_dishes():
     return render_template('transfer_prepared_dishes.html', current_date=current_date, dishes=prepared_dishes_today, restaurants=restaurants, kitchens=kitchens, user=session["user"])
 
 
-def upload_sales_report():
+# def upload_sales_report():
 
 
 @app.route('/check_dish_availability', methods=['GET', 'POST'])
@@ -1311,6 +1345,101 @@ def get_restaurants():
     cursor.close()
     conn.close()
     return restaurants
+
+
+# Read the Excel file
+
+
+def read_excel(file_path):
+    return pd.read_excel(file_path)
+
+# Check if the dish is prepared in the kitchen
+
+
+def check_dish_prepared(dish_id, conn):
+    query = """SELECT 1 FROM kitchen_prepared_dishes WHERE prepared_dish_id = %s AND prepared_on = CURDATE()"""
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id,))
+    result = cursor.fetchone()
+    cursor.close()
+    return result is not None
+
+# Fetch raw materials required for the dish
+
+
+def get_raw_materials(dish_id, qty_sold, conn):
+    query = """SELECT raw_material_id, quantity, metric FROM dish_raw_materials WHERE dish_id = %s"""
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id,))
+    materials = cursor.fetchall()
+    cursor.close()
+
+    raw_materials = []
+    for material in materials:
+        raw_materials.append({
+            'raw_material_id': material[0],
+            'quantity': material[1] * qty_sold,
+            'metric': material[2]
+        })
+    return raw_materials
+
+# Subtract raw materials from the inventory
+
+
+def subtract_raw_materials(raw_materials, conn):
+    for material in raw_materials:
+        query = """SELECT quantity FROM restaurant_inventory_stock WHERE raw_material_id = %s"""
+        cursor = conn.cursor()
+        cursor.execute(query, (material['raw_material_id'],))
+        stock = cursor.fetchone()
+        if stock:
+            new_quantity = stock[0] - material['quantity']
+            if new_quantity >= 0:
+                update_query = """UPDATE restaurant_inventory_stock SET quantity = %s WHERE raw_material_id = %s"""
+                cursor.execute(update_query, (new_quantity, material['raw_material_id']))
+                conn.commit()
+            else:
+                print(f"Not enough stock for raw material {material['raw_material_id']}")
+        cursor.close()
+
+# Process the Excel data
+
+
+def process_data(file_path):
+    conn = get_db_connection()
+    if not conn:
+        print("Failed to connect to the database.")
+        return []
+
+    data = read_excel(file_path)
+    missing_recipes = []
+
+    for index, row in data.iterrows():
+        category = row['Category']
+        item_name = row['Item Name']
+        qty_sold = row['Qty']
+
+        # Find dish_id
+        cursor = conn.cursor()
+        cursor.execute("""SELECT id FROM dishes WHERE category = %s AND name = %s""", (category, item_name))
+        dish = cursor.fetchone()
+        cursor.close()
+
+        if dish:
+            dish_id = dish[0]
+            # Check if dish is prepared today
+            if check_dish_prepared(dish_id, conn):
+                continue  # Skip if the dish is prepared in the kitchen today
+
+            # Get raw materials for the dish
+            raw_materials = get_raw_materials(dish_id, qty_sold, conn)
+            # Subtract raw materials from inventory
+            subtract_raw_materials(raw_materials, conn)
+        else:
+            missing_recipes.append(f"{category} - {item_name}")
+
+    conn.close()
+    return missing_recipes
 
 
 if __name__ == "__main__":

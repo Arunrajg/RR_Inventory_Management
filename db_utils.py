@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 import logging
 from datetime import datetime
+import os
 
 # Set up logger
 logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO, ERROR, etc.
@@ -12,12 +13,11 @@ logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO
                     ])
 logger = logging.getLogger()
 
-# Database Configuration
 DB_CONFIG = {
-    "host": "db",
-    "user": "root",
-    "password": "password",
-    "database": "rrinventorymanagement"
+    "host": os.getenv("DB_HOST", "db"),  # Default to 'db' if not set
+    "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
+    "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
+    "database": os.getenv("DB_DATABASE", "rrinventorymanagement")  # Default to 'rrinventorymanagement' if not set
 }
 
 

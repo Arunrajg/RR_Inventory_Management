@@ -5,20 +5,20 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Transfer Prepared Dish</h4>
+                <h4>Upload Sales Report</h4>
             </div>
         </div>
 
-        <form action="/transfer_prepared_dishes" method="POST" enctype="multipart/form-data">
+        <form action="/upload_sales_report" method="POST" enctype="multipart/form-data">
             <div class="card">
                 <div class="card-body">
                     <div class="row">
                         <!-- Destination Restaurant Dropdown -->
                         <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Destination Restaurant</label>
-                                <select name="destination_restaurant_id" class="form-control" required>
-                                    <option value="" disabled selected>Select Destination Restaurant</option>
+                                <label>Restaurant Name</label>
+                                <select name="restaurant_id" class="form-control" required>
+                                    <option value="" disabled selected>Select Restaurant</option>
                                     {% for restaurant in restaurants %}
                                     <option value="{{ restaurant.id }}">
                                         {{ restaurant.restaurantname }}
@@ -28,12 +28,12 @@
                             </div>
                         </div>
 
-                        <!-- Transferred Date (Default to today's date) -->
+                        <!-- Sales Report Date -->
                         <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
-                                <label>Transferred Date</label>
-                                <input type="date" name="transferred_date" class="form-control" value="{{ today_date }}"
-                                    required>
+                                <label>Sales Report Date</label>
+                                <input type="date" name="sales_report_date" class="form-control"
+                                    value="{{ current_date }}" required>
                             </div>
                         </div>
 
@@ -41,7 +41,7 @@
                         <div class="col-lg-6 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Upload File</label>
-                                <input type="file" name="upload_file" class="form-control" required>
+                                <input type="file" name="file" class="form-control" required>
                             </div>
                         </div>
 
@@ -50,7 +50,7 @@
                             {% if messages %}
                             <ul class="flash-messages">
                                 {% for category, message in messages %}
-                                <li class="{{ category }}"><b>**{{ message }}</b></li>
+                                <li class="{{ category }}"><b>{{ message }}</b></li>
                                 {% endfor %}
                             </ul>
                             {% endif %}
@@ -59,7 +59,7 @@
 
                         <!-- Submit Button -->
                         <div class="col-lg-12">
-                            <button type="submit" class="btn btn-submit me-2">Transfer</button>
+                            <button type="submit" class="btn btn-submit me-2">Submit</button>
                             <a href="/dashboard" class="btn btn-cancel">Cancel</a>
                         </div>
                     </div>
@@ -79,8 +79,7 @@
     // Optional: Any other JS functions or event listeners
     document.addEventListener('DOMContentLoaded', function () {
         // Set today's date by default in the transferred date field
-        document.querySelector('input[name="transferred_date"]').setAttribute('value', new Date().toISOString().split('T')[0]);
+        document.querySelector('input[name="sales_report_date"]').setAttribute('value', new Date().toISOString().split('T')[0]);
     });
 </script>
-
 {% endblock %}
