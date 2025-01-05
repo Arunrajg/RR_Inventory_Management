@@ -28,11 +28,13 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
+                                <th>Puchase ID</th>
+                                <th>Invoice Number</th>
+                                <th>Vendor</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
                                 <th>Total Cost</th>
-                                <th>Vendor</th>
                                 <th>Purchase Date</th>
                                 <th>Storage Room</th>
                             </tr>
@@ -40,13 +42,15 @@
                         <tbody>
                             {% for purchase in purchases %}
                             <tr>
+                                <td>{{ purchase['id']}}</td>
+                                <td>{{ purchase['invoice_number']}}</td>
+                                <td>{{ purchase['vendor_name'] }}</td>
                                 <td>{{ purchase['raw_material_name']}}</td>
                                 <td>{{ purchase['quantity'] }}</td>
                                 <td>{{ purchase['metric'] }}</td>
                                 <td>{{ purchase['total_cost'] }}</td>
-                                <td>{{ purchase['vendor_name'] }}</td>
                                 <td>{{ purchase['purchase_date'] }}</td>
-                                <td>{{ purchase['storage_room_name'] }}</td>
+                                <td>{{ purchase['storageroom_name'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

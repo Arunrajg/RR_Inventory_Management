@@ -165,24 +165,28 @@ def get_all_prepared_dishes():
 
 def get_all_purchases():
     query = """
-                SELECT 
-                    ph.id,
-                    rm.name AS raw_material_name,
-                    ph.quantity,
-                    ph.metric,
-                    ph.total_cost,
-                    v.vendor_name,
-                    ph.purchase_date,
-                    sr.storageroomname AS storage_room_name
-                FROM purchase_history ph
-                JOIN raw_materials rm ON ph.raw_material_id = rm.id
-                JOIN storagerooms sr ON ph.storageroom_id = sr.id
-                JOIN vendor_list v ON v.id = (
-                    SELECT vp.vendor_id 
-                    FROM vendor_payment_tracker vp 
-                    WHERE vp.outstanding_cost > 0 AND vp.vendor_id = v.id
-                    LIMIT 1
-                )
+        SELECT 
+            ph.id,
+            ph.vendor_id,
+            v.vendor_name,
+            ph.invoice_number,
+            ph.raw_material_id,
+            ph.raw_material_name,
+            ph.quantity,
+            ph.metric,
+            ph.total_cost,
+            ph.purchase_date,
+            ph.storageroom_id,
+            sr.storageroomname AS storageroom_name,
+            ph.created_at
+        FROM 
+            purchase_history ph
+        JOIN 
+            vendor_list v ON ph.vendor_id = v.id
+        JOIN 
+            storagerooms sr ON ph.storageroom_id = sr.id
+        ORDER BY 
+            ph.created_at DESC
             """
     purchases = fetch_all(query)
     logger.debug(f"purchases -- {purchases}")
@@ -195,6 +199,7 @@ def get_all_pending_payments():
         vpt.id AS payment_id,
         vl.id AS vendor_id,
         vl.vendor_name,
+        vpt.invoice_number,
         vpt.outstanding_cost,
         vpt.total_paid,
         vpt.total_due,
@@ -208,6 +213,52 @@ def get_all_pending_payments():
     """
     payments = fetch_all(query)
     logger.debug(f"payments -- {payments}")
+    return payments
+
+
+def get_all_pending_payments_vendor_cumulative():
+    query = """
+        SELECT 
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        SUM(vpt.outstanding_cost) AS total_outstanding_cost,
+        SUM(vpt.total_paid) AS total_paid,
+        SUM(vpt.total_due) AS total_due,
+        MAX(vpt.last_updated) AS last_updated
+    FROM 
+        vendor_payment_tracker AS vpt
+    JOIN 
+        vendor_list AS vl ON vpt.vendor_id = vl.id
+    GROUP BY 
+        vl.id, vl.vendor_name
+    HAVING 
+        total_due != 0;
+    """
+    payments = fetch_all(query)
+    logger.debug(f"payments cumulative -- {payments}")
+    return payments
+
+
+def get_payment_details_of_vendor(vendor_id):
+    query = """
+    SELECT 
+        vpt.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        vpt.invoice_number,
+        vpt.outstanding_cost,
+        vpt.total_paid,
+        vpt.total_due,
+        vpt.last_updated
+    FROM 
+        vendor_payment_tracker AS vpt
+    JOIN 
+        vendor_list AS vl ON vpt.vendor_id = vl.id
+    WHERE 
+        vpt.total_due != 0 AND vpt.vendor_id=%s
+    """
+    payments = fetch_all(query, (vendor_id,))
+    logger.debug(f"vendor due payments -- {payments}")
     return payments
 
 
@@ -230,6 +281,45 @@ def get_storageroom_stock():
     storage_stock = fetch_all(query)
     logger.debug(f"storage_stock -- {storage_stock}")
     return storage_stock
+
+
+def get_invoice_payment_details():
+    query = """
+    SELECT 
+        vpt.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        vpt.invoice_number,
+        vpt.outstanding_cost,
+        vpt.total_paid,
+        vpt.total_due
+    FROM 
+        vendor_payment_tracker AS vpt
+    JOIN 
+        vendor_list AS vl ON vpt.vendor_id = vl.id
+    """
+    payments = fetch_all(query)
+    logger.debug(f"vendor due payments -- {payments}")
+    return payments
+
+
+def get_payment_record():
+    query = """
+    SELECT 
+        pr.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        pr.invoice_number,
+        pr.amount_paid,
+        pr.paid_on
+    FROM 
+        payment_records AS pr
+    JOIN 
+        vendor_list AS vl ON pr.vendor_id = vl.id
+        """
+    payments = fetch_all(query)
+    logger.debug(f"vendor due payments -- {payments}")
+    return payments
 
 
 def get_rawmaterial_transfer_history():

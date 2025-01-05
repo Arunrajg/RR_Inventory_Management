@@ -16,17 +16,17 @@
                         <thead>
                             <tr>
                                 <th>Vendor</th>
-                                <th>Total Outstanding Amount</th>
-                                <th>Total Amount Paid</th>
-                                <th>Total Due</th>
+                                <th>Total Purchased Amount(Rs)</th>
+                                <th>Total Amount Paid(Rs)</th>
+                                <th>Total Due(Rs)</th>
                                 <th>Pay Amount</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for payment in pending_payments %}
+                            {% for payment in pending_payments_vendor_cumulative %}
                             <tr>
                                 <td>{{ payment['vendor_name'] }}</td>
-                                <td>{{ payment['outstanding_cost'] }}</td>
+                                <td>{{ payment['total_outstanding_cost'] }}</td>
                                 <td>{{ payment['total_paid'] }}</td>
                                 <td>{{ payment['total_due'] }}</td>
                                 <td>
@@ -59,7 +59,7 @@
 
 <!-- Modal for Payment -->
 <div class="modal fade" id="payModal" tabindex="-1" role="dialog" aria-labelledby="payModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
+    <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="payModalLabel">Pay Amount</h5>
@@ -68,20 +68,24 @@
                 </button>
             </div>
             <div class="modal-body">
+                <h5>Vendor: <span id="vendorName"></span></h5>
                 <form id="payForm">
-                    <div class="form-group">
-                        <label for="vendorName">Vendor</label>
-                        <input type="text" id="vendorName" class="form-control" readonly>
-                    </div>
-                    <div class="form-group">
-                        <label for="amountPaid">Amount Paid</label>
-                        <input type="number" id="amountPaid" class="form-control" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="paymentDate">Date</label>
-                        <input type="date" id="paymentDate" class="form-control" value="{{ todays_date }}" required>
-                    </div>
                     <input type="hidden" id="vendorId" name="vendorId">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Invoice Number</th>
+                                    <th>Outstanding Cost(Rs)</th>
+                                    <th>Pay Amount(Rs)</th>
+                                    <th>Due(Rs)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentDetailsTable">
+                                <!-- Dynamic rows will be added here -->
+                            </tbody>
+                        </table>
+                    </div>
                     <button type="submit" class="btn btn-primary">Submit</button>
                 </form>
             </div>
@@ -89,50 +93,115 @@
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
-
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const payButtons = document.querySelectorAll('.btn-pay');
-        const vendorNameInput = document.getElementById('vendorName');
+        const vendorNameSpan = document.getElementById('vendorName');
         const vendorIdInput = document.getElementById('vendorId');
+        const paymentDetailsTable = document.getElementById('paymentDetailsTable');
         const payForm = document.getElementById('payForm');
-        const payModal = $('#payModal'); // jQuery to target the modal
+        const payModal = $('#payModal'); // jQuery modal reference
 
+        // Attach event listeners to "Pay" buttons
         payButtons.forEach(button => {
-            button.addEventListener('click', function () {
+            button.addEventListener('click', async function () {
                 const vendorName = this.getAttribute('data-vendor');
                 const vendorId = this.getAttribute('data-vendor-id');
-                vendorNameInput.value = vendorName;
+
+                // Populate modal fields
+                vendorNameSpan.textContent = vendorName;
                 vendorIdInput.value = vendorId;
+
+                // Clear previous table rows
+                paymentDetailsTable.innerHTML = '';
+
+                try {
+                    // Fetch payment details for the vendor
+                    const response = await fetch(`/get_payment_details?vendor_id=${vendorId}`);
+                    if (!response.ok) throw new Error('Failed to fetch payment details.');
+
+                    const data = await response.json();
+
+                    // Populate table with payment details
+                    data.forEach(payment => {
+                        const dueAmount = payment.total_due - (payment.pay_amount || 0);
+
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                        <td>${payment.invoice_number}</td>
+                        <td>${payment.total_due.toFixed(2)}</td>
+                        <td>
+                            <input type="number" class="form-control pay-amount" 
+                                   data-payment-id="${payment.payment_id}"
+                                   data-invoice-number="${payment.invoice_number}"
+                                   value="0" 
+                                   min="0" 
+                                   max="${payment.total_due.toFixed(2)}"
+                                   step="0.01"
+                                   >
+                        </td>
+                        <td class="due-amount">${dueAmount.toFixed(2)}</td>
+                    `;
+                        paymentDetailsTable.appendChild(row);
+                    });
+
+                    // Attach event listener to each pay-amount input to update dueAmount and validate input
+                    document.querySelectorAll('.pay-amount').forEach(input => {
+                        input.addEventListener('input', function () {
+                            const payAmount = parseFloat(input.value || 0);
+                            const row = input.closest('tr');
+                            const outstandingCost = parseFloat(row.querySelector('td:nth-child(2)').textContent);
+
+                            // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
+                            if (payAmount > outstandingCost) {
+                                input.value = outstandingCost.toFixed(2); // Set the input value to the max allowed
+                            }
+
+                            // Recalculate and update dueAmount
+                            const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(2);
+                            row.querySelector('.due-amount').textContent = newDueAmount;
+                        });
+                    });
+                } catch (error) {
+                    console.error('Error fetching payment details:', error);
+                    alert('Could not load payment details. Please try again.');
+                }
             });
         });
 
-        payForm.addEventListener('submit', function (e) {
+        // Handle form submission
+        payForm.addEventListener('submit', async function (e) {
             e.preventDefault();
 
-            const vendorName = vendorNameInput.value;
             const vendorId = vendorIdInput.value;
-            const amountPaid = document.getElementById('amountPaid').value;
-            const paymentDate = document.getElementById('paymentDate').value;
+            const paymentData = Array.from(document.querySelectorAll('.pay-amount')).map(input => ({
+                invoice_number: input.getAttribute('data-invoice-number'),
+                pay_amount: parseFloat(input.value || 0),
+            }));
 
-            fetch('/pending_payments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ vendorId, vendorName, amountPaid, paymentDate })
-            })
-                .then(response => {
-                    if (response.ok) {
-                        // Close modal and reload page
-                        payModal.modal('hide');
-                        location.reload(); // This will force the page to reload after successful submission
-                    } else {
-                        alert('Failed to update payment.');
-                    }
-                })
-                .catch(err => console.error('Error:', err));
+            try {
+                const response = await fetch('/process_payments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ vendor_id: vendorId, payments: paymentData })
+                });
+
+                if (!response.ok) throw new Error('Failed to process payments.');
+                const responseData = await response.json();
+                alert(responseData.message);
+                // Close modal and reload page
+                payModal.modal('hide');
+                location.reload();
+            } catch (error) {
+                console.error('Error processing payments:', error);
+                alert('Failed to update payments. Please try again.');
+            }
         });
     });
+
 </script>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+
 {% endblock %}

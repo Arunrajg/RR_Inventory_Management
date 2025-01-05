@@ -204,8 +204,14 @@
                                         Payments</span> <span class="menu-arrow"></span></a>
                                 <ul>
                                     <li><a href="/pending_payments"
-                                            class="{{ 'active' if request.path == '/payments' else '' }}">Pending
+                                            class="{{ 'active' if request.path == '/pending_payments' else '' }}">Pending
                                             Payments</a></li>
+                                    <li><a href="/invoice_payment_details"
+                                            class="{{ 'active' if request.path == '/invoice_payment_details' else '' }}">Invoice
+                                            Payment Details</a></li>
+                                    <li><a href="/payment_record"
+                                            class="{{ 'active' if request.path == '/payment_record' else '' }}">Payment
+                                            Record</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">

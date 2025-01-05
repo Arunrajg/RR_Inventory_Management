@@ -72,37 +72,44 @@
         const newRow = document.createElement('div');
         newRow.classList.add('row', 'raw-material-row');
         newRow.innerHTML = `
-            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
-                <label class="sno"></label>
+        <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+            <label class="sno"></label>
+        </div>
+        <div class="col-lg-3 col-sm-6 col-12">
+            <div class="form-group">
+                <label>Raw Material Name</label>
+                <input type="text" name="rawmaterial_name[]" class="form-control" required>
             </div>
-            <div class="col-lg-3 col-sm-6 col-12">
-                <div class="form-group">
-                    <label>Raw Material Name</label>
-                    <input type="text" name="rawmaterial_name[]" class="form-control" required>
-                </div>
+        </div>
+        <div class="col-lg-3 col-sm-6 col-12">
+            <div class="form-group">
+                <label>Metric</label>
+                <select class="select form-control" name="metric[]">
+                    <option value="kg">kilograms(kg)</option>
+                    <option value="grams">grams(g)</option>
+                    <option value="liter">liter(l)</option>
+                    <option value="ml">milliliter(ml)</option>
+                    <option value="unit">unit</option>
+                </select>
             </div>
-            <div class="col-lg-3 col-sm-6 col-12">
-                <div class="form-group">
-                    <label>Metric</label>
-                    <select class="select form-control" name="metric[]">
-                        <option value="kg">kilograms(kg)</option>
-                        <option value="grams">grams(g)</option>
-                        <option value="liter">liter(l)</option>
-                        <option value="ml">milliliter(ml)</option>
-                        <option value="unit">unit</option>
-                    </select>
-                </div>
-            </div>
-            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
-                <button type="button" class="btn btn-add" onclick="addRawMaterial()">+</button>
-            </div>
-            <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
-                <button type="button" class="btn btn-remove" onclick="removeRawMaterial(this)">x</button>
-            </div>
-        `;
+        </div>
+        <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+            <button type="button" class="btn btn-add" onclick="addRawMaterial()">+</button>
+        </div>
+        <div class="col-lg-1 col-sm-2 col-2 d-flex align-items-center">
+            <button type="button" class="btn btn-remove" onclick="removeRawMaterial(this)">x</button>
+        </div>
+    `;
         container.appendChild(newRow);
         updateSerialNumbers();
+
+        // Set focus to the first input field of the new row
+        const firstInput = newRow.querySelector('input');
+        if (firstInput) {
+            firstInput.focus();
+        }
     }
+
 
     // Remove a raw material row
     function removeRawMaterial(button) {
@@ -126,6 +133,20 @@
             // Reapply styles if your CSS framework requires initialization
         });
     });
+    // Handle Enter Key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            const focusedRow = e.target.closest('.raw-material-row');
+            if (focusedRow) {
+                const addBtn = focusedRow.querySelector('.btn-add');
+                if (addBtn) {
+                    addBtn.click();
+                }
+            }
+        }
+    });
+
 </script>
 
 <style>

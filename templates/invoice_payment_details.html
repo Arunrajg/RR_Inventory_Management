@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>INVOICE PAYMENT Details</h4>
+                <!-- <h6>Manage your purchases</h6> -->
+            </div>
+            <div class="page-btn">
+                <a href="/pending_payments" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" alt="img">Pay Amount
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table datanew">
+                        <thead>
+                            <tr>
+                                <th>Payment ID</th>
+                                <th>Vendor</th>
+                                <th>Invoice Number</th>
+                                <th>Total Purchased Amount(Rs)</th>
+                                <th>Total Paid(Rs)</th>
+                                <th>Total Due(Rs)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for history in inv_payment_details %}
+                            <tr>
+                                <td>{{ history['payment_id']}}</td>
+                                <td>{{ history['vendor_name'] }}</td>
+                                <td>{{ history['invoice_number']}}</td>
+                                <td>{{ history['outstanding_cost'] }}</td>
+                                <td>{{ history['total_paid'] }}</td>
+                                <td>{{ history['total_due'] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ from encryption import encrypt_message, decrypt_message, generate_random_passwor
 from datetime import datetime, date
 from werkzeug.utils import secure_filename
 import os
+import pytz
 # Get the current working directory
 current_workspace = os.getcwd()
 
@@ -51,6 +52,19 @@ def send_email(to_email, new_password):
     except Exception as e:
         print(f"Error sending email: {e}")
         raise e
+
+
+def get_current_date():
+
+    # Get the IST timezone
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+
+    # Get current time in IST
+    current_time_ist = datetime.now(ist_timezone)
+
+    # Format the date as "YYYY-MM-DD"
+    formatted_date_ist = current_time_ist.strftime("%Y-%m-%d")
+    return formatted_date_ist
 
 
 @app.route("/")
@@ -297,7 +311,9 @@ def addrawmaterials():
             if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
                 errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
                 continue
-
+            elif existing_material.get("name", "") == raw_material:
+                errors.append(f"Raw material '{raw_material}' already exists. Please use a different name.")
+                continue
             # Insert raw material into the database
             insert_query = """
                 INSERT INTO raw_materials (name, metric)
@@ -490,6 +506,7 @@ def add_purchase():
         metrics = request.form.getlist('metric[]')                  # List of metrics
         total_costs = request.form.getlist('total_cost[]')          # List of total costs
         purchase_date = request.form.get("purchase_date")
+        invoice_number = request.form.get("invoice_number")
 
         app.logger.debug(f"vendors {vendors}")
         app.logger.debug(f"raw_materials {raw_materials}")
@@ -500,6 +517,7 @@ def add_purchase():
         app.logger.debug(f"quantities {quantities}")
         app.logger.debug(f"metrics {metrics}")
         app.logger.debug(f"total_costs {total_costs}")
+        app.logger.debug(f"invoice_number {invoice_number}")
 
         # Check for valid vendor
         vendor = next((v for v in vendors if v['vendor_name'] == vendor_name), None)
@@ -540,22 +558,27 @@ def add_purchase():
             cursor = connection.cursor()
             cursor.execute(
                 """
-                INSERT INTO purchase_history 
-                (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (raw_material_id, raw_material_name, quantity, metric, cost, purchase_date, storageroom['id'])
+            INSERT INTO purchase_history 
+            (vendor_id, invoice_number, raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                quantity = quantity + VALUES(quantity),
+                total_cost = total_cost + VALUES(total_cost);
+            """,
+                (vendor["id"], invoice_number, raw_material_id, raw_material_name,
+                 quantity, metric, cost, purchase_date, storageroom['id'])
             )
+
             connection.commit()
 
             # Update vendor_payment_tracker
             cursor.execute(
                 """
-                INSERT INTO vendor_payment_tracker (vendor_id, outstanding_cost) 
-                VALUES (%s, %s) 
-                ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + %s
+                INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost) 
+                VALUES (%s, %s, %s) 
+                ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + VALUES(outstanding_cost);
                 """,
-                (vendor['id'], cost, cost)
+                (vendor['id'], invoice_number, cost)
             )
             connection.commit()
 
@@ -577,7 +600,7 @@ def add_purchase():
         connection.close()
         return redirect('/add_purchase')
 
-    return render_template('add_purchase.html', vendors=vendors, raw_materials=raw_materials, storage_rooms=storage_rooms, user=session["user"], today_date=datetime.now().strftime("%Y-%m-%d"))
+    return render_template('add_purchase.html', vendors=vendors, raw_materials=raw_materials, storage_rooms=storage_rooms, user=session["user"], today_date=get_current_date())
 
 
 @app.route('/purchase_list')
@@ -617,8 +640,52 @@ def pending_payments():
         connection.close()
         flash('Payment done successfully!', "success")
         return redirect(url_for("pending_payments"))
-    pending_payments = get_all_pending_payments()
-    return render_template("pending_payments.html", user=session["user"], pending_payments=pending_payments, todays_date=datetime.now().strftime("%Y-%m-%d"))
+    # pending_payments = get_all_pending_payments()
+    pending_payments_vendor_cumulative = get_all_pending_payments_vendor_cumulative()
+    return render_template("pending_payments.html", user=session["user"], pending_payments_vendor_cumulative=pending_payments_vendor_cumulative, todays_date=get_current_date())
+
+
+@app.route("/process_payments", methods=["POST"])
+def process_payments():
+    try:
+        if request.method == "POST":
+            app.logger.debug(f"process_payments {request.json}")
+            vendor_id = request.json.get("vendor_id")
+            paid_values = []
+            for payment in request.json.get("payments", []):
+                if payment["pay_amount"] > 0:
+                    paid_values.append(payment)
+            app.logger.debug(f"vendor id {vendor_id}")
+            app.logger.debug(f"paid values {paid_values}")
+            connection = get_db_connection()
+            cursor = connection.cursor()
+            for payment_detail in paid_values:
+                app.logger.debug(payment_detail)
+                cursor.execute(
+                    """
+                        INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid) 
+                        VALUES (%s, %s, %s) 
+                        ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
+                        """,
+                    (vendor_id, payment_detail["invoice_number"],
+                     payment_detail["pay_amount"], payment_detail["pay_amount"])
+                )
+                cursor.execute(
+                    """
+                        INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, paid_on) 
+                        VALUES (%s, %s, %s, %s) 
+                        """,
+                    (vendor_id, payment_detail["invoice_number"],
+                     payment_detail["pay_amount"], get_current_date())
+                )
+            connection.commit()
+            cursor.close()
+            connection.close()
+            flash('Payment processed successfully!', 'success')
+            return jsonify({'message': 'Payment processed successfully'}), 200
+    except Exception as e:
+        flash('An error occurred while processing the payment. Please try again.', 'error')
+        return jsonify({'error': str(e)}), 400
 
 
 @app.route('/storageroom_stock')
@@ -637,6 +704,43 @@ def kitchen_inventory_stock():
     kitcheninv_stock = get_kitchen_inventory_stock()
 
     return render_template('kitchen_inventory_stock.html', kitcheninv_stock=kitcheninv_stock, user=session["user"])
+
+
+@app.route("/get_payment_details")
+def get_payment_details():
+    vendor_id = request.args.get('vendor_id')
+    app.logger.debug(f"modal vendor_id {vendor_id}")
+    payments_per_vendor = get_payment_details_of_vendor(vendor_id)
+
+    def serialize(payment):
+        return {
+            'payment_id': payment['payment_id'],
+            'invoice_number': payment['invoice_number'],
+            'outstanding_cost': float(payment['outstanding_cost']),
+            'total_paid': float(payment['total_paid']),
+            'total_due': float(payment['total_due']),
+            'last_updated': payment['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+    return jsonify([serialize(p) for p in payments_per_vendor])
+
+
+@app.route("/invoice_payment_details")
+def invoice_payment_details():
+    if "user" not in session:
+        return redirect("/login")
+    inv_payment_details = get_invoice_payment_details()
+
+    return render_template('invoice_payment_details.html', inv_payment_details=inv_payment_details, user=session["user"])
+
+
+@app.route("/payment_record")
+def payment_record():
+    if "user" not in session:
+        return redirect("/login")
+    payment_record = get_payment_record()
+
+    return render_template('payment_record.html', payment_record=payment_record, user=session["user"])
 
 
 @app.route('/restaurant_inventory_stock')
@@ -783,7 +887,7 @@ def transfer_raw_material():
     storageroom_stock = get_storageroom_stock()
     return render_template('transfer_raw_material.html', raw_materials=raw_materials,
                            storage_rooms=storagerooms, restaurants=restaurants, kitchens=kitchens,
-                           user=session["user"], today_date=datetime.now().strftime("%Y-%m-%d"),
+                           user=session["user"], today_date=get_current_date(),
                            storageroom_stock=storageroom_stock)
 
 
@@ -899,7 +1003,7 @@ def logout():
 #         unique_raw_materials = {material['id']: material for material in raw_materials}
 #         raw_materials = list(unique_raw_materials.values())
 
-#         return render_template('bulk_add_purchases.html', user=session["user"], raw_materials=raw_materials, current_date=date.today(), inventories=inventories)
+#         return render_template('bulk_add_purchases.html', user=session["user"], raw_materials=raw_materials, current_date=get_current_date(), inventories=inventories)
 
 #     except Exception as e:
 #         app.logger.error(f"An error occurred: {e}")
@@ -1118,7 +1222,7 @@ def upload_sales_report():
             return redirect(url_for('upload_sales_report'))
 
     restaurants = get_all_restaurants()
-    return render_template('upload_sales_report.html', user=session["user"], restaurants=restaurants, current_date=datetime.now().strftime("%Y-%m-%d"))
+    return render_template('upload_sales_report.html', user=session["user"], restaurants=restaurants, current_date=get_current_date())
 
 
 @app.route('/add_prepared_dishes', methods=['GET', 'POST'])
@@ -1169,7 +1273,7 @@ def add_prepared_dishes():
                     SELECT id, prepared_quantity FROM kitchen_prepared_dishes 
                     WHERE prepared_dish_id = %s AND prepared_in_kitchen = %s AND prepared_on = %s
                 """
-                check_params = (existing_dish[0]['id'], kitchen_data['id'], date.today())
+                check_params = (existing_dish[0]['id'], kitchen_data['id'], get_current_date())
 
                 # Execute the check query
                 existing_record = fetch_all(check_query, check_params)
@@ -1190,7 +1294,7 @@ def add_prepared_dishes():
                             prepared_dish_id, prepared_quantity, prepared_in_kitchen, prepared_on
                         ) VALUES (%s, %s, %s, %s)
                     """
-                    insert_params = (existing_dish[0]['id'], quantity, kitchen_data['id'], date.today())
+                    insert_params = (existing_dish[0]['id'], quantity, kitchen_data['id'], get_current_date())
                     status = execute_query(insert_query, insert_params)
                 if status:
                     flash("Prepared dishes added successfully!", "success")
@@ -1223,7 +1327,7 @@ def add_prepared_dishes():
         dish_mapping=dish_mapping,
         kitchens=kitchens,
         user=session["user"],
-        todays_date=datetime.now().strftime("%Y-%m-%d")
+        todays_date=get_current_date()
     )
 
 
@@ -1249,7 +1353,7 @@ def transfer_prepared_dishes():
     kitchens = get_all_kitchens()
     restaurants = get_all_restaurants()
 
-    current_date = datetime.now().strftime("%Y-%m-%d")
+    current_date = get_current_date()
     app.logger.debug(f"prepared_dishes_today {prepared_dishes_today}")
     app.logger.debug(f"restaurants {restaurants}")
     app.logger.debug(f"kitchens {kitchens}")

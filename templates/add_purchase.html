@@ -23,39 +23,44 @@
                 <div class="card-body">
                     <!-- First Row -->
                     <div class="row">
-                        <!-- Vendor Name -->
-                        <div class="col-lg-4 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Vendor</label>
-                                <input list="vendors" name="vendor" class="form-control" placeholder="Select Vendor"
-                                    required>
-                                <datalist id="vendors">
-                                    {% for vendor in vendors %}
-                                    <option value="{{ vendor.vendor_name }}">
-                                        {% endfor %}
-                                </datalist>
-                            </div>
-                        </div>
-
                         <!-- Purchase Date -->
-                        <div class="col-lg-4 col-sm-6 col-12">
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Date</label>
                                 <input type="date" name="purchase_date" class="form-control" value="{{ today_date }}"
                                     required>
                             </div>
                         </div>
-
+                        <!-- Vendor Name -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Vendor</label>
+                                <input list="vendors" name="vendor" class="form-control" placeholder="Select Vendor"
+                                    required>
+                                <datalist id="vendors">
+                                    {% for vendor in vendors %}
+                                    <option value="{{ vendor.vendor_name }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                        </div>
+                        <!-- Invoice Number -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Invoice Number</label>
+                                <input type="text" name="invoice_number" class="form-control" required>
+                            </div>
+                        </div>
                         <!-- Destination -->
-                        <div class="col-lg-4 col-sm-6 col-12">
+                        <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Destination Storage Room</label>
                                 <input list="storage_rooms" name="storage_room" class="form-control"
                                     placeholder="Select Storage Room" required>
                                 <datalist id="storage_rooms">
                                     {% for room in storage_rooms %}
-                                    <option value="{{ room.storageroomname }}">
-                                        {% endfor %}
+                                    <option value="{{ room.storageroomname }}"></option>
+                                    {% endfor %}
                                 </datalist>
                             </div>
                         </div>
@@ -65,53 +70,62 @@
                     <div id="raw-material-container">
                         <!-- First Row with Headings -->
                         <div class="row align-items-center raw-material-row">
-                            <div class="col-lg-10 col-sm-12 col-12">
-                                <div class="form-group row">
-                                    <!-- Labels -->
-                                    <div class="col-lg-3">
-                                        <label>Raw Material</label>
-                                        <input list="raw_materials" name="raw_material[]"
-                                            class="form-control raw-material-input" placeholder="Select Raw Material"
-                                            required>
-                                        <datalist id="raw_materials">
-                                            {% for material in raw_materials %}
-                                            <option value="{{ material.name }}" data-metric="{{ material.metric }}">
-                                                {% endfor %}
-                                        </datalist>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <label>Quantity</label>
-                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
-                                            placeholder="Enter Quantity" required>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <label>Metric</label>
-                                        <select name="metric[]" class="form-control metric-dropdown" required>
-                                            <option value="kg">Kilogram (kg)</option>
-                                            <option value="grams">Grams</option>
-                                            <option value="liter">Liter</option>
-                                            <option value="ml">Milliliter (ml)</option>
-                                            <option value="unit">Unit</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-lg-3">
-                                        <label>Total Cost(Rs)</label>
-                                        <input type="number" name="total_cost[]" class="form-control" step="0.01"
-                                            placeholder="Enter Total Cost" required>
-                                    </div>
-                                </div>
+                            <!-- <label>S.No</label> -->
+                            <div class="col-lg-1 col-sm-1 col-2">
+                                <div class="sno">1</div>
                             </div>
-                            <div class="col-lg-2 d-flex align-items-center">
+                            <div class="col-lg-2 col-sm-3 col-12">
+                                <label>Raw Material</label>
+                                <input list="raw_materials" name="raw_material[]"
+                                    class="form-control raw-material-input" placeholder="Raw Material" required>
+                                <datalist id="raw_materials">
+                                    {% for material in raw_materials %}
+                                    <option value="{{ material.name }}" data-metric="{{ material.metric }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                            <div class="col-lg-2 col-sm-2 col-12">
+                                <label>Quantity</label>
+                                <input type="number" name="quantity[]" class="form-control quantity-input" step="0.01"
+                                    placeholder="Quantity" required>
+                            </div>
+                            <div class="col-lg-2 col-sm-2 col-12">
+                                <label>Metric</label>
+                                <select name="metric[]" class="form-control metric-dropdown" required>
+                                    <option value="kg">Kilogram (kg)</option>
+                                    <option value="grams">Grams</option>
+                                    <option value="liter">Liter</option>
+                                    <option value="ml">Milliliter (ml)</option>
+                                    <option value="unit">Unit</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-sm-2 col-12">
+                                <label>Price per Unit(Rs)</label>
+                                <input type="number" name="price_per_metric[]" class="form-control price-input"
+                                    step="0.01" placeholder="Price per Metric" required>
+                            </div>
+                            <div class="col-lg-2 col-sm-2 col-12">
+                                <label>Total Cost</label>
+                                <input type="number" name="total_cost[]" class="form-control total-cost-input"
+                                    step="0.01" placeholder="Total Cost" readonly>
+                            </div>
+                            <div class="col-lg-1 col-sm-1 col-2 d-flex align-items-center">
                                 <button type="button" class="btn btn-success btn-add-row">+</button>
+                                <button type="button" class="btn btn-danger btn-remove-row">X</button>
                             </div>
                         </div>
                     </div>
 
+
                     <!-- Submit Buttons -->
                     <div class="row mt-3">
-                        <div class="col-lg-12">
+                        <div class="col-lg-9">
                             <button type="submit" class="btn btn-submit me-2">Submit</button>
                             <a href="/" class="btn btn-cancel">Cancel</a>
+                        </div>
+                        <div class="col-lg-3">
+                            <input type="number" name="overall_cost" class="form-control overall-cost-input" step="0.01"
+                                placeholder="Overall Cost" readonly>
                         </div>
                     </div>
                 </div>
@@ -153,8 +167,11 @@
                 const labels = newRow.querySelectorAll('label');
                 labels.forEach(label => label.style.display = 'none');
 
+
+
                 // Append new row to the container
                 container.appendChild(newRow);
+                updateSerialNumbers();
 
                 // Focus the raw material input field in the new row
                 const rawMaterialInput = newRow.querySelector('input[name="raw_material[]"]');
@@ -178,10 +195,37 @@
             }
         });
 
+        // Update S.No
+        function updateSerialNumbers() {
+            const rows = container.querySelectorAll('.raw-material-row');
+            rows.forEach((row, index) => {
+                const sno = row.querySelector('.sno');
+                sno.textContent = index + 1;
+            });
+        }
+
         // Remove row
         container.addEventListener('click', function (e) {
             if (e.target.classList.contains('btn-remove-row')) {
                 e.target.closest('.raw-material-row').remove();
+                updateSerialNumbers();
+            }
+        });
+
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('price-input') || e.target.classList.contains('quantity-input')) {
+                const row = e.target.closest('.raw-material-row');
+                const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
+                const price = parseFloat(row.querySelector('.price-input').value) || 0;
+                const totalCostField = row.querySelector('.total-cost-input');
+                totalCostField.value = (quantity * price).toFixed(2);
+                const allCosts = container.querySelectorAll('.total-cost-input');
+                const overallCost = Array.from(allCosts).reduce((sum, ele) => {
+                    sum += parseFloat(ele.value);
+                    return sum;
+                }, 0);
+                const overallCostEle = document.querySelector('.overall-cost-input');
+                overallCostEle.value = overallCost;
             }
         });
 

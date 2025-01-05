@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>INVOICE PAYMENT Details</h4>
+                <!-- <h6>Manage your purchases</h6> -->
+            </div>
+            <div class="page-btn">
+                <a href="/pending_payments" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" alt="img">Pay Amount
+                </a>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table datanew">
+                        <thead>
+                            <tr>
+                                <th>Payment ID</th>
+                                <th>Vendor</th>
+                                <th>Invoice Number</th>
+                                <th>Amount Paid(Rs)</th>
+                                <th>Paid on(Rs)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for history in payment_record %}
+                            <tr>
+                                <td>{{ history['payment_id']}}</td>
+                                <td>{{ history['vendor_name'] }}</td>
+                                <td>{{ history['invoice_number']}}</td>
+                                <td>{{ history['amount_paid'] }}</td>
+                                <td>{{ history['paid_on'] }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
