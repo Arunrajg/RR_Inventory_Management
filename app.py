@@ -1244,15 +1244,6 @@ def add_prepared_dishes():
             kitchen_data = get_kitchen_by_name(prepared_in_kitchen)
             app.logger.debug(f"kitchen_data{kitchen_data}")
 
-            # Validate input
-            if not prepared_in_kitchen:
-                flash("Please select a kitchen.", "error")
-                return redirect(request.url)
-
-            if not (dish_categories and dish_names and prepared_quantities):
-                flash("All fields are required.", "error")
-                return redirect(request.url)
-
             # Check and insert records
             for category, dish, quantity in zip(dish_categories, dish_names, prepared_quantities):
                 # Check if dish exists in the category
@@ -1265,7 +1256,7 @@ def add_prepared_dishes():
                 )
                 app.logger.debug(f"existing_dish {existing_dish}")
                 if not existing_dish:
-                    flash(f"Dish '{dish}' under category '{category}' does not exist.", "error")
+                    flash(f"Dish '{dish}' under category '{category}' does not exist. Please add the dish.", "error")
                     return redirect(request.url)
 
                 # Query to check if the dish for the given kitchen and date exists
