@@ -3,6 +3,7 @@ from mysql.connector import Error
 import logging
 from datetime import datetime
 import os
+import pytz
 
 # Set up logger
 logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO, ERROR, etc.
@@ -19,6 +20,19 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
     "database": os.getenv("DB_DATABASE", "rrinventorymanagement")  # Default to 'rrinventorymanagement' if not set
 }
+
+
+def get_current_date():
+
+    # Get the IST timezone
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+
+    # Get current time in IST
+    current_time_ist = datetime.now(ist_timezone)
+
+    # Format the date as "YYYY-MM-DD"
+    formatted_date_ist = current_time_ist.strftime("%Y-%m-%d")
+    return formatted_date_ist
 
 
 def get_db_connection():
@@ -136,15 +150,22 @@ def get_all_restaurants():
     return restaurants
 
 
+def get_dish_details_from_category(category_name, dish_name):
+    query = 'SELECT id FROM dishes WHERE category =%s and name=%s'
+    dish_id = fetch_all(query, (category_name, dish_name))
+    logger.debug(f"dish_id -- {dish_id}")
+    return dish_id
+
+
 def get_prepared_dishes_today():
     query = """
-    SELECT d.id, d.category as prepared_dish_category, d.name AS prepared_dish_name, k.kitchenname AS prepared_kitchen_name, kpd.prepared_quantity
+    SELECT d.id, d.category as prepared_dish_category, d.name AS prepared_dish_name, k.kitchenname AS prepared_kitchen_name, kpd.prepared_quantity, kpd.available_quantity
     FROM kitchen_prepared_dishes kpd
     JOIN dishes d ON kpd.prepared_dish_id = d.id
     JOIN kitchen k ON kpd.prepared_in_kitchen = k.id
     WHERE prepared_on = %s
     """
-    prepared_dishes = fetch_all(query, (datetime.now().strftime("%Y-%m-%d"),))
+    prepared_dishes = fetch_all(query, (get_current_date(),))
     logger.debug(f"prepared_dishes -- {prepared_dishes}")
     return prepared_dishes
 
@@ -352,6 +373,24 @@ def get_rawmaterial_transfer_history():
     return rawmaterial_transfer
 
 
+def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
+    query = """
+    SELECT 
+        storageroom_id, raw_material_id, quantity, metric 
+    FROM storageroom_stock 
+    WHERE storageroom_id=%s AND raw_material_id=%s"""
+    data = fetch_all(query, (storageroom_id, rawmaterial_id))
+    logger.debug(f"ddddaaata {data}")
+    return data
+
+
+def get_total_cost_stats():
+    query = "SELECT sum(outstanding_cost) as total_purchased_amount, sum(total_paid) as total_paid, sum(total_due) as total_due FROM `vendor_payment_tracker`"
+    data = fetch_all(query)
+    logger.debug(f"total cost {data}")
+    return data
+
+
 def get_all_dishes():
     query = 'SELECT * FROM dishes ORDER BY id ASC'
     dishes = fetch_all(query)
@@ -420,10 +459,10 @@ def get_restaurant_inventory_stock():
     return restaurant_inventory_stock
 
 
-def get_raw_material_by_name(material_name):
+def get_raw_material_by_id(rawmaterial_id):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute('SELECT * FROM raw_materials WHERE name = %s', (material_name,))
+    cursor.execute('SELECT * FROM raw_materials WHERE id = %s', (rawmaterial_id,))
     material = cursor.fetchone()
     cursor.close()
     conn.close()

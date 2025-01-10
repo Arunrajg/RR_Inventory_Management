@@ -42,9 +42,9 @@
                     </div>
                     <div class="col-md-3">
                         <label>Dish Name</label>
-                        <input type="text" name="dish_names[]" class="form-control" list="dish-list"
+                        <input type="text" name="dish_names[]" class="form-control" list="dish-list-0"
                             placeholder="Search a dish..." required>
-                        <datalist id="dish-list"></datalist>
+                        <datalist id="dish-list-0"></datalist>
                     </div>
                     <div class="col-md-3">
                         <label>Prepared Quantity</label>
@@ -112,6 +112,7 @@
     // Function to add a new dish row
     function addNewDishRow() {
         const container = document.getElementById('dishes-container');
+        const rowCount = document.querySelectorAll('.dish-row').length;
         const newRowHTML = `
             <div class="row align-items-center dish-row mb-3">
                 <div class="col-md-3">
@@ -124,9 +125,9 @@
                     </datalist>
                 </div>
                 <div class="col-md-3">
-                    <input type="text" name="dish_names[]" class="form-control" list="dish-list"
+                    <input type="text" name="dish_names[]" class="form-control" list="dish-list-${rowCount}"
                         placeholder="Search a dish..." required>
-                    <datalist id="dish-list"></datalist>
+                    <datalist id="dish-list-${rowCount}"></datalist>
                 </div>
                 <div class="col-md-3">
                     <input type="number" name="prepared_quantities[]" class="form-control" step="1" min="1" required>
@@ -159,7 +160,8 @@
     document.getElementById('dishes-container').addEventListener('input', function (event) {
         if (event.target.name === "dish_categories[]") {
             const selectedCategory = event.target.value;
-            const dishNameField = event.target.closest('.dish-row').querySelector('datalist#dish-list');
+            const row = event.target.closest('.dish-row');
+            const dishNameField = row.querySelector('datalist[id^="dish-list"]');
 
             // Clear existing options
             dishNameField.innerHTML = "";
@@ -178,5 +180,4 @@
     // Initialize the row buttons on page load
     document.addEventListener('DOMContentLoaded', updateRowButtons);
 </script>
-
 {% endblock %}

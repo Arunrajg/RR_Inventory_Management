@@ -124,7 +124,8 @@ def signup():
 def index():
     if "user" not in session:
         return redirect("/login")
-    return render_template("index.html", user=session["user"])
+    cost_details = get_total_cost_stats()[0]
+    return render_template("index.html", user=session["user"], cost_details=cost_details)
 
 
 @app.route("/forgotpassword", methods=["GET", "POST"])
@@ -311,7 +312,7 @@ def addrawmaterials():
             if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
                 errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
                 continue
-            elif existing_material.get("name", "") == raw_material:
+            elif existing_material and existing_material.get("name", "") == raw_material:
                 errors.append(f"Raw material '{raw_material}' already exists. Please use a different name.")
                 continue
             # Insert raw material into the database
@@ -343,8 +344,8 @@ def rawmaterialslist():
     return render_template("rawmaterialslist.html", user=session["user"], rawmaterials=rawmaterials)
 
 
-@app.route('/add_dish', methods=['GET', 'POST'])
-def add_dish():
+@app.route('/add_dish_recipe', methods=['GET', 'POST'])
+def add_dish_recipe():
     if "user" not in session:
         return redirect("/login")
 
@@ -399,16 +400,16 @@ def add_dish():
             cursor.close()
         conn.close()
 
-        return redirect('/add_dish')
+        return redirect('/add_dish_recipe')
 
     raw_materials = get_all_rawmaterials()
     dish_categories = get_all_dish_categories()
 
-    return render_template('add_dish.html', user=session["user"], raw_materials=raw_materials, dish_categories=dish_categories)
+    return render_template('add_dish_recipe.html', user=session["user"], raw_materials=raw_materials, dish_categories=dish_categories)
 
 
-@app.route('/list_dishes', methods=['GET', 'POST'])
-def list_dishes():
+@app.route('/list_dish_recipe', methods=['GET', 'POST'])
+def list_dish_recipe():
     if "user" not in session:
         return redirect("/login")
     # Fetch dishes and their raw materials from the database
@@ -441,7 +442,7 @@ def list_dishes():
             "metric": metric
         })
 
-    return render_template('list_dishes.html', user=session["user"], dishes=dishes)
+    return render_template('list_dish_recipe.html', user=session["user"], dishes=dishes)
 
 
 @app.route('/add_vendor', methods=['GET', 'POST'])
@@ -769,6 +770,7 @@ def transfer_raw_material():
 
     if request.method == 'POST':
         # Get form data
+        app.logger.debug(request.form)
         source_storageroom_id = request.form.get("storageroom")
         app.logger.debug(f"        source_storageroom_id  {source_storageroom_id}")
         destination_type = request.form.get("destination_type")
@@ -778,17 +780,19 @@ def transfer_raw_material():
         transfer_date = request.form.get("transfer_date")
         app.logger.debug(f"        transfer_date  {transfer_date}")
 
-        raw_materials = request.form.getlist("raw_material[]")
+        raw_materials = request.form.getlist("raw_material_id[]")
         app.logger.debug(f"        raw_materials  {raw_materials}")
         quantities = request.form.getlist("quantity[]")
         app.logger.debug(f"        quantities  {quantities}")
         metrics = request.form.getlist("metric[]")
         app.logger.debug(f"        metrics  {metrics}")
+        # metrics = request.form.get("metric[]")
+        # app.logger.debug(f"        metrics  {metrics}")
 
         # Convert quantities based on metric before processing
         transfer_details = []
         for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
-            raw_material_data = get_raw_material_by_name(raw_material)
+            raw_material_data = get_raw_material_by_id(raw_material)
             app.logger.debug(f"raw_material_data {raw_material_data}")
             if not raw_material_data:
                 flash(f"raw material {raw_material} is not available. Please add the raw material to continue", "danger")
@@ -796,28 +800,28 @@ def transfer_raw_material():
             quantity = Decimal(quantity)
             converted_quantity = convert_to_base_units(quantity, metric)
             transfer_details.append({
-                "raw_material_id": raw_material_data["id"],
-                "raw_material_name": raw_material,
+                "raw_material_id": raw_material,
+                "raw_material_name": raw_material_data["name"],
                 "quantity": converted_quantity,
                 "metric": metric,
             })
         app.logger.debug(f"transfer_details {transfer_details}")
 
-        # try:
-        # Process each transfer
-        for detail in transfer_details:
-            raw_material_id = detail["raw_material_id"]
-            quantity = detail["quantity"]
-            metric = detail["metric"]
+        try:
+            # Process each transfer
+            for detail in transfer_details:
+                raw_material_id = detail["raw_material_id"]
+                quantity = detail["quantity"]
+                metric = detail["metric"]
 
-            # Step 1: Check if sufficient stock is available in the source storeroom
-            storageroom_check_query = """
-                SELECT quantity FROM storageroom_stock
-                WHERE storageroom_id = %s AND raw_material_id = %s
-            """
-            storageroom_stock = get_data(storageroom_check_query, (source_storageroom_id, raw_material_id))
-            app.logger.debug(f"storageroom_stock {storageroom_stock}")
-            if storageroom_stock and storageroom_stock[0][0] >= quantity:
+                # # Step 1: Check if sufficient stock is available in the source storeroom
+                # storageroom_check_query = """
+                #     SELECT quantity FROM storageroom_stock
+                #     WHERE storageroom_id = %s AND raw_material_id = %s
+                # """
+                # storageroom_stock = get_data(storageroom_check_query, (source_storageroom_id, raw_material_id))
+                # app.logger.debug(f"storageroom_stock {storageroom_stock}")
+                # if storageroom_stock and storageroom_stock[0][0] >= quantity:
                 # Step 2: Update storageroom stock (decrease quantity)
                 update_storageroom_query = """
                     UPDATE storageroom_stock
@@ -868,16 +872,16 @@ def transfer_raw_material():
                 execute_query(insert_transfer_query, (source_storageroom_id, destination_type, destination_id,
                                                       raw_material_id, quantity, metric, transfer_date))
 
-            else:
-                flash(f'Insufficient stock in storageroom for raw_material {detail["raw_material_name"]}', 'danger')
-                return redirect('/transfer_raw_material')
+                # else:
+                #     flash(f'Insufficient stock in storageroom for raw_material {detail["raw_material_name"]}', 'danger')
+                #     return redirect('/transfer_raw_material')
 
-        flash('Transfer successful', 'success')
-        return redirect('/transfer_raw_material')
+            flash('Transfer successful', 'success')
+            return redirect('/transfer_raw_material')
 
-        # except Exception as e:
-        #     flash(f"An error occurred: {e}", 'danger')
-        #     return redirect('/transfer_raw_material')
+        except Exception as e:
+            flash(f"An error occurred: {e}", 'danger')
+            return redirect('/transfer_raw_material')
 
     # GET request - fetch necessary data to render form
     storagerooms = get_all_storagerooms()
@@ -1225,6 +1229,24 @@ def upload_sales_report():
     return render_template('upload_sales_report.html', user=session["user"], restaurants=restaurants, current_date=get_current_date())
 
 
+@app.route('/get_available_quantity', methods=['GET'])
+def get_available_quantity():
+    storageroom_id = int(request.args.get('storageroom_id'))
+    raw_material_id = request.args.get('raw_material_id')
+    app.logger.debug(f"ss {storageroom_id}")
+    app.logger.debug(f"rm {raw_material_id}")
+    available_quantity = get_storageroom_rawmaterial_quantity(storageroom_id, raw_material_id)
+    storage_available_quantity = 0
+    if available_quantity:
+        storage_available_quantity = available_quantity[0]["quantity"]
+    app.logger.debug(f"storage_available_quantity {storage_available_quantity}")
+    # # Check if storage room and raw material exist
+    # available_quantity = storage_available_quantity.get(raw_material_id, 0)
+    data = {"available_quantity": float(storage_available_quantity)}
+    app.logger.debug(f"jsonify data {data}")
+    return jsonify(data)
+
+
 @app.route('/add_prepared_dishes', methods=['GET', 'POST'])
 def add_prepared_dishes():
     if "user" not in session:
@@ -1273,7 +1295,8 @@ def add_prepared_dishes():
                     # If a record exists, update the quantity by adding the new value
                     update_query = """
                         UPDATE kitchen_prepared_dishes
-                        SET prepared_quantity = prepared_quantity + %s
+                        SET prepared_quantity = prepared_quantity + %s,
+                        available_quantity = available_quantity + %s
                         WHERE id = %s
                     """
                     update_params = (quantity, existing_record[0]['id'])
@@ -1282,13 +1305,13 @@ def add_prepared_dishes():
                     # If no record exists, insert a new one
                     insert_query = """
                         INSERT INTO kitchen_prepared_dishes (
-                            prepared_dish_id, prepared_quantity, prepared_in_kitchen, prepared_on
-                        ) VALUES (%s, %s, %s, %s)
+                            prepared_dish_id, prepared_quantity, available_quantity, prepared_in_kitchen, prepared_on
+                        ) VALUES (%s, %s, %s, %s, %s)
                     """
                     insert_params = (existing_dish[0]['id'], quantity, kitchen_data['id'], get_current_date())
                     status = execute_query(insert_query, insert_params)
                 if status:
-                    flash("Prepared dishes added successfully!", "success")
+                    flash(f"Prepared dish {dish} added successfully!", "success")
                 else:
                     flash("Unable to add the prepared dish details", 'danger')
             return redirect('/add_prepared_dishes')
@@ -1341,62 +1364,92 @@ def transfer_prepared_dishes():
 
     # Fetch dishes, restaurants, and kitchens to populate in the form
     prepared_dishes_today = get_prepared_dishes_today()
+    dish_categories = list(set([dish["prepared_dish_category"] for dish in prepared_dishes_today]))
     kitchens = get_all_kitchens()
     restaurants = get_all_restaurants()
 
     current_date = get_current_date()
+    app.logger.debug(f"dish_categories {dish_categories}")
     app.logger.debug(f"prepared_dishes_today {prepared_dishes_today}")
     app.logger.debug(f"restaurants {restaurants}")
     app.logger.debug(f"kitchens {kitchens}")
 
     # Handle form submission for dish transfer
     if request.method == 'POST':
-
-        source_kitchen_id = request.form['source_kitchen_id']
+        source_kitchen_id = request.form['kitchen']
         app.logger.debug(f"source_kitchen_id {source_kitchen_id}")
-        destination_restaurant_id = request.form['destination_restaurant_id']
+        destination_restaurant_id = request.form['destination_name']
         app.logger.debug(f"destination_restaurant_id {destination_restaurant_id}")
-        dish_id = request.form['dish_name']
-        app.logger.debug(f"dish_id {dish_id}")
-        quantity = request.form['quantity']
-        app.logger.debug(f"quantity {quantity}")
-        transferred_date = request.form['transferred_date']
-        app.logger.debug(f"transferred_date {transferred_date }")
-        # Insert the transfer details into the database
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
+        dish_categories = request.form.getlist('dish_categories[]')
+        app.logger.debug(f"dish_categories {dish_categories}")
+        dish_names = request.form.getlist('dish_names[]')
+        app.logger.debug(f"dish_names {dish_names}")
+        transferred_quantities = request.form.getlist('transferred_quantities[]')
+        app.logger.debug(f"transferred_quantities {transferred_quantities}")
+        transfer_date = request.form['transfer_date']
+        app.logger.debug(f"transfer_date {transfer_date }")
 
-            insert_query = """
+        # try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Insert the transfer details into the database
+        for category, name, quantity in zip(dish_categories, dish_names, transferred_quantities):
+            dish_id = get_dish_details_from_category(category, name)[0]["id"]
+            cursor.execute(
+                """
+                SELECT available_quantity FROM kitchen_prepared_dishes
+                WHERE prepared_dish_id=%s AND prepared_in_kitchen = %s AND prepared_on=%s
+                """,
+                (dish_id, source_kitchen_id, transfer_date)
+            )
+            dish = cursor.fetchone()
+            app.logger.debug(f"dishhhh {dish}")
+            if dish and dish[0] >= int(quantity):
+                cursor.execute("""
                 INSERT INTO prepared_dish_transfer (
                     source_kitchen_id,
                     destination_restaurant_id,
                     dish_id,
                     quantity,
                     transferred_date
-                ) VALUES (%s, %s, %s, %s, %s);
-            """
-            cursor.execute(insert_query, (source_kitchen_id, destination_restaurant_id,
-                           dish_id, quantity, transferred_date))
-            conn.commit()
+                ) VALUES (%s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                    quantity = quantity + VALUES(quantity);
+                """, (source_kitchen_id, destination_restaurant_id, dish_id, quantity, transfer_date))
 
-            flash("Dish transfer successful!", "success")
+                # Update the available quantity in the source kitchen
+                cursor.execute(
+                    """
+                    UPDATE kitchen_prepared_dishes
+                    SET available_quantity = available_quantity - %s
+                    WHERE prepared_dish_id=%s AND prepared_in_kitchen = %s AND prepared_on=%s
+                    """,
+                    (quantity, dish_id, source_kitchen_id, transfer_date)
+                )
+                conn.commit()
+            else:
+                flash(f"Insufficient quantity for dish: {name} in category: {category}", "danger")
+                conn.rollback()
+                cursor.close()
+                conn.close()
+                return redirect(url_for('transfer_prepared_dishes'))
 
-        except Exception as e:
-            conn.rollback()  # Rollback in case of any error
-            app.logger.error(f"Error during dish transfer: {e}")
-            flash("Error occurred while transferring the dish.", "danger")
-        finally:
-            cursor.close()
-            conn.close()
+        flash("Dish transfer successful!", "success")
+
+        # except Exception as e:
+        #     conn.rollback()  # Rollback in case of any error
+        #     app.logger.error(f"Error during dish transfer: {e}")
+        #     flash("Error occurred while transferring the dish.", "danger")
+        # finally:
+        #     cursor.close()
+        #     conn.close()
 
         return redirect(url_for('transfer_prepared_dishes'))
 
-    return render_template('transfer_prepared_dishes.html', current_date=current_date, dishes=prepared_dishes_today, restaurants=restaurants, kitchens=kitchens, user=session["user"])
+    return render_template('transfer_prepared_dishes.html', dish_categories=dish_categories, current_date=current_date, prepared_dishes_today=prepared_dishes_today, restaurants=restaurants, kitchens=kitchens, user=session["user"])
 
 
 # def upload_sales_report():
-
 
 @app.route('/check_dish_availability', methods=['GET', 'POST'])
 def check_dish_availability():

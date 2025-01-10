@@ -5,6 +5,7 @@
         <div class="page-header">
             <div class="page-title">
                 <h4>Transfer Raw Material</h4>
+                <h6>Transfer raw materials from Storage Room to Kitchen or Restaurant</h6>
             </div>
         </div>
 
@@ -23,7 +24,15 @@
                 <div class="card-body">
                     <!-- First Row -->
                     <div class="row">
-                        <!-- Vendor Name (Transfer From) -->
+                        <!-- Transfer Date -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Transfer Date</label>
+                                <input type="date" name="transfer_date" class="form-control" value="{{ today_date }}"
+                                    required>
+                            </div>
+                        </div>
+                        <!-- Storage Room (Transfer From) -->
                         <div class="col-lg-3 col-sm-6 col-12">
                             <div class="form-group">
                                 <label>Transfer From</label>
@@ -33,15 +42,6 @@
                                     <option value="{{ room.id }}">{{ room.storageroomname }}</option>
                                     {% endfor %}
                                 </select>
-                            </div>
-                        </div>
-
-                        <!-- Transfer Date -->
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Transfer Date</label>
-                                <input type="date" name="transfer_date" class="form-control" value="{{ today_date }}"
-                                    required>
                             </div>
                         </div>
 
@@ -82,18 +82,26 @@
                                             required>
                                         <datalist id="raw_materials">
                                             {% for material in raw_materials %}
-                                            <option value="{{ material.name }}" data-metric="{{ material.metric }}">
+                                            <option value="{{ material.name }}" data-id="{{ material.id }}"
+                                                data-metric="{{ material.metric }}">
                                                 {% endfor %}
                                         </datalist>
+                                        <input type="hidden" class="raw-material-id" name="raw_material_id[]" />
                                     </div>
-                                    <div class="col-lg-3">
-                                        <label>Quantity</label>
+                                    <!-- Currently Available Quantity -->
+                                    <div class="col-lg-2">
+                                        <label>Available Quantity</label>
+                                        <input type="number" name="available_quantity" class="form-control" step="0.01"
+                                            value="" readonly>
+                                    </div>
+                                    <div class="col-lg-2">
+                                        <label>Transfer Quantity</label>
                                         <input type="number" name="quantity[]" class="form-control" step="0.01"
                                             placeholder="Enter Quantity" required>
                                     </div>
-                                    <div class="col-lg-3">
+                                    <div class="col-lg-2">
                                         <label>Metric</label>
-                                        <select name="metric[]" class="form-control metric-dropdown" required>
+                                        <select name="metric[]" class="form-control metric-dropdown" readonly>
                                             <option value="kg">Kilogram (kg)</option>
                                             <option value="grams">Grams</option>
                                             <option value="liter">Liter</option>
@@ -247,6 +255,64 @@
             }
         }
     });
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('raw-material-container');
+        const storageroomSelect = document.querySelector('select[name="storageroom"]');
+
+        // Fetch available quantity based on raw_material_id
+        async function fetchAvailableQuantity(storageroomId, rawMaterialId) {
+            try {
+                const response = await fetch(`/get_available_quantity?storageroom_id=${storageroomId}&raw_material_id=${rawMaterialId}`);
+
+                if (!response.ok) throw new Error('Failed to fetch available quantity');
+                const data = await response.json();
+                // alert(data)
+                // alert(data.available_quantity)
+                return data.available_quantity || 0;
+            } catch (error) {
+                console.error('Error fetching available quantity:', error);
+                return 0;
+            }
+        }
+
+        // Update available quantity and add validation for transfer quantity
+        async function updateAvailableQuantity(row, storageroomId, rawMaterialId) {
+            const availableQuantityInput = row.querySelector('input[name="available_quantity"]');
+            const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
+
+            const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
+            availableQuantityInput.value = availableQuantity.toFixed(2);
+
+            transferQuantityInput.setAttribute('max', availableQuantity);
+            transferQuantityInput.addEventListener('input', function () {
+                if (parseFloat(this.value) > availableQuantity) {
+                    alert('Transfer Quantity cannot exceed Available Quantity.');
+                    this.value = availableQuantity.toFixed(2);
+                }
+            });
+        }
+
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('raw-material-input')) {
+                const row = e.target.closest('.raw-material-row');
+                const storageroomId = storageroomSelect.value;
+                const rawMaterialName = e.target.value;
+
+                const datalist = document.getElementById('raw_materials');
+                const option = Array.from(datalist.options).find(opt => opt.value === rawMaterialName);
+
+                if (option) {
+                    const rawMaterialId = option.getAttribute('data-id');
+                    const hiddenInput = row.querySelector('.raw-material-id');
+                    hiddenInput.value = rawMaterialId;
+                    // alert(rawMaterialId)
+                    if (storageroomId && rawMaterialId) {
+                        updateAvailableQuantity(row, storageroomId, rawMaterialId);
+                    }
+                }
+            }
+        });
     });
 </script>
 
