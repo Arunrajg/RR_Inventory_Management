@@ -218,9 +218,9 @@ def get_restaurant_consumption_report(restaurant_id, report_date):
         r.restaurantname AS restaurant_name,
         rm.name AS raw_material_name,
         ris.metric AS metric,
-        SUM(rmtd.quantity) AS transferred_quantity,
-        SUM(c.quantity) AS estimated_consumed_quantity,
-        (SUM(rmtd.quantity) - COALESCE(SUM(c.quantity), 0)) AS remaining_quantity
+        ROUND(SUM(rmtd.quantity),5) AS transferred_quantity,
+        ROUND(SUM(c.quantity),5) AS estimated_consumed_quantity,
+        ROUND((SUM(rmtd.quantity) - COALESCE(SUM(c.quantity), 0)),5) AS remaining_quantity
     FROM 
         restaurant_inventory_stock ris
     JOIN 
