@@ -4,7 +4,7 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>INVOICE PAYMENT Details</h4>
+                <h4>Payment Record</h4>
                 <!-- <h6>Manage your purchases</h6> -->
             </div>
             <div class="page-btn">
@@ -32,7 +32,8 @@
                                 <th>Vendor</th>
                                 <th>Invoice Number</th>
                                 <th>Amount Paid(Rs)</th>
-                                <th>Paid on(Rs)</th>
+                                <th>Mode of payment</th>
+                                <th>Paid on</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -42,6 +43,7 @@
                                 <td>{{ history['vendor_name'] }}</td>
                                 <td>{{ history['invoice_number']}}</td>
                                 <td>{{ history['amount_paid'] }}</td>
+                                <td>{{ history['mode_of_payment'] }}</td>
                                 <td>{{ history['paid_on'] }}</td>
                             </tr>
                             {% endfor %}

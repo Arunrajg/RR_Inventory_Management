@@ -5,6 +5,8 @@ from datetime import datetime
 from decimal import Decimal
 import os
 import pytz
+from dotenv import load_dotenv
+load_dotenv()
 
 # Set up logger
 logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO, ERROR, etc.
@@ -520,6 +522,7 @@ def get_payment_record():
         vl.id AS vendor_id,
         vl.vendor_name,
         pr.invoice_number,
+        pr.mode_of_payment,
         pr.amount_paid,
         pr.paid_on
     FROM
@@ -801,7 +804,7 @@ def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
         stock = cursor.fetchone()
         if not stock:
             logger.debug(f"Stock not found for raw_material_id: {raw_material_id} in kitchen_id: {kitchen_id}")
-
+            continue
         # Convert stock metric to match the required quantity
         available_quantity = stock['quantity']
         if stock['metric'] == 'grams':

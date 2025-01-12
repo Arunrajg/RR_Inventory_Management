@@ -51,8 +51,8 @@
                                 </td>
                                 <td>
                                     <input type="number" name="quantity_{{ material['id'] }}"
-                                        value="{{ material['last_quantity'] or '' }}" step="0.00001"
-                                        class="form-control" required>
+                                        value="{{ material['last_quantity'] or '' }}" step="0.001" class="form-control"
+                                        required>
                                 </td>
                                 <td>
                                     <select name="metric_{{ material['id'] }}" class="form-control" required>
@@ -66,7 +66,7 @@
                                 </td>
                                 <td>
                                     <input type="number" name="total_cost_{{ material['id'] }}"
-                                        value="{{ material['last_cost'] or '' }}" step="0.00001" class="form-control"
+                                        value="{{ material['last_cost'] or '' }}" step="0.001" class="form-control"
                                         required>
                                 </td>
                                 <td>

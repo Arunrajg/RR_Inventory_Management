@@ -10,6 +10,8 @@ from datetime import datetime, date
 from werkzeug.utils import secure_filename
 import os
 import pytz
+from dotenv import load_dotenv
+load_dotenv()
 # Get the current working directory
 current_workspace = os.getcwd()
 
@@ -647,45 +649,45 @@ def pending_payments():
 
 @app.route("/process_payments", methods=["POST"])
 def process_payments():
-    try:
-        if request.method == "POST":
-            app.logger.debug(f"process_payments {request.json}")
-            vendor_id = request.json.get("vendor_id")
-            paid_values = []
-            for payment in request.json.get("payments", []):
-                if payment["pay_amount"] > 0:
-                    paid_values.append(payment)
-            app.logger.debug(f"vendor id {vendor_id}")
-            app.logger.debug(f"paid values {paid_values}")
-            connection = get_db_connection()
-            cursor = connection.cursor()
-            for payment_detail in paid_values:
-                app.logger.debug(payment_detail)
-                cursor.execute(
-                    """
-                        INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid) 
-                        VALUES (%s, %s, %s) 
-                        ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
-                        """,
-                    (vendor_id, payment_detail["invoice_number"],
-                        payment_detail["pay_amount"], payment_detail["pay_amount"])
-                )
-                cursor.execute(
-                    """
-                        INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on) 
-                        VALUES (%s, %s, %s, %s, %s) 
-                        """,
-                    (vendor_id, payment_detail["invoice_number"],
-                        payment_detail["pay_amount"], payment_detail["mode_of_payment"], payment_detail["date_of_payment"])
-                )
-            connection.commit()
-            cursor.close()
-            connection.close()
-            flash('Payment processed successfully!', 'success')
-            return jsonify({'message': 'Payment processed successfully'}), 200
-    except Exception as e:
-        flash(f'An error occurred while processing the payment. Please try again. {str(e)}', 'error')
-        return jsonify({'error': str(e)}), 400
+    # try:
+    if request.method == "POST":
+        app.logger.debug(f"process_payments {request.json}")
+        vendor_id = request.json.get("vendor_id")
+        paid_values = []
+        for payment in request.json.get("payments", []):
+            if payment["pay_amount"] > 0:
+                paid_values.append(payment)
+        app.logger.debug(f"vendor id {vendor_id}")
+        app.logger.debug(f"paid values {paid_values}")
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        for payment_detail in paid_values:
+            app.logger.debug(payment_detail)
+            cursor.execute(
+                """
+                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid) 
+                    VALUES (%s, %s, %s) 
+                    ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
+                    """,
+                (vendor_id, payment_detail["invoice_number"],
+                    payment_detail["pay_amount"], payment_detail["pay_amount"])
+            )
+            cursor.execute(
+                """
+                    INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on) 
+                    VALUES (%s, %s, %s, %s, %s) 
+                    """,
+                (vendor_id, payment_detail["invoice_number"],
+                    payment_detail["pay_amount"], payment_detail["mode_of_payment"], payment_detail["date_of_payment"])
+            )
+        connection.commit()
+        cursor.close()
+        connection.close()
+        flash('Payment processed successfully!', 'success')
+        return jsonify({'message': 'Payment processed successfully'}), 200
+    # except Exception as e:
+    #     flash(f'An error occurred while processing the payment. Please try again. {str(e)}', 'error')
+    #     return jsonify({'error': str(e)}), 400
 
 
 @app.route('/storageroom_stock')
@@ -1282,7 +1284,7 @@ def upload_sales_report():
                 # Delete the uploaded Excel file
                 os.remove(file_path)
                 adjust_stocks(sales_date, restaurant_id)
-            flash("Sales report data has been processed succesfully and the inventory stocks have been adjusted accordingly. Please do not reupload the sales report as it will modify the inventory.")
+            flash("Sales report data has been processed succesfully and the inventory stocks have been adjusted accordingly. Please do not reupload the sales report as it will modify the inventory.", "success")
             return redirect(url_for('upload_sales_report'))
 
     restaurants = get_all_restaurants()
