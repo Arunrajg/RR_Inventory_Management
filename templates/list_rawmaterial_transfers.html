@@ -4,8 +4,8 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Transfer List</h4>
-                <h6>Manage your Transfer</h6>
+                <h4>Raw Material Transfer List</h4>
+                <h6>Manage your Raw Material Transfer</h6>
             </div>
             <div class="page-btn">
                 <a href="/transfer_raw_material" class="btn btn-added">
@@ -28,6 +28,7 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
+                                <th>S.No</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
@@ -40,6 +41,7 @@
                         <tbody>
                             {% for transfer in transfers %}
                             <tr>
+                                <td>{{ loop.index }}</td>
                                 <td>{{ transfer['raw_material_name']}}</td>
                                 <td>{{ transfer['quantity']}}</td>
                                 <td>{{ transfer['metric'] }}</td>

@@ -91,12 +91,12 @@
                                     <!-- Currently Available Quantity -->
                                     <div class="col-lg-2">
                                         <label>Available Quantity</label>
-                                        <input type="number" name="available_quantity" class="form-control" step="0.01"
-                                            value="" readonly>
+                                        <input type="number" name="available_quantity" class="form-control"
+                                            step="0.00001" value="" required readonly>
                                     </div>
                                     <div class="col-lg-2">
                                         <label>Transfer Quantity</label>
-                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
+                                        <input type="number" name="quantity[]" class="form-control" step="0.00001"
                                             placeholder="Enter Quantity" required>
                                     </div>
                                     <div class="col-lg-2">
@@ -282,13 +282,13 @@
             const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
 
             const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
-            availableQuantityInput.value = availableQuantity.toFixed(2);
+            availableQuantityInput.value = availableQuantity.toFixed(5);
 
             transferQuantityInput.setAttribute('max', availableQuantity);
             transferQuantityInput.addEventListener('input', function () {
                 if (parseFloat(this.value) > availableQuantity) {
                     alert('Transfer Quantity cannot exceed Available Quantity.');
-                    this.value = availableQuantity.toFixed(2);
+                    this.value = availableQuantity.toFixed(5);
                 }
             });
         }

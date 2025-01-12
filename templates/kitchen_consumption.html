@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Kitchen Raw Material Consumption</h4>
+            </div>
+        </div>
+        <form method="POST" action="/kitchen_consumption">
+            <div class="row align-items-center mb-3">
+                <div class="col-md-6">
+                    <label>Kitchen</label>
+                    <input type="text" id="kitchen-name-input" class="form-control" list="kitchens-list"
+                        placeholder="Search or add a kitchen..." required>
+                    <datalist id="kitchens-list">
+                        {% for kitchen in kitchens %}
+                        <option data-id="{{ kitchen['id'] }}" value="{{ kitchen['kitchenname'] }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    <!-- Hidden input to store the selected kitchen ID -->
+                    <input type="hidden" name="kitchen_id" id="kitchen-id-input" required>
+                </div>
+                <div class="col-md-6">
+                    <label>Report Date</label>
+                    <input type="date" name="report_date" class="form-control" value="{{ current_date }}" required>
+                </div>
+            </div>
+            <div class="table-responsive">
+                {% if query_result %}
+                <table class="table datanew">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Kitchen Name</th>
+                            <th>Raw Material Name</th>
+                            <th>Metric</th>
+                            <th>Transferred Quantity</th>
+                            <th>Estimated Consumed Quantity</th>
+                            <th>Remaining Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in query_result %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ row[0] }}</td>
+                            <td>{{ row[1] }}</td>
+                            <td>{{ row[2] }}</td>
+                            <td>{{ row[3] }}</td>
+                            <td>{{ row[4] }}</td>
+                            <td>{{ row[5] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No data available for the selected criteria.</p>
+                {% endif %}
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    document.getElementById('kitchen-name-input').addEventListener('input', function (event) {
+        const options = document.getElementById('kitchens-list').options;
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === this.value) {
+                document.getElementById('kitchen-id-input').value = options[i].getAttribute('data-id');
+                break;
+            }
+        }
+    });
+</script>
+{% endblock %}

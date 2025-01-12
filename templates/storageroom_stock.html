@@ -27,6 +27,7 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
+                                <th>S.No</th>
                                 <th>Storage Room Name</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
@@ -36,6 +37,7 @@
                         <tbody>
                             {% for stock in storage_stock %}
                             <tr>
+                                <td>{{ loop.index }}</td>
                                 <td>{{ stock['storageroomname']}}</td>
                                 <td>{{ stock['rawmaterial_name']}}</td>
                                 <td>{{ stock['quantity'] }}</td>

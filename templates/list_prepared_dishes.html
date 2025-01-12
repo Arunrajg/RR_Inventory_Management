@@ -27,6 +27,7 @@
                         <thead>
                             <tr>
                             <tr>
+                                <th>S.No</th>
                                 <th>Prepared In Kitchen</th>
                                 <th>Dish Category</th>
                                 <th>Dish Name</th>
@@ -38,6 +39,7 @@
                         <tbody>
                             {% for detail in prepared_dishes %}
                             <tr>
+                                <td>{{ loop.index }}</td>
                                 <td>{{ detail['kitchen_name'] }}</td>
                                 <td>{{ detail['dish_category'] }}</td>
                                 <td>{{ detail['dish_name'] }}</td>

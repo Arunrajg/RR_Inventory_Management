@@ -4,7 +4,7 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>PAYMENTS</h4>
+                <h4>PENDING PAYMENTS CUMULATIVE</h4>
                 <h6>Manage your payments</h6>
             </div>
         </div>
@@ -15,6 +15,7 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
+                                <th>S.No</th>
                                 <th>Vendor</th>
                                 <th>Total Purchased Amount(Rs)</th>
                                 <th>Total Amount Paid(Rs)</th>
@@ -25,6 +26,7 @@
                         <tbody>
                             {% for payment in pending_payments_vendor_cumulative %}
                             <tr>
+                                <td>{{ loop.index }}</td>
                                 <td>{{ payment['vendor_name'] }}</td>
                                 <td>{{ payment['total_outstanding_cost'] }}</td>
                                 <td>{{ payment['total_paid'] }}</td>
@@ -59,7 +61,7 @@
 
 <!-- Modal for Payment -->
 <div class="modal fade" id="payModal" tabindex="-1" role="dialog" aria-labelledby="payModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="payModalLabel">Pay Amount</h5>
@@ -79,6 +81,8 @@
                                     <th>Outstanding Cost(Rs)</th>
                                     <th>Pay Amount(Rs)</th>
                                     <th>Due(Rs)</th>
+                                    <th>Mode of Payment</th>
+                                    <th>Date of Payment</th>
                                 </tr>
                             </thead>
                             <tbody id="paymentDetailsTable">
@@ -125,22 +129,34 @@
                     // Populate table with payment details
                     data.forEach(payment => {
                         const dueAmount = payment.total_due - (payment.pay_amount || 0);
+                        const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
 
                         const row = document.createElement('tr');
                         row.innerHTML = `
                         <td>${payment.invoice_number}</td>
-                        <td>${payment.total_due.toFixed(2)}</td>
+                        <td>${payment.total_due.toFixed(5)}</td>
                         <td>
                             <input type="number" class="form-control pay-amount" 
                                    data-payment-id="${payment.payment_id}"
                                    data-invoice-number="${payment.invoice_number}"
                                    value="0" 
                                    min="0" 
-                                   max="${payment.total_due.toFixed(2)}"
-                                   step="0.01"
+                                   max="${payment.total_due.toFixed(5)}"
+                                   step="0.00001"
                                    >
                         </td>
-                        <td class="due-amount">${dueAmount.toFixed(2)}</td>
+                        <td class="due-amount">${dueAmount.toFixed(5)}</td>
+                        <td>
+                            <select class="form-control mode-of-payment">
+                                <option value="upi">UPI</option>
+                                <option value="cash">Cash</option>
+                                <option value="bank_transfer">Bank Transfer</option>
+                                <option value="cheque">Cheque</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="date" class="form-control date-of-payment" value="${today}">
+                        </td>
                     `;
                         paymentDetailsTable.appendChild(row);
                     });
@@ -154,11 +170,11 @@
 
                             // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
                             if (payAmount > outstandingCost) {
-                                input.value = outstandingCost.toFixed(2); // Set the input value to the max allowed
+                                input.value = outstandingCost.toFixed(5); // Set the input value to the max allowed
                             }
 
                             // Recalculate and update dueAmount
-                            const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(2);
+                            const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(5);
                             row.querySelector('.due-amount').textContent = newDueAmount;
                         });
                     });
@@ -177,6 +193,8 @@
             const paymentData = Array.from(document.querySelectorAll('.pay-amount')).map(input => ({
                 invoice_number: input.getAttribute('data-invoice-number'),
                 pay_amount: parseFloat(input.value || 0),
+                mode_of_payment: input.closest('tr').querySelector('.mode-of-payment').value,
+                date_of_payment: input.closest('tr').querySelector('.date-of-payment').value
             }));
 
             try {
@@ -188,7 +206,7 @@
 
                 if (!response.ok) throw new Error('Failed to process payments.');
                 const responseData = await response.json();
-                alert(responseData.message);
+                // alert(responseData.message);
                 // Close modal and reload page
                 payModal.modal('hide');
                 location.reload();
@@ -198,8 +216,8 @@
             }
         });
     });
-
 </script>
+
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>

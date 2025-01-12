@@ -13,13 +13,15 @@
             <div class="row align-items-center mb-3">
                 <div class="col-md-6">
                     <label>Prepared In Kitchen</label>
-                    <input type="text" name="kitchen_name" class="form-control" list="kitchens-list"
+                    <input type="text" id="kitchen-name-input" class="form-control" list="kitchens-list"
                         placeholder="Search or add a kitchen..." required>
                     <datalist id="kitchens-list">
                         {% for kitchen in kitchens %}
-                        <option value="{{ kitchen['kitchenname'] }}"></option>
+                        <option data-id="{{ kitchen['id'] }}" value="{{ kitchen['kitchenname'] }}"></option>
                         {% endfor %}
                     </datalist>
+                    <!-- Hidden input to store the selected kitchen ID -->
+                    <input type="hidden" name="kitchen_id" id="kitchen-id-input" required>
                 </div>
                 <div class="col-md-6">
                     <label>Prepared On</label>
@@ -174,6 +176,28 @@
                     dishNameField.appendChild(option);
                 });
             }
+        }
+    });
+
+    // Handle kitchen ID mapping
+    document.getElementById('kitchen-name-input').addEventListener('input', function () {
+        const datalist = document.getElementById('kitchens-list');
+        const hiddenInput = document.getElementById('kitchen-id-input');
+        const inputValue = this.value;
+
+        // Find the selected option in the datalist
+        const selectedOption = Array.from(datalist.options).find(option => option.value === inputValue);
+
+        // Set the hidden input value to the kitchen ID or clear it if no match is found
+        hiddenInput.value = selectedOption ? selectedOption.getAttribute('data-id') : '';
+    });
+
+    // Validate form submission: Ensure kitchen ID is set
+    document.querySelector('form').addEventListener('submit', function (event) {
+        const hiddenInput = document.getElementById('kitchen-id-input');
+        if (!hiddenInput.value) {
+            event.preventDefault(); // Prevent form submission
+            alert('Please select a valid kitchen from the list.');
         }
     });
 

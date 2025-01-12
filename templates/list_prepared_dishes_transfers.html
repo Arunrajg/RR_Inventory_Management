@@ -4,11 +4,12 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Restaurant list</h4>
+                <h4>Prepared Dishes Transfer List</h4>
+                <h6>Manage your Prepared Dishes Transfer</h6>
             </div>
             <div class="page-btn">
-                <a href="/addrestaurant" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Restaurant
+                <a href="/transfer_prepared_dishes" class="btn btn-added">
+                    <img src="../static/img/icons/plus.svg" alt="img">Transfer Raw Material
                 </a>
             </div>
         </div>
@@ -23,22 +24,29 @@
                     </div>
                 </div>
 
-
                 <div class="table-responsive">
-                    <table class="table  datanew">
+                    <table class="table datanew">
                         <thead>
                             <tr>
-                                <th>Restaurant Number</th>
-                                <th>Restaurant name</th>
-                                <th>Address</th>
+                                <th>S.No</th>
+                                <th>Transferred From</th>
+                                <th>Transferred To</th>
+                                <th>Dish Category</th>
+                                <th>Dish Name</th>
+                                <th>Quantity</th>
+                                <th>Transferred on</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {% for restaurant in restaurants %}
+                            {% for transfer in transfers %}
                             <tr>
-                                <td style="width: 10%;">{{ restaurant.id }}</td>
-                                <td style="width: 35%;">{{ restaurant.restaurantname }}</td>
-                                <td style="width: 55%;">{{ restaurant.address }}</td>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ transfer['kitchen_name']}}</td>
+                                <td>{{ transfer['restaurant_name']}}</td>
+                                <td>{{ transfer['dish_category'] }}</td>
+                                <td>{{ transfer['dish_name'] }}</td>
+                                <td>{{ transfer['transferred_quantity'] }}</td>
+                                <td>{{ transfer['transferred_on'] }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -50,8 +58,6 @@
     </div>
 </div>
 {% endblock %}
-
-
 {% block scripts %}
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>

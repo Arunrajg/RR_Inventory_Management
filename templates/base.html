@@ -266,9 +266,14 @@
                                     <!-- <li><a href="/bulk_transfer"
                                             class="{{ 'active' if request.path == '/bulk_transfer' else '' }}">Bulk
                                             Transfer Raw Materials</a></li> -->
-                                    <li><a href="/list_transfers"
-                                            class="{{ 'active' if request.path == '/list_transfers' else '' }}">List Raw
+                                    <li><a href="/list_rawmaterial_transfers"
+                                            class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
+                                            Raw
                                             Material Transfers </a></li>
+                                    <li><a href="/list_prepared_dishes_transfers"
+                                            class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
+                                            Prepared
+                                            Dishes Transfers </a></li>
                                     <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
                                 </ul>
                             </li>
@@ -279,6 +284,14 @@
                                     <li><a href="/upload_sales_report"
                                             class="{{ 'active' if request.path == '/upload_sales_report' else '' }}">Upload
                                             Sales Report
+                                        </a></li>
+                                    <li><a href="/restaurant_consumption"
+                                            class="{{ 'active' if request.path == '/restaurant_consumption' else '' }}">Restaurant
+                                            Raw Material Consumption
+                                        </a></li>
+                                    <li><a href="/kitchen_consumption"
+                                            class="{{ 'active' if request.path == '/kitchen_consumption' else '' }}">Kitchen
+                                            Raw Material Consumption
                                         </a></li>
                                     <!-- <li><a href="/check_dish_availability"
                                             class="{{ 'active' if request.path == '/check_dish_availability' else '' }}">Check

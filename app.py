@@ -2,6 +2,7 @@ import pandas as pd
 from decimal import Decimal
 import logging
 from flask import Flask, render_template, request, redirect, flash, session, url_for, jsonify
+from markupsafe import Markup
 from flask_mail import Mail, Message
 from db_utils import *
 from encryption import encrypt_message, decrypt_message, generate_random_password
@@ -308,7 +309,7 @@ def addrawmaterials():
                 continue
 
             # Check if the raw material already exists
-            existing_material = get_raw_material_by_name(raw_material)
+            existing_material = get_raw_material_by_id(raw_material)
             if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
                 errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
                 continue
@@ -621,11 +622,9 @@ def pending_payments():
         vendor_id = request.json.get("vendorId")
         vendor_name = request.json.get("vendorName")
         amount_paid = float(request.json.get("amountPaid"))
-        payment_date = request.json.get("paymentDate")
         app.logger.debug(f"vendor_id {vendor_id}")
         app.logger.debug(f"vendor_name {vendor_name}")
         app.logger.debug(f"amount_paid {amount_paid}")
-        app.logger.debug(f"payment_date {payment_date}")
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute(
@@ -669,15 +668,15 @@ def process_payments():
                         ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
                         """,
                     (vendor_id, payment_detail["invoice_number"],
-                     payment_detail["pay_amount"], payment_detail["pay_amount"])
+                        payment_detail["pay_amount"], payment_detail["pay_amount"])
                 )
                 cursor.execute(
                     """
-                        INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, paid_on) 
-                        VALUES (%s, %s, %s, %s) 
+                        INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on) 
+                        VALUES (%s, %s, %s, %s, %s) 
                         """,
                     (vendor_id, payment_detail["invoice_number"],
-                     payment_detail["pay_amount"], get_current_date())
+                        payment_detail["pay_amount"], payment_detail["mode_of_payment"], payment_detail["date_of_payment"])
                 )
             connection.commit()
             cursor.close()
@@ -685,7 +684,7 @@ def process_payments():
             flash('Payment processed successfully!', 'success')
             return jsonify({'message': 'Payment processed successfully'}), 200
     except Exception as e:
-        flash('An error occurred while processing the payment. Please try again.', 'error')
+        flash(f'An error occurred while processing the payment. Please try again. {str(e)}', 'error')
         return jsonify({'error': str(e)}), 400
 
 
@@ -797,7 +796,7 @@ def transfer_raw_material():
             if not raw_material_data:
                 flash(f"raw material {raw_material} is not available. Please add the raw material to continue", "danger")
                 return redirect(url_for("transfer_raw_material"))
-            quantity = Decimal(quantity)
+            quantity = quantity
             converted_quantity = convert_to_base_units(quantity, metric)
             transfer_details.append({
                 "raw_material_id": raw_material,
@@ -867,7 +866,10 @@ def transfer_raw_material():
                     INSERT INTO raw_material_transfer_details (
                         source_storage_room_id, destination_type, destination_id,
                         raw_material_id, quantity, metric, transferred_date
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE 
+                        quantity = quantity + VALUES(quantity)
                 """
                 execute_query(insert_transfer_query, (source_storageroom_id, destination_type, destination_id,
                                                       raw_material_id, quantity, metric, transfer_date))
@@ -895,12 +897,20 @@ def transfer_raw_material():
                            storageroom_stock=storageroom_stock)
 
 
-@app.route('/list_transfers')
-def list_transfers():
+@app.route('/list_rawmaterial_transfers')
+def list_rawmaterial_transfers():
     if "user" not in session:
         return redirect("/login")
     transfers = get_rawmaterial_transfer_history()
     return render_template('list_rawmaterial_transfers.html', transfers=transfers, user=session["user"])
+
+
+@app.route('/list_prepared_dishes_transfers')
+def list_prepared_dishes_transfers():
+    if "user" not in session:
+        return redirect("/login")
+    transfers = get_prepared_dishes_transfer_history()
+    return render_template('list_prepared_dishes_transfers.html', transfers=transfers, user=session["user"])
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -1201,14 +1211,15 @@ def upload_sales_report():
     if request.method == 'POST':
         app.logger.debug(f"request.files {request.files}")
         file = request.files.get('file')
+        restaurant_id = request.form.get("restaurant_id")
 
         if 'file' not in request.files:
-            flash('No file part')
-            return redirect(request.url)
+            flash('No file part found. Please try again.', "danger")
+            return redirect(url_for('upload_sales_report'))
 
         if file.filename == '':
-            flash('No selected file')
-            return redirect(request.url)
+            flash('No selected file. Please upload a file', "danger")
+            return redirect(url_for('upload_sales_report'))
 
         if file and file.filename.endswith('.xlsx'):
             # Save the file
@@ -1219,10 +1230,59 @@ def upload_sales_report():
             missing_recipes = process_data(file_path)
 
             if missing_recipes:
-                flash(f"Recipe not found for the following dishes: {', '.join(missing_recipes)}", "danger")
-            else:
-                flash('All dishes processed successfully.', "success")
+                missing_recipes_table = """
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Missing Recipe</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                """
+                for recipe in missing_recipes:
+                    missing_recipes_table += f"<tr><td>{recipe}</td></tr>"
+                missing_recipes_table += "</tbody></table>"
 
+                flash(Markup(
+                    f"Recipe not found for the following dishes. Kindly update recipe for all the dishes and continue:<br>{missing_recipes_table}"), "danger")
+            else:
+                # Process the data and update the daily_sales table
+                df = pd.read_excel(file_path)
+                # Extract sales date from filename format: Restaurant_item_tax_report_YYYY_MM_DD_HH_MM_SS.xlsx
+                filename_parts = file.filename.split('_')
+                sales_date_str = f"{filename_parts[4]}-{filename_parts[5]}-{filename_parts[6]}"
+                sales_date = datetime.strptime(sales_date_str, '%Y-%m-%d').date()
+
+                conn = get_db_connection()
+                cursor = conn.cursor()
+
+                for index, row in df.iterrows():
+                    category = row['Category']
+                    item_name = row['Item Name']
+                    quantity = row['Qty']
+
+                    cursor.execute(
+                        "SELECT id FROM dishes WHERE category = %s AND name = %s", (category, item_name))
+                    dish = cursor.fetchone()
+                    app.logger.debug(f"dish fetchone one {dish}")
+                    if dish:
+                        dish_id = dish[0]
+                        cursor.execute("""
+                            INSERT INTO daily_sales (sales_date, dish_id, quantity)
+                            VALUES (%s, %s, %s)
+                            ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+                        """, (sales_date, dish_id, quantity))
+                    else:
+                        missing_recipes.append(item_name)
+
+                conn.commit()
+                cursor.close()
+                conn.close()
+
+                # Delete the uploaded Excel file
+                os.remove(file_path)
+                adjust_stocks(sales_date, restaurant_id)
+            flash("Sales report data has been processed succesfully and the inventory stocks have been adjusted accordingly. Please do not reupload the sales report as it will modify the inventory.")
             return redirect(url_for('upload_sales_report'))
 
     restaurants = get_all_restaurants()
@@ -1255,16 +1315,19 @@ def add_prepared_dishes():
     if request.method == "POST":
         try:
             # Retrieve form data
+            app.logger.debug(f"form {request.form}")
             dish_categories = request.form.getlist('dish_categories[]')
             app.logger.debug(f"dish_categories{dish_categories}")
             dish_names = request.form.getlist('dish_names[]')
             app.logger.debug(f"dish_names{dish_names}")
             prepared_quantities = request.form.getlist('prepared_quantities[]')
             app.logger.debug(f"prepared_quantities{prepared_quantities}")
-            prepared_in_kitchen = request.form.get('kitchen_name')
+            prepared_in_kitchen = request.form.get('kitchen_id')
             app.logger.debug(f"prepared_in_kitchen{prepared_in_kitchen}")
-            kitchen_data = get_kitchen_by_name(prepared_in_kitchen)
-            app.logger.debug(f"kitchen_data{kitchen_data}")
+            prepared_on = request.form.get('prepared_on')
+            app.logger.debug(f"prepared_on{prepared_on}")
+            # kitchen_data = get_kitchen_by_name(prepared_in_kitchen)
+            # app.logger.debug(f"kitchen_data{kitchen_data}")
 
             # Check and insert records
             for category, dish, quantity in zip(dish_categories, dish_names, prepared_quantities):
@@ -1280,16 +1343,18 @@ def add_prepared_dishes():
                 if not existing_dish:
                     flash(f"Dish '{dish}' under category '{category}' does not exist. Please add the dish.", "error")
                     return redirect(request.url)
+                dish_id = existing_dish[0]['id']
 
                 # Query to check if the dish for the given kitchen and date exists
                 check_query = """
-                    SELECT id, prepared_quantity FROM kitchen_prepared_dishes 
+                    SELECT id, prepared_quantity FROM kitchen_prepared_dishes
                     WHERE prepared_dish_id = %s AND prepared_in_kitchen = %s AND prepared_on = %s
                 """
-                check_params = (existing_dish[0]['id'], kitchen_data['id'], get_current_date())
+                check_params = (dish_id, prepared_in_kitchen, prepared_on)
 
                 # Execute the check query
                 existing_record = fetch_all(check_query, check_params)
+                app.logger.debug(f"existing dish record {existing_record}")
 
                 if existing_record:
                     # If a record exists, update the quantity by adding the new value
@@ -1299,7 +1364,7 @@ def add_prepared_dishes():
                         available_quantity = available_quantity + %s
                         WHERE id = %s
                     """
-                    update_params = (quantity, existing_record[0]['id'])
+                    update_params = (quantity, quantity, existing_record[0]['id'])
                     status = execute_query(update_query, update_params)
                 else:
                     # If no record exists, insert a new one
@@ -1308,8 +1373,10 @@ def add_prepared_dishes():
                             prepared_dish_id, prepared_quantity, available_quantity, prepared_in_kitchen, prepared_on
                         ) VALUES (%s, %s, %s, %s, %s)
                     """
-                    insert_params = (existing_dish[0]['id'], quantity, kitchen_data['id'], get_current_date())
+                    insert_params = (dish_id, quantity, quantity,
+                                     prepared_in_kitchen, prepared_on)
                     status = execute_query(insert_query, insert_params)
+                update_kitchen_stock(prepared_in_kitchen, dish_id, quantity, prepared_on)
                 if status:
                     flash(f"Prepared dish {dish} added successfully!", "success")
                 else:
@@ -1318,7 +1385,7 @@ def add_prepared_dishes():
 
         except Exception as e:
             app.logger.error(f"Error while adding prepared dishes: {e}")
-            flash("An error occurred while adding prepared dishes.", "error")
+            flash(f"An error occurred while adding prepared dishes. {e}", "error")
             return redirect(request.url)
 
     # GET request: fetch data for rendering the page
@@ -1453,6 +1520,8 @@ def transfer_prepared_dishes():
 
 @app.route('/check_dish_availability', methods=['GET', 'POST'])
 def check_dish_availability():
+    if "user" not in session:
+        return redirect("/login")
     if request.method == 'POST':
         selected_date = request.form['selected_date']
         restaurant_id = request.form['restaurant_id']
@@ -1496,68 +1565,11 @@ def get_restaurants():
 
 
 # Read the Excel file
-
-
 def read_excel(file_path):
     return pd.read_excel(file_path)
 
-# Check if the dish is prepared in the kitchen
-
-
-def check_dish_prepared(dish_id, conn):
-    query = """SELECT 1 FROM kitchen_prepared_dishes WHERE prepared_dish_id = %s AND prepared_on = CURDATE()"""
-    cursor = conn.cursor()
-    cursor.execute(query, (dish_id,))
-    result = cursor.fetchone()
-    cursor.close()
-    return result is not None
-
-# Fetch raw materials required for the dish
-
-
-def get_raw_materials(dish_id, qty_sold, conn):
-    query = """SELECT raw_material_id, quantity, metric FROM dish_raw_materials WHERE dish_id = %s"""
-    cursor = conn.cursor()
-    cursor.execute(query, (dish_id,))
-    materials = cursor.fetchall()
-    cursor.close()
-
-    raw_materials = []
-    for material in materials:
-        raw_materials.append({
-            'raw_material_id': material[0],
-            'quantity': material[1] * qty_sold,
-            'metric': material[2]
-        })
-    return raw_materials
-
-# Subtract raw materials from the inventory
-
-
-def subtract_raw_materials(raw_materials, conn):
-    for material in raw_materials:
-        query = """SELECT quantity FROM restaurant_inventory_stock WHERE raw_material_id = %s"""
-        cursor = conn.cursor()
-        cursor.execute(query, (material['raw_material_id'],))
-        stock = cursor.fetchone()
-        if stock:
-            new_quantity = stock[0] - material['quantity']
-            if new_quantity >= 0:
-                update_query = """UPDATE restaurant_inventory_stock SET quantity = %s WHERE raw_material_id = %s"""
-                cursor.execute(update_query, (new_quantity, material['raw_material_id']))
-                conn.commit()
-            else:
-                print(f"Not enough stock for raw material {material['raw_material_id']}")
-        cursor.close()
-
-# Process the Excel data
-
 
 def process_data(file_path):
-    conn = get_db_connection()
-    if not conn:
-        print("Failed to connect to the database.")
-        return []
 
     data = read_excel(file_path)
     missing_recipes = []
@@ -1565,29 +1577,83 @@ def process_data(file_path):
     for index, row in data.iterrows():
         category = row['Category']
         item_name = row['Item Name']
-        qty_sold = row['Qty']
-
         # Find dish_id
-        cursor = conn.cursor()
-        cursor.execute("""SELECT id FROM dishes WHERE category = %s AND name = %s""", (category, item_name))
-        dish = cursor.fetchone()
-        cursor.close()
+        dish = get_dish_details_from_category(category, item_name)
 
         if dish:
-            dish_id = dish[0]
-            # Check if dish is prepared today
-            if check_dish_prepared(dish_id, conn):
-                continue  # Skip if the dish is prepared in the kitchen today
-
-            # Get raw materials for the dish
-            raw_materials = get_raw_materials(dish_id, qty_sold, conn)
-            # Subtract raw materials from inventory
-            subtract_raw_materials(raw_materials, conn)
+            dish_id = dish[0]["id"]
+            dish_recipe = get_dish_recipe(dish_id)
+            if not dish_recipe:
+                missing_recipes.append(f"{category} - {item_name}")
         else:
             missing_recipes.append(f"{category} - {item_name}")
-
-    conn.close()
     return missing_recipes
+
+
+def adjust_stocks(report_date, restaurant_id):
+    conn = get_db_connection()
+    if not conn:
+        print("Failed to connect to the database.")
+        return []
+    app.logger.debug(report_date)
+    data = get_sales_report_data(report_date)
+    for dish_data in data:
+        app.logger.debug(f"dish data for loop {dish_data}")
+        dish_recipe = get_dish_recipe(dish_data["dish_id"])
+        app.logger.debug(f"dish recipeee {dish_recipe}")
+        transferred_dish = check_dish_transferred(dish_data["dish_id"], report_date, restaurant_id)
+        if transferred_dish:
+            app.logger.debug(f"{dish_data} is a prepared dish")
+            pass
+        else:
+            update_restaurant_stock(restaurant_id, dish_data["dish_id"], dish_data["quantity"], report_date)
+        #     materials = get_raw_materials(dish_data["dish_id"])
+        #     raw_materials = []
+        #     for material in materials:
+        #         raw_materials.append({
+        #             'raw_material_id': material[0],
+        #             'quantity': material[1] * dish_data["quantity"],
+        #             'metric': material[2]
+        #         })
+        #     app.logger.debug(f"raw raw {raw_materials}")
+        #     subtract_raw_materials(raw_materials, "restaurant", restaurant_id, report_date)
+        # # transferred_dish = check_dish_transferred(dish_data["id"], report_date, restaurant_id)
+        # # if transferred_dish:
+        # #     pass
+        # #     # subtract_raw_materials(raw_materials, "kitchen", transferred_dish[0], report_date)
+
+        # else:
+        #     subtract_raw_materials(raw_materials, "restaurant", restaurant_id, report_date)
+
+
+@app.route('/restaurant_consumption', methods=['GET', 'POST'])
+def restaurant_consumption():
+    if "user" not in session:
+        return redirect("/login")
+    restaurants = get_all_restaurants()
+    if request.method == 'POST':
+        selected_date = request.form['report_date']
+        restaurant_id = request.form['restaurant_id']
+        app.logger.debug(f"selected_date {selected_date}")
+        app.logger.debug(f"restaurant_id {restaurant_id}")
+        consumption_data = get_restaurant_consumption_report(restaurant_id, selected_date)
+        return render_template("restaurant_consumption.html", user=session["user"], restaurants=restaurants, current_date=selected_date, query_result=consumption_data)
+    return render_template("restaurant_consumption.html", user=session["user"], restaurants=restaurants, current_date=get_current_date())
+
+
+@app.route('/kitchen_consumption', methods=['GET', 'POST'])
+def kitchen_consumption():
+    if "user" not in session:
+        return redirect("/login")
+    kitchens = get_all_kitchens()
+    if request.method == 'POST':
+        selected_date = request.form['report_date']
+        kitchen_id = request.form['kitchen_id']
+        app.logger.debug(f"selected_date {selected_date}")
+        app.logger.debug(f"kitchen_id {kitchen_id}")
+        consumption_data = get_kitchen_consumption_report(kitchen_id, selected_date)
+        return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=selected_date, query_result=consumption_data)
+    return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=get_current_date())
 
 
 if __name__ == "__main__":

@@ -27,7 +27,8 @@
                     <table class="table datanew">
                         <thead>
                             <tr>
-                                <th>Resturant Name</th>
+                                <th>S.No</th>
+                                <th>Restaurant Name</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
@@ -36,8 +37,9 @@
                         <tbody>
                             {% for stock in restaurantinv_stock %}
                             <tr>
-                                <td>{{ stock['restaurantname']}}</td>
-                                <td>{{ stock['rawmaterial_name']}}</td>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ stock['restaurant_name']}}</td>
+                                <td>{{ stock['raw_material_name']}}</td>
                                 <td>{{ stock['quantity'] }}</td>
                                 <td>{{ stock['metric'] }}</td>
                             </tr>

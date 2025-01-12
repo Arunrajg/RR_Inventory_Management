@@ -2,6 +2,7 @@ import mysql.connector
 from mysql.connector import Error
 import logging
 from datetime import datetime
+from decimal import Decimal
 import os
 import pytz
 
@@ -157,6 +158,182 @@ def get_dish_details_from_category(category_name, dish_name):
     return dish_id
 
 
+def get_sales_report_data(sales_date):
+    query = """
+    SELECT
+        sr.id,
+        sr.sales_date,
+        d.id AS dish_id,
+        d.category AS dish_category,
+        d.name AS dish_name,
+        sr.quantity
+    FROM
+        daily_sales sr
+    JOIN
+        dishes d ON sr.dish_id = d.id
+    WHERE sales_date=%s;
+        """
+    sales_report_data = fetch_all(query, (sales_date,))
+    logger.debug(f"sales_report_data -- {sales_report_data}")
+    return sales_report_data
+
+
+def get_dish_recipe(dish_id):
+    query = 'SELECT dish_id, raw_material_id, quantity, metric FROM dish_raw_materials WHERE dish_id =%s'
+    recipe = fetch_all(query, (dish_id,))
+    logger.debug(f"recipe -- {recipe}")
+    return recipe
+
+
+def check_dish_transferred(dish_id, prepared_date, restaurant_id):
+    result = None
+    conn = get_db_connection()
+    query = """SELECT source_kitchen_id FROM prepared_dish_transfer WHERE dish_id = %s AND transferred_date = %s and destination_restaurant_id=%s"""
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id, prepared_date, restaurant_id))
+    result = cursor.fetchone()
+    logger.debug(f"transfer result {result}")
+    cursor.close()
+    return result
+
+
+def check_prepared_dish(dish_id, prepared_date, restaurant_id):
+    result = None
+    conn = get_db_connection()
+    logger.debug(f"check preapred {dish_id} {prepared_date} {restaurant_id}")
+    query = """SELECT id FROM kitchen_prepared_dishes WHERE prepared_dish_id = %s AND prepared_on = %s and prepared_in_kitchen=%s"""
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id, prepared_date, restaurant_id))
+    result = cursor.fetchone()
+    logger.debug(f"check_prepared_dish result {result}")
+    cursor.close()
+    return result
+
+
+def get_restaurant_consumption_report(restaurant_id, report_date):
+    query = """
+    SELECT 
+        r.restaurantname AS restaurant_name,
+        rm.name AS raw_material_name,
+        ris.metric AS metric,
+        SUM(rmtd.quantity) AS transferred_quantity,
+        SUM(c.quantity) AS estimated_consumed_quantity,
+        (SUM(rmtd.quantity) - COALESCE(SUM(c.quantity), 0)) AS remaining_quantity
+    FROM 
+        restaurant_inventory_stock ris
+    JOIN 
+        restaurant r ON ris.restaurant_id = r.id
+    JOIN 
+        raw_materials rm ON ris.raw_material_id = rm.id
+    LEFT JOIN 
+        raw_material_transfer_details rmtd ON rmtd.destination_id = ris.restaurant_id AND rmtd.raw_material_id = ris.raw_material_id AND DATE(rmtd.transferred_date) = %s
+    LEFT JOIN 
+        consumption c ON c.location_id = ris.restaurant_id AND c.raw_material_id = ris.raw_material_id AND c.location_type = 'restaurant' AND DATE(c.consumption_date) = %s
+    WHERE 
+        ris.restaurant_id = %s AND DATE(ris.updated_at) = %s
+    GROUP BY 
+        r.restaurantname, rm.name, ris.metric
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, (report_date, report_date, restaurant_id, report_date))
+    result = cursor.fetchall()  # Fetch all results instead of just one
+    logger.debug(f"restaurant consumption result {result}")
+    cursor.close()
+    return result
+
+
+def get_kitchen_consumption_report(kitchen_id, report_date):
+    query = """
+    SELECT 
+    k.kitchenname AS kitchen_name,
+    rm.name AS raw_material_name,
+    kis.metric AS metric,
+    ROUND(SUM(CASE WHEN rmtd.destination_type = 'kitchen' THEN rmtd.quantity ELSE 0 END), 5) AS transferred_quantity,
+    ROUND(SUM(c.quantity), 5) AS consumed_quantity,
+    ROUND((SUM(CASE WHEN rmtd.destination_type = 'kitchen' THEN rmtd.quantity ELSE 0 END) - COALESCE(SUM(c.quantity), 0)), 5) AS remaining_quantity
+FROM 
+    kitchen_inventory_stock kis
+JOIN 
+    kitchen k ON kis.kitchen_id = k.id
+JOIN 
+    raw_materials rm ON kis.raw_material_id = rm.id
+LEFT JOIN 
+    raw_material_transfer_details rmtd ON rmtd.destination_id = kis.kitchen_id AND rmtd.raw_material_id = kis.raw_material_id AND DATE(rmtd.transferred_date) = %s AND rmtd.destination_type = 'kitchen'
+LEFT JOIN 
+    consumption c ON c.location_id = kis.kitchen_id AND c.raw_material_id = kis.raw_material_id AND c.location_type = 'kitchen' AND DATE(c.consumption_date) = %s
+WHERE 
+    kis.kitchen_id = %s AND DATE(kis.updated_at) = %s
+GROUP BY 
+    k.kitchenname, rm.name, kis.metric;
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, (report_date, report_date, kitchen_id, report_date))
+    result = cursor.fetchall()
+    logger.debug(f"kitchen consumption result {result}")
+    cursor.close()
+    return result
+
+
+def subtract_raw_materials(raw_materials, destination_type, type_id, report_date):
+    conn = get_db_connection()
+    logger.debug(f"raw_materials {raw_materials} destination_type {destination_type} type_id {type_id}")
+    for material in raw_materials:
+        # if destination_type == "restaurant":
+        query = """SELECT quantity FROM restaurant_inventory_stock WHERE raw_material_id = %s AND restaurant_id = %s"""
+        update_query = """UPDATE restaurant_inventory_stock SET quantity = %s WHERE raw_material_id = %s AND restaurant_id = %s"""
+        insert_consumption_query = """
+        INSERT INTO consumption (raw_material_id, quantity, metric, consumption_date, location_type, location_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+        quantity = quantity + %s;
+        """
+        # elif destination_type == "kitchen":
+        #     query = """SELECT quantity FROM kitchen_inventory_stock WHERE raw_material_id = %s AND kitchen_id = %s"""
+        #     update_query = """UPDATE kitchen_inventory_stock SET quantity = %s WHERE raw_material_id = %s AND kitchen_id = %s"""
+        #     insert_consumption_query = """
+        #         INSERT INTO consumption (report_date, raw_material_id, kitchen_id, quantity)
+        #         VALUES (%s, %s, %s, %s)
+        #         ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
+        #     """
+
+        logger.debug(f"query {query}")
+        cursor = conn.cursor()
+        cursor.execute(query, (material['raw_material_id'], type_id))
+        stock = cursor.fetchone()
+        logger.debug(f"stock {stock}")
+        if stock:
+            metric = material["metric"]
+            quantity = material["quantity"]
+            # Metric conversion
+            if metric == 'grams':
+                quantity = float(quantity) / 1000  # Convert to kg
+                metric = 'kg'
+            elif metric == 'ml':
+                quantity = float(quantity) / 1000  # Convert to liters
+                metric = 'liter'
+            new_quantity = float(stock[0]) - quantity
+            logger.debug(f"new_quantity {new_quantity}")
+            cursor.execute(update_query, (new_quantity, material['raw_material_id'], type_id))
+            cursor.execute(insert_consumption_query, (material['raw_material_id'], material["quantity"],
+                           material["metric"], report_date, destination_type, type_id, material["quantity"]))
+            conn.commit()
+
+        cursor.close()
+
+
+def get_raw_materials(dish_id):
+    conn = get_db_connection()
+    query = """SELECT raw_material_id, quantity, metric FROM dish_raw_materials WHERE dish_id = %s"""
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id,))
+    materials = cursor.fetchall()
+    cursor.close()
+    logger.debug(f"materialsss {materials}")
+    return materials
+
+
 def get_prepared_dishes_today():
     query = """
     SELECT d.id, d.category as prepared_dish_category, d.name AS prepared_dish_name, k.kitchenname AS prepared_kitchen_name, kpd.prepared_quantity, kpd.available_quantity
@@ -184,9 +361,21 @@ def get_all_prepared_dishes():
     return prepared_dishes
 
 
+# def update_stock_consumption(raw_material_id, stock_availability, estimated_stock_consumption, metric, source_type, source_id, date):
+#     query = """
+#         INSERT INTO raw_material_consumption (
+#             raw_material_id, stock_availability, estimated_stock_consumption, metric, source_type, source_id, date
+#         ) VALUES
+#             (%s, %s, %s, %s, %s, %s, %s)
+#         ON DUPLICATE KEY UPDATE
+#             estimated_stock_consumption = estimated_stock_consumption + VALUES(estimated_stock_consumption),
+#             stock_availability = VALUES(stock_availability);
+#         """
+
+
 def get_all_purchases():
     query = """
-        SELECT 
+        SELECT
             ph.id,
             ph.vendor_id,
             v.vendor_name,
@@ -200,13 +389,13 @@ def get_all_purchases():
             ph.storageroom_id,
             sr.storageroomname AS storageroom_name,
             ph.created_at
-        FROM 
+        FROM
             purchase_history ph
-        JOIN 
+        JOIN
             vendor_list v ON ph.vendor_id = v.id
-        JOIN 
+        JOIN
             storagerooms sr ON ph.storageroom_id = sr.id
-        ORDER BY 
+        ORDER BY
             ph.created_at DESC
             """
     purchases = fetch_all(query)
@@ -216,7 +405,7 @@ def get_all_purchases():
 
 def get_all_pending_payments():
     query = """
-    SELECT 
+    SELECT
         vpt.id AS payment_id,
         vl.id AS vendor_id,
         vl.vendor_name,
@@ -225,11 +414,11 @@ def get_all_pending_payments():
         vpt.total_paid,
         vpt.total_due,
         vpt.last_updated
-    FROM 
+    FROM
         vendor_payment_tracker AS vpt
-    JOIN 
+    JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
-    WHERE 
+    WHERE
         vpt.total_due != 0;
     """
     payments = fetch_all(query)
@@ -239,20 +428,20 @@ def get_all_pending_payments():
 
 def get_all_pending_payments_vendor_cumulative():
     query = """
-        SELECT 
+        SELECT
         vl.id AS vendor_id,
         vl.vendor_name,
         SUM(vpt.outstanding_cost) AS total_outstanding_cost,
         SUM(vpt.total_paid) AS total_paid,
         SUM(vpt.total_due) AS total_due,
         MAX(vpt.last_updated) AS last_updated
-    FROM 
+    FROM
         vendor_payment_tracker AS vpt
-    JOIN 
+    JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
-    GROUP BY 
+    GROUP BY
         vl.id, vl.vendor_name
-    HAVING 
+    HAVING
         total_due != 0;
     """
     payments = fetch_all(query)
@@ -262,7 +451,7 @@ def get_all_pending_payments_vendor_cumulative():
 
 def get_payment_details_of_vendor(vendor_id):
     query = """
-    SELECT 
+    SELECT
         vpt.id AS payment_id,
         vl.id AS vendor_id,
         vl.vendor_name,
@@ -271,11 +460,11 @@ def get_payment_details_of_vendor(vendor_id):
         vpt.total_paid,
         vpt.total_due,
         vpt.last_updated
-    FROM 
+    FROM
         vendor_payment_tracker AS vpt
-    JOIN 
+    JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
-    WHERE 
+    WHERE
         vpt.total_due != 0 AND vpt.vendor_id=%s
     """
     payments = fetch_all(query, (vendor_id,))
@@ -285,18 +474,18 @@ def get_payment_details_of_vendor(vendor_id):
 
 def get_storageroom_stock():
     query = """
-    SELECT 
-        sr.id as storageroom_id, 
-        sr.storageroomname, 
-        rm.id as rawmaterial_id, 
-        rm.name as rawmaterial_name, 
-        srm.quantity, 
+    SELECT
+        sr.id as storageroom_id,
+        sr.storageroomname,
+        rm.id as rawmaterial_id,
+        rm.name as rawmaterial_name,
+        srm.quantity,
         srm.metric
-    FROM 
+    FROM
         storageroom_stock AS srm
-    JOIN 
+    JOIN
         storagerooms AS sr ON sr.id = srm.storageroom_id
-    JOIN 
+    JOIN
         raw_materials AS rm ON rm.id = srm.raw_material_id;
     """
     storage_stock = fetch_all(query)
@@ -306,7 +495,7 @@ def get_storageroom_stock():
 
 def get_invoice_payment_details():
     query = """
-    SELECT 
+    SELECT
         vpt.id AS payment_id,
         vl.id AS vendor_id,
         vl.vendor_name,
@@ -314,9 +503,9 @@ def get_invoice_payment_details():
         vpt.outstanding_cost,
         vpt.total_paid,
         vpt.total_due
-    FROM 
+    FROM
         vendor_payment_tracker AS vpt
-    JOIN 
+    JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
     """
     payments = fetch_all(query)
@@ -326,16 +515,16 @@ def get_invoice_payment_details():
 
 def get_payment_record():
     query = """
-    SELECT 
+    SELECT
         pr.id AS payment_id,
         vl.id AS vendor_id,
         vl.vendor_name,
         pr.invoice_number,
         pr.amount_paid,
         pr.paid_on
-    FROM 
+    FROM
         payment_records AS pr
-    JOIN 
+    JOIN
         vendor_list AS vl ON pr.vendor_id = vl.id
         """
     payments = fetch_all(query)
@@ -345,27 +534,27 @@ def get_payment_record():
 
 def get_rawmaterial_transfer_history():
     query = """
-    SELECT 
+    SELECT
         rm.name AS raw_material_name,
         rmt.quantity,
         rmt.metric,
         sr.storageroomname AS transferred_from,
         rmt.destination_type,
-        CASE 
+        CASE
             WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
             WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
             ELSE 'Unknown'
         END AS transferred_to,
         rmt.transferred_date
-    FROM 
+    FROM
         raw_material_transfer_details rmt
-    JOIN 
+    JOIN
         raw_materials rm ON rmt.raw_material_id = rm.id
-    JOIN 
+    JOIN
         storagerooms sr ON rmt.source_storage_room_id = sr.id
-    LEFT JOIN 
+    LEFT JOIN
         kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
-    LEFT JOIN 
+    LEFT JOIN
         restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id;
     """
     rawmaterial_transfer = fetch_all(query)
@@ -373,11 +562,34 @@ def get_rawmaterial_transfer_history():
     return rawmaterial_transfer
 
 
+def get_prepared_dishes_transfer_history():
+    query = """
+    SELECT
+        k.kitchenname AS kitchen_name,
+        r.restaurantname AS restaurant_name,
+        d.category AS dish_category,
+        d.name AS dish_name,
+        pdt.quantity AS transferred_quantity,
+        pdt.transferred_date AS transferred_on
+    FROM
+        prepared_dish_transfer pdt
+    JOIN
+        kitchen k ON pdt.source_kitchen_id = k.id
+    JOIN
+        restaurant r ON pdt.destination_restaurant_id = r.id
+    JOIN
+        dishes d ON pdt.dish_id = d.id;
+    """
+    prepared_dishes_transfer = fetch_all(query)
+    logger.debug(f"prepared_dishes_transfer -- {prepared_dishes_transfer}")
+    return prepared_dishes_transfer
+
+
 def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
     query = """
-    SELECT 
-        storageroom_id, raw_material_id, quantity, metric 
-    FROM storageroom_stock 
+    SELECT
+        storageroom_id, raw_material_id, quantity, metric
+    FROM storageroom_stock
     WHERE storageroom_id=%s AND raw_material_id=%s"""
     data = fetch_all(query, (storageroom_id, rawmaterial_id))
     logger.debug(f"ddddaaata {data}")
@@ -385,7 +597,13 @@ def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
 
 
 def get_total_cost_stats():
-    query = "SELECT sum(outstanding_cost) as total_purchased_amount, sum(total_paid) as total_paid, sum(total_due) as total_due FROM `vendor_payment_tracker`"
+    query = """
+    SELECT
+        IFNULL(SUM(outstanding_cost), 0) AS total_purchased_amount,
+        IFNULL(SUM(total_paid), 0) AS total_paid,
+        IFNULL(SUM(total_due), 0) AS total_due
+    FROM `vendor_payment_tracker`;
+    """
     data = fetch_all(query)
     logger.debug(f"total cost {data}")
     return data
@@ -421,17 +639,17 @@ def get_data(query, params=None):
 
 def get_kitchen_inventory_stock():
     query = """
-        SELECT 
-            k.kitchenname, 
-            rm.id, 
-            rm.name as rawmaterial_name, 
-            kis.quantity, 
+        SELECT
+            k.kitchenname,
+            rm.id,
+            rm.name as rawmaterial_name,
+            kis.quantity,
             kis.metric
-        FROM 
+        FROM
             kitchen_inventory_stock AS kis
-        JOIN 
+        JOIN
             kitchen AS k ON k.id = kis.kitchen_id
-        JOIN 
+        JOIN
             raw_materials AS rm ON rm.id = kis.raw_material_id;
         """
     kitchen_inventory_stock = fetch_all(query)
@@ -447,16 +665,177 @@ def get_restaurant_inventory_stock():
             rm.name AS raw_material_name,
             ris.quantity,
             ris.metric
-        FROM 
+        FROM
             restaurant_inventory_stock as ris
-        JOIN 
-            restaurant r ON ris.id = r.id
-        JOIN 
+        JOIN
+            restaurant r ON ris.restaurant_id = r.id
+        JOIN
             raw_materials rm ON ris.raw_material_id = rm.id;
         """
     restaurant_inventory_stock = fetch_all(query)
     logger.debug(f"restaurant_inventory_stock -- {restaurant_inventory_stock}")
     return restaurant_inventory_stock
+
+
+def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
+    # try:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch raw materials required for the given dish
+    cursor.execute("""
+        SELECT raw_material_id, quantity, metric
+        FROM dish_raw_materials
+        WHERE dish_id = %s
+    """, (dish_id,))
+    raw_materials = cursor.fetchall()
+    logger.debug(f"raw_materials for dish {dish_id} {raw_materials} qty {sold_quantity}")
+    # Calculate the total quantity needed for the prepared dishes
+    required_quantities = {}
+    for material in raw_materials:
+        logger.debug(f"mm {material}")
+        total_quantity = material['quantity'] * float(sold_quantity)
+        logger.debug(f"{material['quantity']} * {sold_quantity}, {total_quantity}")
+        raw_material_id = material['raw_material_id']
+
+        # Convert grams to kilograms and milliliters to liters
+        if material['metric'] == 'grams':
+            total_quantity /= 1000  # Convert to kg
+            logger.debug("grams")
+        elif material['metric'] == 'ml':
+            total_quantity /= 1000  # Convert to liters
+            logger.debug("liter")
+        logger.debug(f"tq {total_quantity}")
+        if raw_material_id in required_quantities:
+            required_quantities[raw_material_id] += total_quantity
+        else:
+            required_quantities[raw_material_id] = total_quantity
+    logger.debug(f"required quantities {required_quantities}")
+    # Update the kitchen inventory stock
+    for raw_material_id, required_quantity in required_quantities.items():
+        cursor.execute("""
+            SELECT quantity, metric
+            FROM restaurant_inventory_stock
+            WHERE restaurant_id = %s AND raw_material_id = %s
+        """, (restaurant_id, raw_material_id))
+        stock = cursor.fetchone()
+        if not stock:
+            logger.debug(f"Stock not found for raw_material_id: {raw_material_id} in restaurant_id: {restaurant_id}")
+            continue
+        logger.debug(f"stockkkkkkk {stock}")
+        # Convert stock metric to match the required quantity
+        available_quantity = stock['quantity']
+        if stock['metric'] == 'grams':
+            available_quantity /= 1000  # Convert to kg
+            stock['metric'] = "kg"
+        elif stock['metric'] == 'ml':
+            available_quantity /= 1000  # Convert to liters
+            stock['metric'] = "liter"
+        logger.debug(f"stockkkkkkk after {stock} {available_quantity} {required_quantity}")
+        # Calculate the new quantity after deduction
+        new_quantity = available_quantity - required_quantity
+        logger.debug(f"new new {new_quantity}")
+        # Update the stock quantity in the database
+        cursor.execute("""
+            UPDATE restaurant_inventory_stock
+            SET quantity = %s
+            WHERE restaurant_id = %s AND raw_material_id = %s
+        """, (new_quantity, restaurant_id, raw_material_id))
+        cursor.execute("""
+        INSERT INTO consumption (raw_material_id, quantity, metric, consumption_date, location_type, location_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+        quantity = quantity + VALUES(quantity);
+        """, (raw_material_id, required_quantity, stock['metric'], sold_on, "restaurant", restaurant_id))
+
+    # Commit the transaction
+    conn.commit()
+    print("Kitchen stock updated successfully.")
+
+    # except mysql.connector.Error as err:
+    #     print(f"Error: {err}")
+    # finally:
+    #     if conn.is_connected():
+    #         cursor.close()
+    #         conn.close()
+
+
+def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
+    # try:
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch raw materials required for the given dish
+    cursor.execute("""
+        SELECT raw_material_id, quantity, metric
+        FROM dish_raw_materials
+        WHERE dish_id = %s
+    """, (dish_id,))
+    raw_materials = cursor.fetchall()
+    logger.debug(f"raw_materials for dish {dish_id} {raw_materials} qty {prepared_quantity}")
+    # Calculate the total quantity needed for the prepared dishes
+    required_quantities = {}
+    for material in raw_materials:
+        logger.debug(f"mm {material}")
+        total_quantity = material['quantity'] * float(prepared_quantity)
+        raw_material_id = material['raw_material_id']
+
+        # Convert grams to kilograms and milliliters to liters
+        if material['metric'] == 'grams':
+            total_quantity /= 1000  # Convert to kg
+        elif material['metric'] == 'ml':
+            total_quantity /= 1000  # Convert to liters
+
+        if raw_material_id in required_quantities:
+            required_quantities[raw_material_id] += total_quantity
+        else:
+            required_quantities[raw_material_id] = total_quantity
+    logger.debug(f"required quantities {required_quantities}")
+    # Update the kitchen inventory stock
+    for raw_material_id, required_quantity in required_quantities.items():
+        cursor.execute("""
+            SELECT quantity, metric
+            FROM kitchen_inventory_stock
+            WHERE kitchen_id = %s AND raw_material_id = %s
+        """, (kitchen_id, raw_material_id))
+        stock = cursor.fetchone()
+        if not stock:
+            logger.debug(f"Stock not found for raw_material_id: {raw_material_id} in kitchen_id: {kitchen_id}")
+
+        # Convert stock metric to match the required quantity
+        available_quantity = stock['quantity']
+        if stock['metric'] == 'grams':
+            available_quantity /= 1000  # Convert to kg
+            stock['metric'] = "kg"
+        elif stock['metric'] == 'ml':
+            available_quantity /= 1000  # Convert to liters
+            stock['metric'] = "liter"
+        # Calculate the new quantity after deduction
+        new_quantity = available_quantity - required_quantity
+
+        # Update the stock quantity in the database
+        cursor.execute("""
+            UPDATE kitchen_inventory_stock
+            SET quantity = %s
+            WHERE kitchen_id = %s AND raw_material_id = %s
+        """, (new_quantity, kitchen_id, raw_material_id))
+        cursor.execute("""
+        INSERT INTO consumption (raw_material_id, quantity, metric, consumption_date, location_type, location_id)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON DUPLICATE KEY UPDATE
+        quantity = quantity + VALUES(quantity);
+        """, (raw_material_id, required_quantity, stock['metric'], prepared_on, "kitchen", kitchen_id))
+
+    # Commit the transaction
+    conn.commit()
+    print("Kitchen stock updated successfully.")
+
+    # except mysql.connector.Error as err:
+    #     print(f"Error: {err}")
+    # finally:
+    #     if conn.is_connected():
+    #         cursor.close()
+    #         conn.close()
 
 
 def get_raw_material_by_id(rawmaterial_id):
