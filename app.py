@@ -311,7 +311,7 @@ def addrawmaterials():
                 continue
 
             # Check if the raw material already exists
-            existing_material = get_raw_material_by_id(raw_material)
+            existing_material = get_raw_material_by_name(raw_material)
             if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
                 errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
                 continue

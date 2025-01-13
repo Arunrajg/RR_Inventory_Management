@@ -852,6 +852,17 @@ def get_raw_material_by_id(rawmaterial_id):
     return material
 
 
+def get_raw_material_by_name(rawmaterial_name):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT * FROM raw_materials WHERE name = %s', (rawmaterial_name,))
+    material = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    logger.debug(f"material -- {material}")
+    return material
+
+
 def get_all_rawmaterials():
     query = 'SELECT * FROM raw_materials ORDER BY id ASC'
     raw_materials = fetch_all(query)
