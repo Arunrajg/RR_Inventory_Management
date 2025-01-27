@@ -137,8 +137,10 @@ def get_restaurant_by_name(restaurant_name):
     return restaurant
 
 
-def get_all_storagerooms():
+def get_all_storagerooms(only_active=False):
     query = 'SELECT * FROM storagerooms ORDER BY id ASC'
+    if only_active:
+        query = 'SELECT * FROM storagerooms WHERE status="active" ORDER BY id ASC'
     storagerooms = fetch_all(query)
     logger.debug(f"storagerooms -- {storagerooms}")
     return storagerooms
@@ -908,8 +910,10 @@ def get_all_dish_categories():
     return dish_categories
 
 
-def get_all_vendors():
+def get_all_vendors(only_active=False):
     query = 'SELECT * from vendor_list ORDER BY id ASC'
+    if only_active:
+        query = 'SELECT * from vendor_list WHERE status="active" ORDER BY id ASC'
     vendors = fetch_all(query)
     logger.debug(f"vendors -- {vendors}")
     return vendors

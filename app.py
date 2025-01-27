@@ -765,51 +765,45 @@ def list_vendors():
 def add_purchase():
     if "user" not in session:
         return redirect("/login")
+
     connection = get_db_connection()
     raw_materials = get_all_rawmaterials()
-    storage_rooms = get_all_storagerooms()
-    vendors = get_all_vendors()
+    storage_rooms = get_all_storagerooms(only_active=True)
+    vendors = get_all_vendors(only_active=True)
 
     if request.method == 'POST':
         app.logger.debug(f"request {request.form}")
+
+        # Retrieve form data
         vendor_name = request.form.get('vendor')
         storageroom_name = request.form.get('storage_room')
-        raw_material_names = request.form.getlist('raw_material[]')  # List of raw materials
-        quantities = request.form.getlist('quantity[]')             # List of quantities
-        metrics = request.form.getlist('metric[]')                  # List of metrics
-        total_costs = request.form.getlist('total_cost[]')          # List of total costs
+        raw_material_names = request.form.getlist('raw_material[]')
+        quantities = request.form.getlist('quantity[]')
+        metrics = request.form.getlist('metric[]')
+        total_costs = request.form.getlist('total_cost[]')
         purchase_date = request.form.get("purchase_date")
         invoice_number = request.form.get("invoice_number")
 
-        app.logger.debug(f"vendors {vendors}")
-        app.logger.debug(f"raw_materials {raw_materials}")
-        app.logger.debug(f"storage_rooms {storage_rooms}")
-        app.logger.debug(f"vendor_name {vendor_name}")
-        app.logger.debug(f"storageroom_name {storageroom_name}")
-        app.logger.debug(f"raw_material_names {raw_material_names}")
-        app.logger.debug(f"quantities {quantities}")
-        app.logger.debug(f"metrics {metrics}")
-        app.logger.debug(f"total_costs {total_costs}")
-        app.logger.debug(f"invoice_number {invoice_number}")
-
-        # Check for valid vendor
+        # Validate vendor
         vendor = next((v for v in vendors if v['vendor_name'] == vendor_name), None)
         if not vendor:
             flash('Vendor does not exist. Please add the vendor first.', 'danger')
             return redirect('/add_purchase')
 
-        # Check for valid storageroom
+        # Validate storage room
         storageroom = next((s for s in storage_rooms if s['storageroomname'] == storageroom_name), None)
         if not storageroom:
             flash('Storage room does not exist. Please add the storage room first.', 'danger')
             return redirect('/add_purchase')
 
-        # Iterate over the multiple raw materials
+        # Create a cursor for database operations
+        cursor = connection.cursor()
+
+        # Process each raw material in the form
         for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
             # Check and add raw material if not exists
             raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
             if not raw_material:
-                cursor = connection.cursor()
                 cursor.execute(
                     "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
                     (raw_material_name, metric)
@@ -819,32 +813,24 @@ def add_purchase():
             else:
                 raw_material_id = raw_material['id']
 
-            # Metric conversion
-            if metric == 'grams':
-                quantity = float(quantity) / 1000  # Convert to kg
-                metric = 'kg'
-            elif metric == 'ml':
-                quantity = float(quantity) / 1000  # Convert to liters
-                metric = 'liter'
+            # Perform metric conversion
+            quantity, metric = convert_metric(quantity, metric)
 
-            # Insert into purchase_history
-            cursor = connection.cursor()
+            # Insert or update purchase history
             cursor.execute(
                 """
-            INSERT INTO purchase_history 
-            (vendor_id, invoice_number, raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON DUPLICATE KEY UPDATE 
-                quantity = quantity + VALUES(quantity),
-                total_cost = total_cost + VALUES(total_cost);
-            """,
+                INSERT INTO purchase_history 
+                (vendor_id, invoice_number, raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                    quantity = quantity + VALUES(quantity),
+                    total_cost = total_cost + VALUES(total_cost);
+                """,
                 (vendor["id"], invoice_number, raw_material_id, raw_material_name,
                  quantity, metric, cost, purchase_date, storageroom['id'])
             )
 
-            connection.commit()
-
-            # Update vendor_payment_tracker
+            # Update vendor payment tracker
             cursor.execute(
                 """
                 INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost) 
@@ -853,27 +839,49 @@ def add_purchase():
                 """,
                 (vendor['id'], invoice_number, cost)
             )
-            connection.commit()
 
-            # Update storageroom_stock
+            # Update storage room stock
             cursor.execute(
                 """
                 INSERT INTO storageroom_stock (storageroom_id, raw_material_id, quantity, metric) 
                 VALUES (%s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE 
                     quantity = quantity + VALUES(quantity),
-                    metric = VALUES(metric)
+                    metric = VALUES(metric);
                 """,
                 (storageroom['id'], raw_material_id, quantity, metric)
             )
-            connection.commit()
 
-        flash('Purchases added successfully!', 'success')
+        # Commit all changes and close the cursor
+        connection.commit()
         cursor.close()
         connection.close()
+
+        flash('Purchases added successfully!', 'success')
         return redirect('/add_purchase')
 
-    return render_template('add_purchase.html', vendors=vendors, raw_materials=raw_materials, storage_rooms=storage_rooms, user=session["user"], today_date=get_current_date())
+    return render_template(
+        'add_purchase.html',
+        vendors=vendors,
+        raw_materials=raw_materials,
+        storage_rooms=storage_rooms,
+        user=session["user"],
+        today_date=get_current_date()
+    )
+
+
+def convert_metric(quantity, metric):
+    """
+    Convert quantity to base metric (kilograms or liters) if needed.
+    """
+    quantity = float(quantity)
+    if metric == 'grams':
+        quantity /= 1000  # Convert grams to kilograms
+        metric = 'kg'
+    elif metric == 'ml':
+        quantity /= 1000  # Convert milliliters to liters
+        metric = 'liter'
+    return quantity, metric
 
 
 @app.route('/purchase_list')
