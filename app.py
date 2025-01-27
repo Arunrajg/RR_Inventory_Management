@@ -6,7 +6,7 @@ from markupsafe import Markup
 from flask_mail import Mail, Message
 from db_utils import *
 from encryption import encrypt_message, decrypt_message, generate_random_password
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from werkzeug.utils import secure_filename
 import os
 import pytz
@@ -42,7 +42,13 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 mail = Mail(app)
 
 
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(minutes=30)
 # Send email function
+
+
 def send_email(to_email, new_password):
     try:
         msg = Message(
@@ -82,13 +88,16 @@ def login():
             flash("User doesnot exist with this email. Please Sign Up and Create a new account.", "danger")
             return render_template("login.html")
         elif existing_user:
-            decrypted_password = decrypt_message(existing_user["password"], encryption_key)
-            existing_user.pop("password")
-            if decrypted_password == password:
-                session['user'] = existing_user
-                return redirect("/index")
+            if existing_user["status"] == "inactive":
+                flash("User Account has been made Inactive. Kindy contact the Admin to activate the account.", "danger")
             else:
-                flash("Invalid Email or Password", "danger")
+                decrypted_password = decrypt_message(existing_user["password"], encryption_key)
+                existing_user.pop("password")
+                if decrypted_password == password:
+                    session['user'] = existing_user
+                    return redirect("/index")
+                else:
+                    flash("Invalid Email or Password", "danger")
             return render_template("login.html")
     return render_template("login.html")
 
@@ -223,6 +232,135 @@ def storageroomlist():
     return render_template("storageroomlist.html", user=session["user"], storagerooms=storagerooms)
 
 
+@app.route('/editstorageroom', methods=['POST'])
+def edit_storage_room():
+    # Get data from the form
+    room_id = request.form.get('id')
+    room_status = request.form.get('status')
+    room_address = request.form.get('address')
+
+    # Validate inputs
+    if not room_id or not room_address:
+        flash("All fields are required.", "error")
+        return redirect(url_for('storage_rooms_list'))
+
+    # SQL query to update the storage room
+    query = """
+        UPDATE storagerooms
+        SET address = %s, status= %s
+        WHERE id = %s
+    """
+    params = (room_address, room_status, room_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("Storage room details updated successfully.", "success")
+    else:
+        flash("Failed to update the storage room details. Please try again.", "danger")
+
+    # Redirect back to the storage rooms list
+    return redirect(url_for('storageroomlist'))
+
+
+@app.route('/editkitchen', methods=['POST'])
+def edit_kitchen():
+    # Get data from the form
+    kitchen_id = request.form.get('id')
+    kitchen_status = request.form.get('status')
+    kitchen_address = request.form.get('address')
+
+    # Validate inputs
+    if not kitchen_id or not kitchen_address:
+        flash("All fields are required.", "error")
+        return redirect(url_for('kitchenlist'))
+
+    # SQL query to update the kitchen
+    query = """
+        UPDATE kitchen
+        SET address = %s, status= %s
+        WHERE id = %s
+    """
+    params = (kitchen_address, kitchen_status, kitchen_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("Kitchen details updated successfully.", "success")
+    else:
+        flash("Failed to update the Kitchen details. Please try again.", "danger")
+
+    # Redirect back to the kitchen list
+    return redirect(url_for('kitchenlist'))
+
+
+@app.route('/editrestaurant', methods=['POST'])
+def edit_restaurant():
+    # Get data from the form
+    restaurant_id = request.form.get('id')
+    restaurant_status = request.form.get('status')
+    restaurant_address = request.form.get('address')
+
+    # Validate inputs
+    if not restaurant_id or not restaurant_address:
+        flash("All fields are required.", "error")
+        return redirect(url_for('restaurantlist'))
+
+    # SQL query to update the restaurant
+    query = """
+        UPDATE restaurant
+        SET address = %s, status= %s
+        WHERE id = %s
+    """
+    params = (restaurant_address, restaurant_status, restaurant_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("restaurant details updated successfully.", "success")
+    else:
+        flash("Failed to update the restaurant details. Please try again.", "danger")
+
+    # Redirect back to the restaurant list
+    return redirect(url_for('restaurantlist'))
+
+
+@app.route('/editvendor', methods=['POST'])
+def edit_vendor():
+    # Get data from the form
+    vendor_id = request.form.get('id')
+    vendor_status = request.form.get('status')
+    vendor_address = request.form.get('address')
+    vendor_phone = request.form.get('phone')
+
+    # Validate inputs
+    if not vendor_id or not vendor_address or not vendor_phone:
+        flash("All fields are required.", "error")
+        return redirect(url_for('vendorlist'))
+
+    # SQL query to update the vendor
+    query = """
+        UPDATE vendor_list
+        SET address= %s, status= %s, phone=%s
+        WHERE id = %s
+    """
+    params = (vendor_address, vendor_status, vendor_phone, vendor_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("vendor details updated successfully.", "success")
+    else:
+        flash("Failed to update the vendor details. Please try again.", "danger")
+
+    # Redirect back to the vendor list
+    return redirect(url_for('list_vendors'))
+
+
 @app.route("/addkitchen", methods=["GET", "POST"])
 def addkitchen():
     if "user" not in session:
@@ -299,38 +437,41 @@ def addrawmaterials():
             flash("Error: Inconsistent data. Please try again.", "danger")
             return redirect("/addrawmaterials")
 
+        # Fetch all existing raw materials in one query
+        existing_materials = get_all_rawmaterials()
+        existing_set = {(row["name"].lower(), row["metric"].lower()) for row in existing_materials}
+
+        # Prepare data for bulk insert
+        to_insert = []
         errors = []
         successes = []
 
         for raw_material, metric in zip(raw_materials, metrics):
             raw_material = raw_material.strip().lower()
-            metric = metric.strip()
+            metric = metric.strip().lower()
 
             if not raw_material:
                 errors.append("Raw material name cannot be empty.")
                 continue
 
-            # Check if the raw material already exists
-            existing_material = get_raw_material_by_name(raw_material)
-            if existing_material and existing_material.get("name", "") == raw_material and existing_material.get("metric", "") == metric:
+            if (raw_material, metric) in existing_set:
                 errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
                 continue
-            elif existing_material and existing_material.get("name", "") == raw_material:
-                errors.append(f"Raw material '{raw_material}' already exists. Please use a different name.")
-                continue
-            # Insert raw material into the database
-            insert_query = """
-                INSERT INTO raw_materials (name, metric)
-                VALUES (%s, %s)
-            """
-            if execute_query(insert_query, (raw_material, metric)):
-                successes.append(f"({raw_material}-{metric})")
-            else:
-                errors.append(f"Error: Unable to add raw material '{raw_material}' with metric '{metric}'.")
 
-        # Flash appropriate messages
+            # Add to batch insert list
+            to_insert.append((raw_material, metric))
+
+        # Perform bulk insert if there are valid entries
+        if to_insert:
+            insert_query = "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)"
+            if execute_query(insert_query, to_insert, bulk=True):  # Pass `bulk=True` to handle batch inserts
+                successes = [f"{raw_material}-{metric}" for raw_material, metric in to_insert]
+            else:
+                errors.append("Error: Unable to add some raw materials due to a database issue.")
+
+        # Flash messages for successes and errors
         if successes:
-            flash(f"Raw materials {' ,'.join(successes)} has been added successfully", "success")
+            flash(f"Raw materials {' ,'.join(successes)} have been added successfully.", "success")
         if errors:
             flash(" ".join(errors), "danger")
 
@@ -359,49 +500,68 @@ def add_dish_recipe():
         quantities = request.form.getlist('quantities[]')
         metrics = request.form.getlist('metric[]')
 
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        if len(raw_materials) != len(quantities) or len(raw_materials) != len(metrics):
+            flash("Error: Mismatched data for raw materials. Please check your input.", "danger")
+            return redirect('/add_dish_recipe')
 
-        try:
-            # Insert into dishes table
-            cursor.execute("INSERT INTO dishes (category, name) VALUES (%s, %s)", (category, name))
-            dish_id = cursor.lastrowid
+        # try:
+        existing_dish = get_dish_details_from_category(category, name)
+        if not existing_dish:
+            with get_db_connection() as conn:
+                with conn.cursor() as cursor:
+                    # Insert into `dishes` table
+                    cursor.execute("INSERT INTO dishes (category, name) VALUES (%s, %s)", (category, name))
+                    dish_id = cursor.lastrowid
 
-            # Process raw materials
-            for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
-                app.logger.debug(f"raw_material {raw_material}")
-                app.logger.debug(f"quantity {quantity}")
-                app.logger.debug(f"metric {metric}")
-                # Check if the raw material exists
-                cursor.execute("SELECT id FROM raw_materials WHERE name = %s", (raw_material,))
-                raw_material_data = cursor.fetchone()
-                app.logger.debug(f"raw_material_data {raw_material_data}")
+                    # Fetch all existing raw materials in one query
+                    cursor.execute("SELECT id, name, metric FROM raw_materials")
+                    existing_raw_materials = {row[1].lower(): (row[0], row[2])
+                                              for row in cursor.fetchall()}
 
-                if not raw_material_data:
-                    # Raw material does not exist; create it with a metric
-                    cursor.execute(
-                        "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
-                        (raw_material, metric)
+                    # Prepare data for batch inserts
+                    new_raw_materials = []
+                    dish_raw_materials = []
+
+                    for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
+                        raw_material = raw_material.strip().lower()
+                        metric = metric.strip()
+
+                        if raw_material in existing_raw_materials:
+                            raw_material_id = existing_raw_materials[raw_material][0]
+                        else:
+                            # Add to new raw materials batch
+                            new_raw_materials.append((raw_material, metric))
+
+                    # Bulk insert new raw materials
+                    if new_raw_materials:
+                        cursor.executemany(
+                            "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
+                            new_raw_materials
+                        )
+                        # Update existing_raw_materials with newly added materials
+                        cursor.execute("SELECT id, name, metric FROM raw_materials WHERE name IN %s",
+                                       ([rm[0] for rm in new_raw_materials],))
+                        for row in cursor.fetchall():
+                            existing_raw_materials[row['name'].lower()] = (row['id'], row['metric'])
+
+                    # Build dish_raw_materials mapping
+                    for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
+                        raw_material_id = existing_raw_materials[raw_material][0]
+                        dish_raw_materials.append((dish_id, raw_material_id, quantity, metric))
+
+                    # Bulk insert into `dish_raw_materials`
+                    cursor.executemany(
+                        "INSERT INTO dish_raw_materials (dish_id, raw_material_id, quantity, metric) VALUES (%s, %s, %s, %s)",
+                        dish_raw_materials
                     )
-                    raw_material_id = cursor.lastrowid
-                    app.logger.debug(f"raw_material_id {raw_material_id}")
-                else:
-                    raw_material_id = raw_material_data[0]
 
-                # Insert into dish_raw_materials table
-                cursor.execute(
-                    "INSERT INTO dish_raw_materials (dish_id, raw_material_id, quantity, metric) VALUES (%s, %s, %s, %s)",
-                    (dish_id, raw_material_id, quantity, metric)
-                )
+                conn.commit()
+                flash('Dish added successfully!', 'success')
+        else:
+            flash('Dish already exists. Kindly check.', 'danger')
 
-            conn.commit()
-            flash('Dish added successfully!', 'success')
-        except Exception as e:
-            conn.rollback()
-            flash(f'Error: {str(e)}', 'danger')
-        finally:
-            cursor.close()
-        conn.close()
+        # except Exception as e:
+        #     flash(f'Error: {str(e)}', 'danger')
 
         return redirect('/add_dish_recipe')
 
@@ -446,6 +606,115 @@ def list_dish_recipe():
         })
 
     return render_template('list_dish_recipe.html', user=session["user"], dishes=dishes)
+
+
+@app.route('/get_dish_raw_materials', methods=['GET'])
+def get_dish_raw_materials():
+    dish_id = int(request.args.get('dish_id'))
+    materials_map = get_dish_recipe_raw_materials(dish_id)
+    return jsonify({'raw_materials': materials_map})
+
+
+@app.route('/submit_raw_materials', methods=['POST'])
+def submit_raw_materials():
+    data = request.get_json()
+    app.logger.debug(f"Received data: {data}")
+
+    dish_id = data["dish_id"]
+    incoming_materials = data["materials"]
+
+    # Fetch current materials from the database
+    current_materials = get_dish_recipe_raw_materials(dish_id)
+    app.logger.debug(f"Current materials: {current_materials}")
+
+    # Map current materials for easy comparison
+    current_map = {mat[1].lower(): (mat[2], mat[3]) for mat in current_materials}  # {name: (quantity, metric)}
+    incoming_map = {mat["name"].lower(): (float(mat["quantity"]), mat["metric"]) for mat in incoming_materials}
+
+    to_update = []
+    to_insert = []
+    to_delete = []
+
+    # Identify materials to update or insert
+    for name, (quantity, metric) in incoming_map.items():
+        if name in current_map:
+            # Check if there is a difference
+            if current_map[name] != (quantity, metric):
+                to_update.append((dish_id, name, quantity, metric))
+        else:
+            # New material to insert
+            to_insert.append((dish_id, name, quantity, metric))
+
+    # Identify materials to delete
+    for name in current_map:
+        if name not in incoming_map:
+            to_delete.append(name)
+
+    # Perform batch updates, inserts, and deletions
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Update materials
+        for dish_id, name, quantity, metric in to_update:
+            cursor.execute("""
+                UPDATE dish_raw_materials AS drm
+                JOIN raw_materials AS rm ON drm.raw_material_id = rm.id
+                SET drm.quantity = %s, drm.metric = %s
+                WHERE drm.dish_id = %s AND rm.name = %s
+            """, (quantity, metric, dish_id, name))
+
+        # Insert new materials
+        for dish_id, name, quantity, metric in to_insert:
+            # Check if the raw material already exists
+            cursor.execute("SELECT id FROM raw_materials WHERE name = %s", (name,))
+            raw_material = cursor.fetchone()
+
+            if raw_material:
+                raw_material_id = raw_material[0]
+            else:
+                # Insert raw material if not exists
+                cursor.execute("INSERT INTO raw_materials (name, metric) VALUES (%s, %s)", (name, metric))
+                raw_material_id = cursor.lastrowid
+
+            # Insert into dish_raw_materials
+            cursor.execute("""
+                INSERT INTO dish_raw_materials (dish_id, raw_material_id, quantity, metric)
+                VALUES (%s, %s, %s, %s)
+            """, (dish_id, raw_material_id, quantity, metric))
+
+        # Delete removed materials
+        for name in to_delete:
+            cursor.execute("""
+                DELETE drm FROM dish_raw_materials AS drm
+                JOIN raw_materials AS rm ON drm.raw_material_id = rm.id
+                WHERE drm.dish_id = %s AND rm.name = %s
+            """, (dish_id, name))
+
+        conn.commit()
+        flash('Raw materials updated successfully', "success")
+        return jsonify({
+            'message': 'Raw materials updated successfully.',
+            'redirect_url': url_for("edit_dish_recipe")  # Include the redirect URL
+        }), 200
+    except Exception as e:
+        conn.rollback()
+        app.logger.error(f"Error updating raw materials: {e}")
+        flash(f"Error updating raw materials: {e}", "danger")
+        return redirect(url_for("edit_dish_recipe"))
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@app.route("/edit_dish_recipe", methods=['GET', 'POST'])
+def edit_dish_recipe():
+    if "user" not in session:
+        return redirect("/login")
+    dish_categories = get_unique_dish_categories()
+    app.logger.debug(dish_categories)
+    dishes = get_all_dishes()
+    app.logger.debug(dishes)
+    return render_template('edit_dish_recipe.html', user=session["user"], dish_categories=dish_categories, dishes=dishes)
 
 
 @app.route('/add_vendor', methods=['GET', 'POST'])

@@ -138,6 +138,7 @@
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.getElementById('raw-material-container');
 
+
         // Add new row
         container.addEventListener('click', function (e) {
             if (e.target.classList.contains('btn-add-row')) {
@@ -215,19 +216,28 @@
         container.addEventListener('input', function (e) {
             if (e.target.classList.contains('price-input') || e.target.classList.contains('quantity-input')) {
                 const row = e.target.closest('.raw-material-row');
+
+                // Get the quantity and price, default to 0 if invalid
                 const quantity = parseFloat(row.querySelector('.quantity-input').value) || 0;
                 const price = parseFloat(row.querySelector('.price-input').value) || 0;
+
+                // Calculate total cost for the row and set it with 3 decimal points
                 const totalCostField = row.querySelector('.total-cost-input');
                 totalCostField.value = (quantity * price).toFixed(3);
+
+                // Calculate the overall cost from all total-cost fields
                 const allCosts = container.querySelectorAll('.total-cost-input');
                 const overallCost = Array.from(allCosts).reduce((sum, ele) => {
-                    sum += parseFloat(ele.value);
+                    sum += parseFloat(ele.value) || 0; // Default to 0 if invalid
                     return sum;
                 }, 0);
+
+                // Set the overall cost with 3 decimal points
                 const overallCostEle = document.querySelector('.overall-cost-input');
-                overallCostEle.value = overallCost;
+                overallCostEle.value = overallCost.toFixed(3);
             }
         });
+
 
         // Handle Enter Key
         container.addEventListener('keydown', function (e) {

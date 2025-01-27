@@ -167,6 +167,11 @@
                                     <li><a href="/list_dish_recipe"
                                             class="{{ 'active' if request.path == '/list_dish_recipe' else '' }}">List
                                             Dish Recipe</a></li>
+                                    {% if user.role=='admin' %}
+                                    <li><a href="/edit_dish_recipe"
+                                            class="{{ 'active' if request.path == '/edit_dish_recipe' else '' }}">Edit
+                                            Dish Recipe</a></li>
+                                    {% endif %}
                                 </ul>
                             </li>
                             <li class="submenu">

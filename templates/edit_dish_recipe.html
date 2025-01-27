@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Edit Dish Recipe</h4>
+            </div>
+        </div>
+        <div>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <ul class="flash-messages">
+                {% for category, message in messages %}
+                <li class="{{ category }}"><b>**{{ message }}</b></li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+            {% endwith %}
+        </div>
+        <form id="dish-form">
+            <div class="row mb-4">
+                <!-- Category Dropdown -->
+                <div class="col-md-4">
+                    <label for="category">Dish Category</label>
+                    <select id="category" class="form-control" required>
+                        <option value="">Select a Category</option>
+                        {% for category in dish_categories %}
+                        <option value="{{ category['category'] }}">{{ category['category'] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Dish Dropdown -->
+                <div class="col-md-4">
+                    <label for="dish">Dish Name</label>
+                    <select id="dish" class="form-control" disabled required>
+                        <option value="">Select a Dish</option>
+                    </select>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="button" id="fetch-raw-materials" class="btn btn-primary" disabled>Fetch Raw
+                        Materials</button>
+                </div>
+            </div>
+        </form>
+
+        <!-- Raw Materials Section -->
+        <div class="card mt-4">
+            <div class="card-body">
+                <h5>Raw Materials</h5>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Raw Material Name</th>
+                            <th>Quantity</th>
+                            <th>Metric</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="raw-materials-table">
+                        <!-- Rows will be dynamically populated -->
+                    </tbody>
+                </table>
+                <button type="button" id="add-row" class="btn btn-secondary">+ Add Raw Material</button>
+            </div>
+        </div>
+
+        <!-- Final Submit -->
+        <button type="button" id="submit-raw-materials" class="btn btn-success mt-4">Submit</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const categoryDropdown = document.getElementById("category");
+        const dishDropdown = document.getElementById("dish");
+        const fetchMaterialsBtn = document.getElementById("fetch-raw-materials");
+        const rawMaterialsTable = document.getElementById("raw-materials-table");
+        const addRowBtn = document.getElementById("add-row");
+        const submitMaterialsBtn = document.getElementById("submit-raw-materials");
+
+        // Preloaded dishes data (from Flask context)
+        const dishes = {{ dishes | tojson | safe
+    }};
+
+    // Fetch dishes based on selected category
+    categoryDropdown.addEventListener("change", function () {
+        const selectedCategory = this.value;
+        if (!selectedCategory) return;
+
+        // Filter dishes by category
+        const filteredDishes = dishes.filter(dish => dish.category === selectedCategory);
+
+        // Populate dish dropdown
+        dishDropdown.innerHTML = '<option value="">Select a Dish</option>';
+        filteredDishes.forEach(dish => {
+            const option = document.createElement("option");
+            option.value = dish.id;
+            option.textContent = dish.name;
+            dishDropdown.appendChild(option);
+        });
+
+        dishDropdown.disabled = false;
+        fetchMaterialsBtn.disabled = true;
+    });
+
+    // Enable Fetch Raw Materials button
+    dishDropdown.addEventListener("change", function () {
+        fetchMaterialsBtn.disabled = !this.value;
+    });
+
+    // Fetch raw materials for the selected dish
+    fetchMaterialsBtn.addEventListener("click", function () {
+        const dishId = dishDropdown.value;
+
+        fetch(`/get_dish_raw_materials?dish_id=${dishId}`)
+            .then(response => response.json())
+            .then(data => {
+                populateRawMaterials(data.raw_materials);
+            })
+            .catch(error => console.error("Error fetching raw materials:", error));
+    });
+
+    // Populate raw materials table
+    function populateRawMaterials(rawMaterials) {
+        rawMaterialsTable.innerHTML = ""; // Clear table
+        rawMaterials.forEach(material => {
+            addMaterialRow(material[1], material[2], material[3]);
+        });
+    }
+
+    // Add a new raw material row
+    addRowBtn.addEventListener("click", function () {
+        addMaterialRow("", "", "");
+    });
+
+    // Add material row to the table
+    function addMaterialRow(name, quantity, metric) {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+                <td><input type="text" class="form-control" name="material_names[]" value="${name}" required></td>
+                <td><input type="number" class="form-control" name="quantities[]" value="${quantity}" required></td>
+                <td><input type="text" class="form-control" name="metrics[]" value="${metric}" required></td>
+                <td><button type="button" class="btn btn-danger btn-remove">X</button></td>
+            `;
+        rawMaterialsTable.appendChild(row);
+
+        // Attach remove event to the button
+        row.querySelector(".btn-remove").addEventListener("click", function () {
+            row.remove();
+        });
+    }
+
+    // Submit raw materials
+    submitMaterialsBtn.addEventListener("click", function () {
+        const materials = Array.from(rawMaterialsTable.querySelectorAll("tr")).map(row => ({
+            name: row.querySelector("input[name='material_names[]']").value,
+            quantity: row.querySelector("input[name='quantities[]']").value,
+            metric: row.querySelector("input[name='metrics[]']").value
+        }));
+
+        fetch("/submit_raw_materials", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ dish_id: dishDropdown.value, materials })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.redirect_url) {
+                    // Redirect to the provided URL
+                    window.location.href = data.redirect_url;
+                } else {
+                    // Show success or error message
+                    alert(data.message);
+                }
+            })
+            .catch(error => console.error("Error submitting materials:", error));
+    });
+    });
+</script>
+{% endblock %}

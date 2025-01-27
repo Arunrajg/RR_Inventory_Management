@@ -49,24 +49,29 @@ def get_db_connection():
 # Generic function to execute INSERT/UPDATE/DELETE queries
 
 
-def execute_query(query, params=None):
+def execute_query(query, params=None, bulk=False):
     logger.debug(query)
     connection = get_db_connection()
-    logger.debug(connection)
     if connection is None:
         return False
     try:
         cursor = connection.cursor()
-        cursor.execute(query, params)
+        if bulk and params:
+            cursor.executemany(query, params)
+        elif params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
         connection.commit()
-        return True
-    except Error as e:
-        logger.debug(f"Database Error: {e}")
+        return cursor.fetchall() if query.strip().lower().startswith("select") else True
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
         return False
     finally:
         if connection.is_connected():
             cursor.close()
             connection.close()
+
 
 # Generic function to execute SELECT queries
 
@@ -323,6 +328,29 @@ def subtract_raw_materials(raw_materials, destination_type, type_id, report_date
             conn.commit()
 
         cursor.close()
+
+
+def get_dish_recipe_raw_materials(dish_id):
+    query = """
+        SELECT 
+            raw_materials.id as rid,
+            raw_materials.name AS name,
+            dish_raw_materials.quantity AS quantity,
+            COALESCE(dish_raw_materials.metric, raw_materials.metric) AS metric
+        FROM 
+            dish_raw_materials
+        JOIN 
+            raw_materials ON dish_raw_materials.raw_material_id = raw_materials.id
+        WHERE 
+            dish_raw_materials.dish_id = %s;
+        """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(query, (dish_id,))
+    materials = cursor.fetchall()
+    cursor.close()
+    logger.debug(f"dish materialsss {materials}")
+    return materials
 
 
 def get_raw_materials(dish_id):
@@ -600,6 +628,7 @@ def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
 
 
 def get_total_cost_stats():
+    data = [{'total_purchased_amount': 0, 'total_paid': 0, 'total_due': 0}]
     query = """
     SELECT
         IFNULL(SUM(outstanding_cost), 0) AS total_purchased_amount,
@@ -607,7 +636,9 @@ def get_total_cost_stats():
         IFNULL(SUM(total_due), 0) AS total_due
     FROM `vendor_payment_tracker`;
     """
-    data = fetch_all(query)
+    cost_data = fetch_all(query)
+    if cost_data:
+        data = cost_data
     logger.debug(f"total cost {data}")
     return data
 
@@ -878,7 +909,7 @@ def get_all_dish_categories():
 
 
 def get_all_vendors():
-    query = 'SELECT * from vendor_list'
+    query = 'SELECT * from vendor_list ORDER BY id ASC'
     vendors = fetch_all(query)
     logger.debug(f"vendors -- {vendors}")
     return vendors

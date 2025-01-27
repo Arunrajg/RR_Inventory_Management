@@ -72,6 +72,7 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>S.No</th>
                             <th>Raw Material</th>
                             <th>Quantity</th>
                             <th>Metric</th>
@@ -116,13 +117,14 @@
             rawMaterialsList.innerHTML = '';
 
             // Add the raw materials to the modal
-            rawMaterials.forEach(function (material) {
+            rawMaterials.forEach(function (material, index) {
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                <td>${material.name}</td>
-                <td>${material.quantity}</td>
-                <td>${material.metric}</td>
-            `;
+                    <td>${index + 1}</td> <!-- Serial number column -->
+                    <td>${material.name}</td>
+                    <td>${material.quantity}</td>
+                    <td>${material.metric}</td>
+                `;
                 rawMaterialsList.appendChild(row);
             });
 
