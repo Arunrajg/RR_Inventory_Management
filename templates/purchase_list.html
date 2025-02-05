@@ -7,52 +7,55 @@
                 <h4>PURCHASE LIST</h4>
                 <h6>Manage your purchases</h6>
             </div>
-            <div class="page-btn">
-                <a href="/add_purchase" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" alt="img">Add New Purchases
-                </a>
-            </div>
         </div>
 
         <div class="card">
             <div class="card-body">
-                <div class="table-top">
-                    <div class="search-set">
-                        <div class="search-input">
-                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
-                        </div>
+                <!-- Filter Row -->
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-4">
+                        <label for="vendorDropdown" class="form-label">Vendor</label>
+                        <input list="vendorList" id="vendorDropdown" class="form-control">
+                        <datalist id="vendorList">
+                            {% for vendor in vendors %}
+                            <option value="{{ vendor.vendor_name }}" data-id="{{ vendor.id }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label for="invoiceDropdown" class="form-label">Invoice</label>
+                        <input list="invoiceList" id="invoiceDropdown" class="form-control" disabled>
+                        <datalist id="invoiceList">
+                            <!-- Invoices will be populated dynamically based on vendor selection -->
+                        </datalist>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="totalAmount" class="form-label">Total Purchased Amount (Rs)</label>
+                        <input id="totalAmount" type="text" class="form-control" readonly>
                     </div>
                 </div>
 
+                <!-- Table -->
                 <div class="table-responsive">
-                    <table class="table datanew">
+                    <table class="table">
                         <thead>
                             <tr>
-                                <th>Puchase ID</th>
+                                <th>Purchase ID</th>
                                 <th>Invoice Number</th>
                                 <th>Vendor</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
-                                <th>Total Cost(Rs)</th>
+                                <th>Total Cost (Rs)</th>
                                 <th>Purchase Date</th>
                                 <th>Storage Room</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for purchase in purchases %}
+                        <tbody id="purchaseTableBody">
                             <tr>
-                                <td>{{ purchase['id']}}</td>
-                                <td>{{ purchase['invoice_number']}}</td>
-                                <td>{{ purchase['vendor_name'] }}</td>
-                                <td>{{ purchase['raw_material_name']}}</td>
-                                <td>{{ purchase['quantity'] }}</td>
-                                <td>{{ purchase['metric'] }}</td>
-                                <td>{{ purchase['total_cost'] }}</td>
-                                <td>{{ purchase['purchase_date'] }}</td>
-                                <td>{{ purchase['storageroom_name'] }}</td>
+                                <td colspan="9" class="text-center">No data found</td>
                             </tr>
-                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -60,4 +63,96 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const vendorInput = document.getElementById('vendorDropdown');
+        const invoiceInput = document.getElementById('invoiceDropdown');
+        const vendorList = document.getElementById('vendorList');
+        const invoiceList = document.getElementById('invoiceList');
+        const totalAmountField = document.getElementById('totalAmount');
+        const purchaseTableBody = document.getElementById('purchaseTableBody');
+
+        // Helper function to get vendor ID from selected vendor name
+        function getVendorId(vendorName) {
+            const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
+            return option ? option.getAttribute('data-id') : null;
+        }
+
+        // Reset invoice datalist and table
+        function resetInvoiceList() {
+            invoiceList.innerHTML = '';
+            invoiceInput.value = '';
+            invoiceInput.disabled = true;
+            totalAmountField.value = '';
+            purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
+        }
+
+        // Fetch invoices based on selected vendor
+        vendorInput.addEventListener('input', function () {
+            const vendorId = getVendorId(this.value);
+            resetInvoiceList();
+
+            if (vendorId) {
+                fetch(`/get_invoices/${vendorId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log(data);
+                        if (data && data.length > 0) {
+                            invoiceInput.disabled = false;
+                            data.forEach(invoice => {
+                                const option = document.createElement('option');
+                                option.value = invoice;
+                                invoiceList.appendChild(option);
+                            });
+                        }
+                    });
+            }
+        });
+
+        // Fetch purchases based on selected invoice
+        invoiceInput.addEventListener('input', function () {
+            const invoiceNumber = this.value;
+
+            if (invoiceNumber) {
+                fetch(`/get_purchases/${invoiceNumber}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        // Update total amount
+                        totalAmountField.value = data.total_amount || '0';
+
+                        // Populate table
+                        if (data.purchases && data.purchases.length > 0) {
+                            purchaseTableBody.innerHTML = '';
+                            data.purchases.forEach(purchase => {
+                                const row = `
+                                    <tr>
+                                        <td>${purchase.id}</td>
+                                        <td>${purchase.invoice_number}</td>
+                                        <td>${purchase.vendor_name}</td>
+                                        <td>${purchase.raw_material_name}</td>
+                                        <td>${purchase.quantity}</td>
+                                        <td>${purchase.metric}</td>
+                                        <td>${purchase.total_cost}</td>
+                                        <td>${purchase.purchase_date}</td>
+                                        <td>${purchase.storageroom_name}</td>
+                                    </tr>
+                                `;
+                                purchaseTableBody.insertAdjacentHTML('beforeend', row);
+                            });
+                        } else {
+                            purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
+                        }
+                    });
+            } else {
+                totalAmountField.value = '';
+                purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
+            }
+        });
+    });
+</script>
+
 {% endblock %}

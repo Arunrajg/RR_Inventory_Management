@@ -328,6 +328,145 @@ def edit_restaurant():
     return redirect(url_for('restaurantlist'))
 
 
+@app.route('/edituser', methods=['POST'])
+def edituser():
+    # Get data from the form
+    user_id = request.form.get('id')
+    user_role = request.form.get('role')
+    user_status = request.form.get('status')
+
+    # Validate inputs
+    if not user_id or not user_role or not user_status:
+        flash("All fields are required.", "error")
+        return redirect(url_for('userlist'))
+
+    # SQL query to update the user
+    query = """
+        UPDATE users
+        SET role = %s, status= %s
+        WHERE id = %s
+    """
+    params = (user_role, user_status, user_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("user details updated successfully.", "success")
+    else:
+        flash("Failed to update the user details. Please try again.", "danger")
+
+    # Redirect back to the user list
+    return redirect(url_for('userlist'))
+
+
+@app.route('/invoice_page')
+def invoice_page():
+    conn = get_db_connection()
+    vendors = get_all_vendors()
+    app.logger.debug(f"vvv {vendors}")
+    app.logger.debug(session["user"])
+    conn.close()
+    return render_template('invoice.html', user=session["user"], vendors=vendors)
+
+
+@app.route('/get_invoices/<vendor_id>')
+def get_invoices(vendor_id):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT DISTINCT invoice_number FROM purchase_history WHERE vendor_id = %s", (vendor_id,))
+        invoices = cursor.fetchall()
+    conn.close()
+    return jsonify(invoices)
+
+
+# @app.route('/get_purchases/<invoice_number>')
+# def get_purchases(invoice_number):
+#     conn = get_db_connection()
+#     with conn.cursor() as cursor:
+#         cursor.execute("SELECT * FROM purchase_history WHERE invoice_number = %s", (invoice_number,))
+#         purchases = cursor.fetchall()
+
+#         cursor.execute(
+#             "SELECT SUM(total_cost) AS total_amount FROM purchase_history WHERE invoice_number = %s", (invoice_number,))
+#         total_amount = cursor.fetchone()["total_amount"]
+#     conn.close()
+#     return jsonify({"purchases": purchases, "total_amount": total_amount})
+
+
+@app.route('/get_invoice_data', methods=['POST'])
+def get_invoice_data():
+    vendor_id = request.json.get('vendor_id')
+    from_date = request.json.get('from_date')
+    to_date = request.json.get('to_date')
+    app.logger.debug(vendor_id)
+    app.logger.debug(from_date)
+    app.logger.debug(to_date)
+
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute("""
+            SELECT purchase_date AS date, invoice_number AS type, invoice_number AS sr_no, '-' AS payment_mode,
+                   total_cost AS credit, 0.0 AS debit, 0.0 AS balance
+            FROM purchase_history
+            WHERE vendor_id = %s AND purchase_date BETWEEN %s AND %s
+            UNION ALL
+            SELECT paid_on AS date, 'Payment Out' AS type, invoice_number AS sr_no, mode_of_payment AS payment_mode,
+                   0.0 AS credit, amount_paid AS debit, 0.0 AS balance
+            FROM payment_records
+            WHERE vendor_id = %s AND paid_on BETWEEN %s AND %s
+            ORDER BY date
+        """, (vendor_id, from_date, to_date, vendor_id, from_date, to_date))
+        transactions = cursor.fetchall()
+        app.logger.debug(f"transactions {transactions}")
+        cursor.execute("SELECT SUM(total_cost) AS total_credit FROM purchase_history WHERE vendor_id = %s AND purchase_date BETWEEN %s AND %s",
+                       (vendor_id, from_date, to_date))
+        total_credit = cursor.fetchone()[0]
+        app.logger.debug(f"total_credit {total_credit}")
+        cursor.execute("SELECT SUM(amount_paid) AS total_debit FROM payment_records WHERE vendor_id = %s AND paid_on BETWEEN %s AND %s",
+                       (vendor_id, from_date, to_date))
+        total_debit = cursor.fetchone()[0]
+    conn.close()
+
+    return jsonify({
+        "transactions": transactions,
+        "total_credit": total_credit,
+        "total_debit": total_debit
+    })
+# @app.route('/invoice_page')
+# def invoice_page():
+#     return render_template('invoice.html')
+
+
+# @app.route('/invoice_data')
+# def get_invoice_data():
+#     invoice_data = {
+#         "company_name": "Noah Shipping Service",
+#         "phone": "9987415544",
+#         "report_title": "Party Ledger Report",
+#         "date_range": "01-April-2024 - 31-March-2025",
+#         "party_name": "Srp logistics (P) limited",
+#         "gstin": "07AAHCS4054N1ZY",
+#         "transactions": [
+#             {"date": "19-June-2024", "type": "Purchase Bill", "sr_no": 17,
+#                 "payment_mode": "-", "credit": 22819.93, "debit": 0.0, "balance": -22819.93},
+#             {"date": "02-July-2024", "type": "Payment-out", "sr_no": 11,
+#                 "payment_mode": "Online", "credit": 22819.93, "debit": 0.0, "balance": 0.0},
+#             {"date": "05-August-2024", "type": "Purchase Bill", "sr_no": 27,
+#                 "payment_mode": "-", "credit": 6465.66, "debit": 0.0, "balance": -6465.66},
+#             {"date": "10-August-2024", "type": "Payment-out", "sr_no": 19,
+#                 "payment_mode": "Online", "credit": 6465.66, "debit": 0.0, "balance": 0.0},
+#             {"date": "26-December-2024", "type": "Purchase Bill", "sr_no": 49,
+#                 "payment_mode": "Cash", "credit": 40853.37, "debit": 25000.0, "balance": -15853.37},
+#             {"date": "09-January-2025", "type": "Payment-out", "sr_no": 37,
+#                 "payment_mode": "Bank", "credit": 15853.37, "debit": 0.0, "balance": 0.0}
+#         ],
+#         "total_credit": 70138.96,
+#         "total_debit": 70138.96
+#     }
+#     return jsonify(invoice_data)
+
+
 @app.route('/editvendor', methods=['POST'])
 def edit_vendor():
     # Get data from the form
@@ -803,6 +942,7 @@ def add_purchase():
         for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
             # Check and add raw material if not exists
             raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
+            app.logger.debug(f"raw raw {raw_material}")
             if not raw_material:
                 cursor.execute(
                     "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
@@ -819,38 +959,41 @@ def add_purchase():
             # Insert or update purchase history
             cursor.execute(
                 """
-                INSERT INTO purchase_history 
-                (vendor_id, invoice_number, raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, storageroom_id)
+                INSERT INTO purchase_history
+                (vendor_id, invoice_number, raw_material_id, raw_material_name,
+                 quantity, metric, total_cost, purchase_date, storageroom_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
+                ON DUPLICATE KEY UPDATE
                     quantity = quantity + VALUES(quantity),
                     total_cost = total_cost + VALUES(total_cost);
                 """,
                 (vendor["id"], invoice_number, raw_material_id, raw_material_name,
                  quantity, metric, cost, purchase_date, storageroom['id'])
             )
+            app.logger.debug(f"purchase_history_done")
 
             # Update vendor payment tracker
             cursor.execute(
                 """
-                INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost) 
-                VALUES (%s, %s, %s) 
+                INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost)
+                VALUES (%s, %s, %s)
                 ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + VALUES(outstanding_cost);
                 """,
                 (vendor['id'], invoice_number, cost)
             )
-
+            app.logger.debug(f"vendor_payment_tracker_done")
             # Update storage room stock
             cursor.execute(
                 """
-                INSERT INTO storageroom_stock (storageroom_id, raw_material_id, quantity, metric) 
+                INSERT INTO storageroom_stock (storageroom_id, raw_material_id, quantity, metric)
                 VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
+                ON DUPLICATE KEY UPDATE
                     quantity = quantity + VALUES(quantity),
                     metric = VALUES(metric);
                 """,
                 (storageroom['id'], raw_material_id, quantity, metric)
             )
+            app.logger.debug(f"storageroom_stock_done")
 
         # Commit all changes and close the cursor
         connection.commit()
@@ -884,12 +1027,79 @@ def convert_metric(quantity, metric):
     return quantity, metric
 
 
+@app.route('/get_ledger_statement', methods=['POST'])
+def get_ledger_statement():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    vendor_id = request.json.get("vendorId")
+    from_date = request.json.get("fromDate")
+    to_date = request.json.get("toDate")
+    # cursor.execute("SELECT DISTINCT invoice_number FROM purchase_history WHERE vendor_id = %s", (vendor_id,))
+    # invoices = [{"invoice_number": row[0]} for row in cursor.fetchall()]
+    # cursor.close()
+    # connection.close()
+    # app.logger.debug(f"hey {invoices}")
+    app.logger.debug(f"hey {vendor_id}")
+    app.logger.debug(f"hey {from_date}")
+    app.logger.debug(f"hey {to_date}")
+    invoices = [
+        {"date": "19-June-2024", "type": "Purchase Bill", "sr_no": 17,
+         "payment_mode": "-", "credit": 22819.93, "debit": 0.0, "balance": -22819.93},
+        {"date": "02-July-2024", "type": "Payment-out", "sr_no": 11,
+         "payment_mode": "Online", "credit": 22819.93, "debit": 0.0, "balance": 0.0},
+        {"date": "05-August-2024", "type": "Purchase Bill", "sr_no": 27,
+         "payment_mode": "-", "credit": 6465.66, "debit": 0.0, "balance": -6465.66},
+        {"date": "10-August-2024", "type": "Payment-out", "sr_no": 19,
+         "payment_mode": "Online", "credit": 6465.66, "debit": 0.0, "balance": 0.0},
+        {"date": "26-December-2024", "type": "Purchase Bill", "sr_no": 49,
+         "payment_mode": "Cash", "credit": 40853.37, "debit": 25000.0, "balance": -15853.37},
+        {"date": "09-January-2025", "type": "Payment-out", "sr_no": 37,
+         "payment_mode": "Bank", "credit": 15853.37, "debit": 0.0, "balance": 0.0}
+    ]
+    return jsonify(invoices)
+
+
+@app.route('/get_purchases/<invoice_number>', methods=['GET'])
+def get_purchases(invoice_number):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("""
+        SELECT ph.id, ph.invoice_number, v.vendor_name, ph.raw_material_name, ph.quantity, ph.metric,
+               ph.total_cost, ph.purchase_date, sr.storageroomname
+        FROM purchase_history ph
+        JOIN vendor_list v ON ph.vendor_id = v.id
+        JOIN storagerooms sr ON ph.storageroom_id = sr.id
+        WHERE ph.invoice_number = %s
+    """, (invoice_number,))
+    purchases = [
+        {
+            "id": row[0],
+            "invoice_number": row[1],
+            "vendor_name": row[2],
+            "raw_material_name": row[3],
+            "quantity": row[4],
+            "metric": row[5],
+            "total_cost": row[6],
+            "purchase_date": datetime.strptime(str(row[7]), '%Y-%m-%d').strftime('%A, %d %B %Y'),
+            "storageroom_name": row[8]
+        }
+        for row in cursor.fetchall()
+    ]
+
+    total_amount = sum(purchase["total_cost"] for purchase in purchases)
+    app.logger.debug(f"pur {purchases}")
+    cursor.close()
+    connection.close()
+    return jsonify({"purchases": purchases, "total_amount": total_amount})
+
+
 @app.route('/purchase_list')
 def purchase_list():
     if "user" not in session:
         return redirect("/login")
     purchases = get_all_purchases()
-    return render_template('purchase_list.html', purchases=purchases, user=session["user"])
+    vendors = get_all_vendors()
+    return render_template('purchase_list.html', purchases=purchases, vendors=vendors, user=session["user"])
 
 
 @app.route("/pending_payments", methods=["GET", "POST"])
@@ -908,8 +1118,8 @@ def pending_payments():
         cursor = connection.cursor()
         cursor.execute(
             """
-                INSERT INTO vendor_payment_tracker (vendor_id, total_paid) 
-                VALUES (%s, %s) 
+                INSERT INTO vendor_payment_tracker (vendor_id, total_paid)
+                VALUES (%s, %s)
                 ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
                 """,
             (vendor_id, amount_paid, amount_paid)
@@ -985,6 +1195,35 @@ def kitchen_inventory_stock():
     return render_template('kitchen_inventory_stock.html', kitcheninv_stock=kitcheninv_stock, user=session["user"])
 
 
+@app.route('/get_vendor_payments', methods=["GET"])
+def get_vendor_payments():
+    vendor_id = request.args.get('vendor_id')
+    from_date = request.args.get('from_date')
+    to_date = request.args.get('to_date')
+
+    app.logger.debug(f"Vendor ID: {vendor_id}, From Date: {from_date}, To Date: {to_date}")
+
+    # Convert string dates to datetime objects
+    try:
+        from_date = datetime.strptime(from_date, '%Y-%m-%d')
+        to_date = datetime.strptime(to_date, '%Y-%m-%d')
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    # Fetch payment records for the given vendor and date range
+    payments_per_vendor = get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date)
+
+    def serialize(payment):
+        return {
+            'paid_on': payment['paid_on'].strftime('%Y-%m-%d'),
+            'invoice_number': payment['invoice_number'],
+            'mode_of_payment': payment['mode_of_payment'],
+            'amount_paid': float(payment['amount_paid'])
+        }
+
+    return jsonify({'payments': [serialize(p) for p in payments_per_vendor]})
+
+
 @app.route("/get_payment_details")
 def get_payment_details():
     vendor_id = request.args.get('vendor_id')
@@ -1009,8 +1248,8 @@ def invoice_payment_details():
     if "user" not in session:
         return redirect("/login")
     inv_payment_details = get_invoice_payment_details()
-
-    return render_template('invoice_payment_details.html', inv_payment_details=inv_payment_details, user=session["user"])
+    vendors = get_all_vendors()
+    return render_template('invoice_payment_details.html', vendors=vendors, inv_payment_details=inv_payment_details, user=session["user"])
 
 
 @app.route("/payment_record")
@@ -1698,6 +1937,15 @@ def list_prepared_dishes():
     prepared_dishes = get_all_prepared_dishes()
 
     return render_template('list_prepared_dishes.html', user=session["user"], prepared_dishes=prepared_dishes)
+
+
+@app.route('/userlist', methods=['GET', 'POST'])
+def userlist():
+    if "user" not in session:
+        return redirect("/login")
+    users = get_all_users()
+
+    return render_template('userlist.html', user=session["user"], users=users)
 
 
 @app.route('/transfer_prepared_dishes', methods=['GET', 'POST'])

@@ -102,12 +102,12 @@
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Price per Unit(Rs)</label>
                                 <input type="number" name="price_per_metric[]" class="form-control price-input"
-                                    step="0.001" placeholder="Price per Metric" required>
+                                    step="0.01" placeholder="Price per Metric" required>
                             </div>
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Total Cost(Rs)</label>
                                 <input type="number" name="total_cost[]" class="form-control total-cost-input"
-                                    step="0.001" placeholder="Total Cost" readonly>
+                                    step="0.01" placeholder="Total Cost" readonly>
                             </div>
                             <div class="col-lg-1 col-sm-1 col-2 d-flex align-items-center">
                                 <button type="button" class="btn btn-success btn-add-row">+</button>
@@ -124,8 +124,8 @@
                             <a href="/" class="btn btn-cancel">Cancel</a>
                         </div>
                         <div class="col-lg-3">
-                            <input type="number" name="overall_cost" class="form-control overall-cost-input"
-                                step="0.001" placeholder="Overall Cost" readonly>
+                            <input type="number" name="overall_cost" class="form-control overall-cost-input" step="0.01"
+                                placeholder="Overall Cost" readonly>
                         </div>
                     </div>
                 </div>
@@ -223,7 +223,7 @@
 
                 // Calculate total cost for the row and set it with 3 decimal points
                 const totalCostField = row.querySelector('.total-cost-input');
-                totalCostField.value = (quantity * price).toFixed(3);
+                totalCostField.value = (quantity * price).toFixed(2);
 
                 // Calculate the overall cost from all total-cost fields
                 const allCosts = container.querySelectorAll('.total-cost-input');
@@ -232,9 +232,9 @@
                     return sum;
                 }, 0);
 
-                // Set the overall cost with 3 decimal points
+                // Set the overall cost with 2 decimal points
                 const overallCostEle = document.querySelector('.overall-cost-input');
-                overallCostEle.value = overallCost.toFixed(3);
+                overallCostEle.value = overallCost.toFixed(2);
             }
         });
 

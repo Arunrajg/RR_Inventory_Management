@@ -28,20 +28,20 @@
                         <thead>
                             <tr>
                                 <th>S.No</th>
-                                <th>Storage Room Name</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
+                                <th>Storage Room Name</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for stock in storage_stock %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>{{ stock['storageroomname']}}</td>
                                 <td>{{ stock['rawmaterial_name']}}</td>
                                 <td>{{ stock['quantity'] }}</td>
                                 <td>{{ stock['metric'] }}</td>
+                                <td>{{ stock['storageroomname']}}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

@@ -5,7 +5,6 @@
         <div class="page-header">
             <div class="page-title">
                 <h4>INVOICE PAYMENT Details</h4>
-                <!-- <h6>Manage your purchases</h6> -->
             </div>
             <div class="page-btn">
                 <a href="/pending_payments" class="btn btn-added">
@@ -16,37 +15,46 @@
 
         <div class="card">
             <div class="card-body">
-                <div class="table-top">
-                    <div class="search-set">
-                        <div class="search-input">
-                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
-                        </div>
+                <div class="row align-items-center mb-4">
+                    <div class="col-md-4">
+                        <label for="vendorDropdown" class="form-label">Vendor</label>
+                        <input list="vendorList" id="vendorDropdown" class="form-control">
+                        <datalist id="vendorList">
+                            {% for vendor in vendors %}
+                            <option value="{{ vendor.vendor_name }}" data-id="{{ vendor.id }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="fromDate" class="form-label">From Date</label>
+                        <input type="date" id="from_date" name="from_date" class="form-control" value="{{ today_date }}"
+                            required>
+
+                    </div>
+                    <div class="col-md-2">
+                        <label for="toDate" class="form-label">To Date</label>
+                        <input type="date" id="to_date" name="to_date" class="form-control" value="{{ today_date }}"
+                            required>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary mt-3">Submit</button>
                     </div>
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table datanew">
+                    <table class="table">
                         <thead>
                             <tr>
-                                <th>Payment ID</th>
-                                <th>Vendor</th>
+                                <th>Date</th>
                                 <th>Invoice Number</th>
-                                <th>Total Purchased Amount(Rs)</th>
-                                <th>Total Paid(Rs)</th>
-                                <th>Total Due(Rs)</th>
+                                <th>Payment Mode</th>
+                                <th>Amount Paid</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for history in inv_payment_details %}
+                        <tbody id="paymentTableBody">
                             <tr>
-                                <td>{{ history['payment_id']}}</td>
-                                <td>{{ history['vendor_name'] }}</td>
-                                <td>{{ history['invoice_number']}}</td>
-                                <td>{{ history['outstanding_cost'] }}</td>
-                                <td>{{ history['total_paid'] }}</td>
-                                <td>{{ history['total_due'] }}</td>
+                                <td colspan="9" class="text-center">No data found</td>
                             </tr>
-                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -54,4 +62,61 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const vendorInput = document.getElementById('vendorDropdown');
+        const vendorList = document.getElementById('vendorList');
+        const fromDateInput = document.getElementById('from_date');
+        const toDateInput = document.getElementById('to_date');
+        const submitButton = document.querySelector('.btn-primary');
+        const paymentTableBody = document.getElementById('paymentTableBody');
+
+        function getVendorId(vendorName) {
+            const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
+            return option ? option.getAttribute('data-id') : null;
+        }
+
+        function resetTable() {
+            paymentTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No data found</td></tr>';
+        }
+
+        submitButton.addEventListener('click', function () {
+            const vendorId = getVendorId(vendorInput.value);
+            const fromDate = fromDateInput.value;
+            const toDate = toDateInput.value;
+
+            if (!vendorId || !fromDate || !toDate) {
+                alert('Please select a vendor and date range');
+                return;
+            }
+
+            fetch(`/get_vendor_payments?vendor_id=${vendorId}&from_date=${fromDate}&to_date=${toDate}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.payments && data.payments.length > 0) {
+                        paymentTableBody.innerHTML = '';
+                        data.payments.forEach(payment => {
+                            const row = `
+                                <tr>
+                                    <td>${payment.paid_on}</td>
+                                    <td>${payment.invoice_number}</td>
+                                    <td>${payment.mode_of_payment}</td>
+                                    <td>${payment.amount_paid}</td>
+                                </tr>
+                            `;
+                            paymentTableBody.insertAdjacentHTML('beforeend', row);
+                        });
+                    } else {
+                        resetTable();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching payment records:', error);
+                    resetTable();
+                });
+        });
+    });
+</script>
 {% endblock %}

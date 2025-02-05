@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html>
+
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@100;200;300;400;500;600;700;800&display=swap"
+            rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css"
+            integrity="sha512-MV7K8+y+gLIBoVD59lQIYicR65iaqukzvf/nwasF0nqhPay5w/9lJmVM2hMDcnK1OnMGCdVK+iQrJ7lzPJQd1w=="
+            crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <link rel="stylesheet" href="style.css">
+        <!-- Include jsPDF -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+        <!-- Include autoTable plugin -->
+        <script
+            src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+
+    </head>
+
+    <body>
+        <style>
+            *,
+            *::after,
+            *::before {
+                padding: 0;
+                margin: 0;
+                box-sizing: border-box;
+            }
+
+            :root {
+                --blue-color: #0c2f54;
+                --dark-color: #535b61;
+                --white-color: #fff;
+            }
+
+            ul {
+                list-style-type: none;
+            }
+
+            ul li {
+                margin: 2px 0;
+            }
+
+            /* text colors */
+            .text-dark {
+                color: var(--dark-color);
+            }
+
+            .text-blue {
+                color: var(--blue-color);
+            }
+
+            .text-end {
+                text-align: right;
+            }
+
+            .text-center {
+                text-align: center;
+            }
+
+            .text-start {
+                text-align: left;
+            }
+
+            .text-bold {
+                font-weight: 700;
+            }
+
+            /* hr line */
+            .hr {
+                height: 1px;
+                background-color: rgba(0, 0, 0, 0.1);
+            }
+
+            /* border-bottom */
+            .border-bottom {
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            }
+
+            body {
+                font-family: 'Poppins', sans-serif;
+                color: var(--dark-color);
+                font-size: 14px;
+            }
+
+            .invoice-wrapper {
+                min-height: 100vh;
+                background-color: rgba(0, 0, 0, 0.1);
+                padding-top: 20px;
+                padding-bottom: 20px;
+            }
+
+            .invoice {
+                max-width: 850px;
+                margin-right: auto;
+                margin-left: auto;
+                background-color: var(--white-color);
+                padding: 70px;
+                border: 1px solid rgba(0, 0, 0, 0.2);
+                border-radius: 5px;
+                min-height: 920px;
+            }
+
+            .invoice-head-top-left img {
+                width: 130px;
+            }
+
+            .invoice-head-top-right h3 {
+                font-weight: 500;
+                font-size: 27px;
+                color: var(--blue-color);
+            }
+
+            .invoice-head-middle,
+            .invoice-head-bottom {
+                padding: 16px 0;
+            }
+
+            .invoice-body {
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                border-radius: 4px;
+                overflow: hidden;
+            }
+
+            .invoice-body table {
+                border-collapse: collapse;
+                border-radius: 4px;
+                width: 100%;
+            }
+
+            .invoice-body table td,
+            .invoice-body table th {
+                padding: 12px;
+            }
+
+            .invoice-body table tr {
+                border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            }
+
+            .invoice-body table thead {
+                background-color: rgba(0, 0, 0, 0.02);
+            }
+
+            .invoice-body-info-item {
+                display: grid;
+                grid-template-columns: 80% 20%;
+            }
+
+            .invoice-body-info-item .info-item-td {
+                padding: 12px;
+                background-color: rgba(0, 0, 0, 0.02);
+            }
+
+            .invoice-foot {
+                padding: 30px 0;
+            }
+
+            .invoice-foot p {
+                font-size: 12px;
+            }
+
+            .invoice-btns {
+                margin-top: 20px;
+                display: flex;
+                justify-content: center;
+            }
+
+            .invoice-btn {
+                padding: 3px 9px;
+                color: var(--dark-color);
+                font-family: inherit;
+                border: 1px solid rgba(0, 0, 0, 0.1);
+                cursor: pointer;
+            }
+
+            .invoice-head-top,
+            .invoice-head-middle,
+            .invoice-head-bottom {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                padding-bottom: 10px;
+            }
+
+            @media screen and (max-width: 992px) {
+                .invoice {
+                    padding: 40px;
+                }
+            }
+
+            @media screen and (max-width: 576px) {
+
+                .invoice-head-top,
+                .invoice-head-middle,
+                .invoice-head-bottom {
+                    grid-template-columns: repeat(1, 1fr);
+                }
+
+                .invoice-head-bottom-right {
+                    margin-top: 12px;
+                    margin-bottom: 12px;
+                }
+
+                .invoice * {
+                    text-align: left;
+                }
+
+                .invoice {
+                    padding: 28px;
+                }
+            }
+
+            .overflow-view {
+                overflow-x: scroll;
+            }
+
+            .invoice-body {
+                min-width: 600px;
+            }
+
+            @media print {
+                .print-area {
+                    visibility: visible;
+                    width: 100%;
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    overflow: hidden;
+                }
+
+                .overflow-view {
+                    overflow-x: hidden;
+                }
+
+                .invoice-btns {
+                    display: none;
+                }
+            }
+
+            /* Signature Section Styling */
+            .signature-section {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 30px;
+                /* Space between the table and signature section */
+                padding: 10px 0;
+            }
+
+            .signature-section .signature {
+                width: 45%;
+                /* Allow both signatures to take up 45% of the space */
+                text-align: center;
+                border-top: 1px solid black;
+                padding-top: 5px;
+            }
+
+            .signature-label {
+                font-weight: bold;
+                font-size: 12px;
+            }
+
+            /* Signature lines */
+            .signature-line {
+                border-top: 1px solid black;
+                width: 100%;
+                margin-top: 10px;
+            }
+
+            .signature-space {
+                margin-top: 5px;
+            }
+
+        </style>
+        <div class="invoice-wrapper" id="print-area">
+            <div class="invoice">
+                <div class="invoice-container">
+                    <div class="invoice-head">
+                        <div class="invoice-head-top">
+                            <div class="invoice-head-top-left text-start">
+                                <img src="images/logo.png">
+                            </div>
+                            <div class="invoice-head-top-right text-end">
+                                <h3>Invoice</h3>
+                            </div>
+                        </div>
+                        <div class="hr"></div>
+                        <div class="invoice-head-middle">
+                            <div class="invoice-head-middle-left text-start">
+                                <p><span class="text-bold">Date</span>: 05/12/2020</p>
+                            </div>
+                            <div class="invoice-head-middle-right text-end">
+                                <p>
+                                    <spanf class="text-bold">Invoice No:</span>16789
+                                </p>
+                            </div>
+                        </div>
+                        <div class="hr"></div>
+                        <div class="invoice-head-bottom">
+                            <div class="invoice-head-bottom-left">
+                                <ul>
+                                    <li class='text-bold'>Invoiced To:</li>
+                                    <li>Smith Rhodes</li>
+                                    <li>15 Hodges Mews, High Wycombe</li>
+                                    <li>HP12 3JL</li>
+                                    <li>United Kingdom</li>
+                                </ul>
+                            </div>
+                            <div class="invoice-head-bottom-right">
+                                <ul class="text-end">
+                                    <li class='text-bold'>Pay To:</li>
+                                    <li>Koice Inc.</li>
+                                    <li>2705 N. Enterprise</li>
+                                    <li>Orange, CA 89438</li>
+                                    <li>contact@koiceinc.com</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="overflow-view">
+                        <div class="invoice-body">
+                            <table id="invoice-table">
+                                <thead>
+                                    <tr>
+                                        <td class="text-bold">Service</td>
+                                        <td class="text-bold">Description</td>
+                                        <td class="text-bold">Rate</td>
+                                        <td class="text-bold">QTY</td>
+                                        <td class="text-bold">Amount</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Design</td>
+                                        <td>Creating a website design</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Development</td>
+                                        <td>Website Development</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <tr>
+                                        <td>SEO</td>
+                                        <td>Optimize the site for search engines (SEO)</td>
+                                        <td>$50.00</td>
+                                        <td>10</td>
+                                        <td class="text-end">$500.00</td>
+                                    </tr>
+                                    <!-- <tr>
+                                        <td colspan="4">10</td>
+                                        <td>$500.00</td>
+                                    </tr> -->
+                                </tbody>
+                            </table>
+                            <div class="invoice-body-bottom">
+                                <div class="invoice-body-info-item border-bottom">
+                                    <div class="info-item-td text-end text-bold">Sub Total:</div>
+                                    <div class="info-item-td text-end">$2150.00</div>
+                                </div>
+                                <div class="invoice-body-info-item border-bottom">
+                                    <div class="info-item-td text-end text-bold">Tax:</div>
+                                    <div class="info-item-td text-end">$215.00</div>
+                                </div>
+                                <div class="invoice-body-info-item">
+                                    <div class="info-item-td text-end text-bold">Total:</div>
+                                    <div class="info-item-td text-end">$21365.00</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="signature-section">
+                        <div class="signature">
+                            <div class="signature-label">Client Signature</div>
+                            <div class="signature-line"></div> <!-- Signature line -->
+                            <div class="signature-space"></div> <!-- Space below the signature line -->
+                        </div>
+                        <div class="signature">
+                            <div class="signature-label">Authorized Signature</div>
+                            <div class="signature-line"></div> <!-- Signature line -->
+                            <div class="signature-space"></div> <!-- Space below the signature line -->
+                        </div>
+                    </div>
+                    <div class="invoice-foot text-center">
+                        <p><span class="text-bold text-center">NOTE:&nbsp;</span>This is computer generated receipt and
+                            does not require physical signature.</p>
+
+                        <div class="invoice-btns">
+                            <button type="button" class="invoice-btn" onclick="printInvoice()">
+                                <span>
+                                    <i class="fa-solid fa-print"></i>
+                                </span>
+                                <span>Print</span>
+                            </button>
+                            <button type="button" class="invoice-btn" onclick="downloadInvoice()">
+                                <span>
+                                    <i class="fa-solid fa-download"></i>
+                                </span>
+                                <span>Download</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            function printInvoice() {
+                window.print();
+            }
+            function downloadInvoice() {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF("p", "mm", "a4");
+
+                const margin = 10;
+                const pageWidth = 210;
+                const pageHeight = 297;
+                let pageNumber = 1;
+
+                const headers = [];
+                const data = [];
+
+                const table = document.getElementById("invoice-table");
+                if (!table) {
+                    alert("Invoice table not found!");
+                    return;
+                }
+
+                // Helper function to extract text and handle simple HTML formatting
+                function extractTextWithFormatting(element) {
+                    let text = element.innerText.trim();
+                    return text;
+                }
+
+                // Extract headers (from thead tr td) and apply formatting
+                table.querySelectorAll("thead tr").forEach(tr => {
+                    const rowHeaders = [];
+                    tr.querySelectorAll("td").forEach(td => {
+                        rowHeaders.push(extractTextWithFormatting(td)); // Format text
+                    });
+                    headers.push(rowHeaders);  // Push the formatted row headers into the headers array
+                });
+
+                // Extract data (from tbody) and apply formatting
+                table.querySelectorAll("tbody tr").forEach(tr => {
+                    const rowData = [];
+                    tr.querySelectorAll("td").forEach(td => {
+                        rowData.push(extractTextWithFormatting(td));  // Format text
+                    });
+                    if (rowData.length > 0) {
+                        data.push(rowData);
+                    }
+                });
+
+                // Add invoice header content to the PDF
+                pdf.setFontSize(12);
+                pdf.setFont("Helvetica", "bold");
+                pdf.text("Invoice", 150, 20, { align: "right" });
+
+                pdf.setFontSize(10);
+                pdf.setFont("Helvetica", "normal");
+                let yPosition = 50; // Starting Y position
+
+                // Add 'Date' and 'Invoice No' information
+                pdf.line(margin, yPosition - 20, pageWidth - margin, yPosition - 15);
+                pdf.line(margin, yPosition - 30, pageWidth - margin, yPosition - 30);
+                pdf.text(`Date: 05/12/2020`, margin, 40);
+                pdf.text(`Invoice No: 16789`, pageWidth - 15, yPosition - 10, { align: "right" });
+
+                // Add 'Invoiced To' and 'Pay To' details side by side
+                const invoicedTo = [
+                    "Invoiced To:",
+                    "Smith Rhodes",
+                    "15 Hodges Mews, High Wycombe",
+                    "HP12 3JL",
+                    "United Kingdom"
+                ];
+                const payTo = [
+                    "Pay To:",
+                    "Koice Inc.",
+                    "2705 N. Enterprise",
+                    "Orange, CA 89438",
+                    "contact@koiceinc.com"
+                ];
+
+
+                // Left column (Invoiced To)
+                pdf.setFontSize(10);
+                pdf.setFont("Helvetica", "normal");
+                invoicedTo.forEach((line, index) => {
+                    pdf.text(line, margin, yPosition); // Align text to the left (margin + 5)
+                    yPosition += 10;
+                });
+
+                // Right column (Pay To)
+                let yPositionRight = 50; // Same starting Y position for the right column
+                payTo.forEach((line, index) => {
+                    pdf.text(line, pageWidth - 15, yPositionRight, { align: "right" }); // Align text to the right (pageWidth - 100)
+                    yPositionRight += 10;
+                });
+
+                // Add a line (horizontal rule) separating the header from the table
+                pdf.line(margin, yPosition + 5, pageWidth - margin, yPosition + 5);
+
+                // Adjust the Y position for the table after header
+                let yTablePosition = yPosition + 15;
+
+                // Add table content
+                pdf.autoTable({
+                    startY: yTablePosition,
+                    head: headers,
+                    body: data,
+                    theme: "grid",
+                    styles: {
+                        fontSize: 10,
+                        cellPadding: 5,
+                        halign: 'center',
+                        valign: 'middle',
+                        lineWidth: 0.1,
+                        lineColor: [0, 0, 0],
+                        font: 'Helvetica',
+                    },
+                    headStyles: {
+                        fillColor: [0, 0, 0],
+                        textColor: [255, 255, 255],
+                        fontStyle: 'bold',
+                    },
+                    bodyStyles: {
+                        fillColor: [255, 255, 255],
+                        textColor: [0, 0, 0],
+                    },
+                    margin: { top: 10, bottom: 20 },
+                    didDrawPage: function (data) {
+                        pdf.setFontSize(10);
+                        pdf.text(`Page ${pageNumber}`, pageWidth - margin, pageHeight - 10, { align: "right" });
+
+                        pdf.setFontSize(8);
+                        pdf.text("This is a system-generated invoice. No signature is required.", margin, pageHeight - 10);
+
+                        pageNumber++;
+                    }
+                });
+
+                // Adding Signature section (on separate lines)
+                const signatureMargin = 20;
+                let signatureYPosition = pdf.lastAutoTable.finalY + 20; // Adjust to the end of the table
+
+                pdf.setFontSize(10);
+
+                // Define the line length
+                const lineLength = 50;  // Adjust the length of the signature line as needed
+
+                // Client Signature (left side)
+                const clientSignatureX = margin + 22;  // Adjust for positioning
+                pdf.text("Client Signature", clientSignatureX, signatureYPosition);
+                pdf.line(clientSignatureX - 5, signatureYPosition + 5, clientSignatureX + lineLength - 12, signatureYPosition + 5); // Draw signature line
+
+                // Authorized Signature (right side)
+                const authorizedSignatureX = pageWidth - margin - lineLength - 20; // Position the line on the right side
+                pdf.text("Authorized Signature", authorizedSignatureX + lineLength / 2, signatureYPosition, { align: 'center' }); // Center text above the line
+                pdf.line(authorizedSignatureX + 6, signatureYPosition + 5, authorizedSignatureX + lineLength, signatureYPosition + 5); // Draw signature line
+
+                // Save the PDF
+                pdf.save("invoice.pdf");
+            }
+
+        </script>
+        <script src="script.js"></script>
+    </body>
+
+</html>

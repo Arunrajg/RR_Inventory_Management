@@ -134,18 +134,18 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                         <td>${payment.invoice_number}</td>
-                        <td>${payment.total_due.toFixed(3)}</td>
+                        <td>${payment.total_due.toFixed(2)}</td>
                         <td>
                             <input type="number" class="form-control pay-amount" 
                                    data-payment-id="${payment.payment_id}"
                                    data-invoice-number="${payment.invoice_number}"
                                    value="0" 
                                    min="0" 
-                                   max="${payment.total_due.toFixed(3)}"
-                                   step="0.001"
+                                   max="${payment.total_due.toFixed(2)}"
+                                   step="0.01"
                                    >
                         </td>
-                        <td class="due-amount">${dueAmount.toFixed(3)}</td>
+                        <td class="due-amount">${dueAmount.toFixed(2)}</td>
                         <td>
                             <select class="form-control mode-of-payment">
                                 <option value="upi">UPI</option>
@@ -170,11 +170,11 @@
 
                             // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
                             if (payAmount > outstandingCost) {
-                                input.value = outstandingCost.toFixed(3); // Set the input value to the max allowed
+                                input.value = outstandingCost.toFixed(2); // Set the input value to the max allowed
                             }
 
                             // Recalculate and update dueAmount
-                            const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(3);
+                            const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(2);
                             row.querySelector('.due-amount').textContent = newDueAmount;
                         });
                     });

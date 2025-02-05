@@ -21,7 +21,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "db"),  # Default to 'db' if not set
     "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
-    "database": os.getenv("DB_DATABASE", "rrinventorymanagement")  # Default to 'rrinventorymanagement' if not set
+    "database": os.getenv("DB_DATABASE", "dharaniinventorymanagement")  # Default to 'rrinventorymanagement' if not set
 }
 
 
@@ -481,11 +481,34 @@ def get_all_pending_payments_vendor_cumulative():
     return payments
 
 
+def get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date):
+    query = """
+    SELECT
+        pr.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        pr.invoice_number,
+        pr.mode_of_payment,
+        pr.amount_paid,
+        pr.paid_on
+    FROM
+        payment_records AS pr
+    JOIN
+        vendor_list AS vl ON pr.vendor_id = vl.id
+    WHERE
+        pr.vendor_id = %s
+        AND pr.paid_on BETWEEN %s AND %s
+    ORDER BY
+    pr.paid_on ASC;
+    """
+    payments = fetch_all(query, (vendor_id, from_date, to_date))
+    logger.debug(f"vendor due payments between dates -- {payments}")
+    return payments
+
+
 def get_payment_details_of_vendor(vendor_id):
     query = """
     SELECT
-        vpt.id AS payment_id,
-        vl.id AS vendor_id,
         vl.vendor_name,
         vpt.invoice_number,
         vpt.outstanding_cost,
@@ -908,6 +931,13 @@ def get_all_dish_categories():
     dish_categories = fetch_all(query)
     logger.debug(f"dish_categories -- {dish_categories}")
     return dish_categories
+
+
+def get_all_users():
+    query = 'SELECT id, username, email, role, status from users'
+    users = fetch_all(query)
+    logger.debug(f"users -- {users}")
+    return users
 
 
 def get_all_vendors(only_active=False):

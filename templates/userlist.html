@@ -4,12 +4,7 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Restaurant List</h4>
-            </div>
-            <div class="page-btn">
-                <a href="/addrestaurant" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Restaurant
-                </a>
+                <h4>User List</h4>
             </div>
         </div>
 
@@ -37,9 +32,10 @@
                     <table class="table">
                         <thead>
                             <tr>
-                                <th>Restaurant Number</th>
-                                <th>Restaurant name</th>
-                                <th>Address</th>
+                                <th>User ID</th>
+                                <th>Username</th>
+                                <th>Email</th>
+                                <th>Role</th>
                                 <th>Status</th>
                                 {% if user.role == 'admin' %}
                                 <th>Actions</th>
@@ -47,13 +43,14 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for restaurant in restaurants %}
+                            {% for user_d in users %}
                             <tr>
-                                <td style="width: 5%;">{{ restaurant.id }}</td>
-                                <td style="width: 35%;">{{ restaurant.restaurantname }}</td>
-                                <td style="width: 40%;">{{ restaurant.address }}</td>
+                                <td style="width: 5%;">{{ user_d.id }}</td>
+                                <td style="width: 25%;">{{ user_d.username }}</td>
+                                <td style="width: 30%;">{{ user_d.email }}</td>
+                                <td style="width: 20%;">{{ user_d.role }}</td>
                                 <td style="width: 10%;">
-                                    {% if restaurant.status == 'active' %}
+                                    {% if user_d.status == 'active' %}
                                     <span class="bg-lightgreen badges">Active</span>
                                     {% else %}
                                     <span class="bg-lightred badges">Inactive</span>
@@ -62,8 +59,9 @@
                                 {% if user.role == 'admin' %}
                                 <td style="width: 10%;">
                                     <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#editModal"
-                                        data-id="{{ restaurant.id }}" data-name="{{ restaurant.restaurantname }}"
-                                        data-address="{{ restaurant.address }}" data-status="{{ restaurant.status }}">
+                                        data-id="{{ user_d.id }}" data-name="{{ user_d.username }}"
+                                        data-email="{{ user_d.email }}" data-role="{{ user_d.role }}"
+                                        data-status="{{ user_d.status }}">
                                         <img src="../static/img/icons/edit.svg" alt="img">
                                     </button>
                                 </td>
@@ -83,19 +81,25 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="editModalLabel">Edit Restaurant</h5>
+                <h5 class="modal-title" id="editModalLabel">Edit User</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="POST" action="/editrestaurant">
+            <form method="POST" action="/edituser">
                 <div class="modal-body">
-                    <input type="hidden" name="id" id="editRestaurantId">
+                    <input type="hidden" name="id" id="editUserId">
                     <div class="mb-3">
-                        <label for="editRestaurantAddress" class="form-label">Address</label>
-                        <input type="text" class="form-control" id="editRestaurantAddress" name="address" required>
+                        <label for="editUserRole" class="form-label">Role</label>
+                        <select class="form-control" id="editUserRole" name="role" required>
+                            <option value="admin">admin</option>
+                            <option value="store_manager">store_manager</option>
+                            <option value="branch_manager">branch_manager</option>
+                            <option value="user">user</option>
+                        </select>
+                        <!-- <input type="text" class="form-control" id="editUserRole" name="role" required> -->
                     </div>
                     <div class="mb-3">
-                        <label for="editRestaurantStatus" class="form-label">Status</label>
-                        <select class="form-control" id="editRestaurantStatus" name="status" required>
+                        <label for="editUserStatus" class="form-label">Status</label>
+                        <select class="form-control" id="editUserStatus" name="status" required>
                             <option value="active">Active</option>
                             <option value="inactive">Inactive</option>
                         </select>
@@ -121,15 +125,17 @@
         var editButtons = document.querySelectorAll('.btn-edit');
         editButtons.forEach(function (button) {
             button.addEventListener('click', function () {
-                var restaurantId = button.getAttribute('data-id');
-                var restaurantAddress = button.getAttribute('data-address');
-                var restaurantStatus = button.getAttribute('data-status');
+                var userId = button.getAttribute('data-id');
+                var userRole = button.getAttribute('data-role');
+                var userStatus = button.getAttribute('data-status');
 
-                document.getElementById('editRestaurantId').value = restaurantId;
-                document.getElementById('editRestaurantAddress').value = restaurantAddress;
+                document.getElementById('editUserId').value = userId;
+                var roleDropdown = document.getElementById('editUserRole');
+                roleDropdown.value = userRole;
+                // document.getElementById('editUserRole').value = userRole;
 
-                var statusDropdown = document.getElementById('editRestaurantStatus');
-                statusDropdown.value = restaurantStatus;
+                var statusDropdown = document.getElementById('editUserStatus');
+                statusDropdown.value = userStatus;
             });
         });
     });

@@ -28,20 +28,20 @@
                         <thead>
                             <tr>
                                 <th>S.No</th>
-                                <th>Kitchen Name</th>
                                 <th>Raw Material</th>
                                 <th>Quantity</th>
                                 <th>Metric</th>
+                                <th>Kitchen Name</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for stock in kitcheninv_stock %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>{{ stock['kitchenname']}}</td>
                                 <td>{{ stock['rawmaterial_name']}}</td>
                                 <td>{{ stock['quantity'] }}</td>
                                 <td>{{ stock['metric'] }}</td>
+                                <td>{{ stock['kitchenname']}}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
