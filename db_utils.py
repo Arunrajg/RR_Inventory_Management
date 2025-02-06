@@ -509,6 +509,8 @@ def get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date):
 def get_payment_details_of_vendor(vendor_id):
     query = """
     SELECT
+        vpt.id AS payment_id,
+        vl.id AS vendor_id,
         vl.vendor_name,
         vpt.invoice_number,
         vpt.outstanding_cost,

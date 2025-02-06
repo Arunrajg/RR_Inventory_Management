@@ -1212,6 +1212,7 @@ def get_vendor_payments():
 
     # Fetch payment records for the given vendor and date range
     payments_per_vendor = get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date)
+    app.logger.debug(f"payments_per_vendor {payments_per_vendor}")
 
     def serialize(payment):
         return {
@@ -1224,11 +1225,12 @@ def get_vendor_payments():
     return jsonify({'payments': [serialize(p) for p in payments_per_vendor]})
 
 
-@app.route("/get_payment_details")
-def get_payment_details():
-    vendor_id = request.args.get('vendor_id')
-    app.logger.debug(f"modal vendor_id {vendor_id}")
+@app.route("/get_payment_details/<vendor_id>", methods=["GET"])
+def get_payment_details(vendor_id):
+    # vendor_id = request.args.get('vendor_id')
+    app.logger.debug(f"modal vendor_id input {vendor_id}")
     payments_per_vendor = get_payment_details_of_vendor(vendor_id)
+    app.logger.debug(f"payments_per_vendor {payments_per_vendor}")
 
     def serialize(payment):
         return {

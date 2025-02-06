@@ -5,7 +5,7 @@
         <div class="page-header">
             <div class="page-title">
                 <h4>PENDING PAYMENTS CUMULATIVE</h4>
-                <h6>Manage your payments</h6>
+                <h6>Manage your paymentss</h6>
             </div>
         </div>
 
@@ -115,19 +115,24 @@
                 // Populate modal fields
                 vendorNameSpan.textContent = vendorName;
                 vendorIdInput.value = vendorId;
+                // alert(vendorId)
 
                 // Clear previous table rows
                 paymentDetailsTable.innerHTML = '';
 
                 try {
                     // Fetch payment details for the vendor
-                    const response = await fetch(`/get_payment_details?vendor_id=${vendorId}`);
+                    const response = await fetch(`/get_payment_details/${vendorId}`);
+                    // alert(response)
+                    // alert(response.json())
+                    // alert(response.ok)
                     if (!response.ok) throw new Error('Failed to fetch payment details.');
 
                     const data = await response.json();
 
                     // Populate table with payment details
                     data.forEach(payment => {
+                        // alert(payment)
                         const dueAmount = payment.total_due - (payment.pay_amount || 0);
                         const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
 

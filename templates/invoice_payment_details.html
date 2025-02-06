@@ -27,19 +27,18 @@
                     </div>
                     <div class="col-md-2">
                         <label for="fromDate" class="form-label">From Date</label>
-                        <input type="date" id="from_date" name="from_date" class="form-control" value="{{ today_date }}"
-                            required>
-
+                        <input type="date" id="from_date" name="from_date" class="form-control" required>
                     </div>
                     <div class="col-md-2">
                         <label for="toDate" class="form-label">To Date</label>
-                        <input type="date" id="to_date" name="to_date" class="form-control" value="{{ today_date }}"
-                            required>
+                        <input type="date" id="to_date" name="to_date" class="form-control" required>
                     </div>
-                    <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary mt-3">Submit</button>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" id="submitBtn" class="btn btn-primary me-2">Submit</button>
+                        <button id="printButton" class="btn btn-secondary">Print</button>
                     </div>
                 </div>
+
 
                 <div class="table-responsive">
                     <table class="table">
@@ -66,12 +65,45 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const fromDateInput = document.getElementById('from_date');
+        const toDateInput = document.getElementById('to_date');
+        const submitBtn = document.getElementById('submitBtn');
+
+        function validateDates() {
+            const fromDate = new Date(fromDateInput.value);
+            const toDate = new Date(toDateInput.value);
+            const today = new Date();
+
+            if (fromDate > toDate) {
+                alert('From Date cannot be greater than To Date.');
+                toDateInput.value = ''; // Reset invalid input
+            }
+
+            if (toDate > today) {
+                alert('To Date cannot be in the future.');
+                toDateInput.value = ''; // Reset invalid input
+            }
+        }
+
+        fromDateInput.addEventListener('change', validateDates);
+        toDateInput.addEventListener('change', validateDates);
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
         const vendorInput = document.getElementById('vendorDropdown');
         const vendorList = document.getElementById('vendorList');
         const fromDateInput = document.getElementById('from_date');
         const toDateInput = document.getElementById('to_date');
         const submitButton = document.querySelector('.btn-primary');
+        // const printButton = document.createElement('button');
+        // printButton.textContent = 'Print';
+        // printButton.classList.add('btn', 'btn-secondary', 'mt-3');
+        // submitButton.parentNode.appendChild(printButton);
         const paymentTableBody = document.getElementById('paymentTableBody');
+        const totalPaidField = document.createElement('div');
+        totalPaidField.classList.add('mt-3', 'fw-bold');
+        totalPaidField.id = 'totalPaid';
+        submitButton.parentNode.appendChild(totalPaidField);
 
         function getVendorId(vendorName) {
             const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
@@ -80,6 +112,7 @@
 
         function resetTable() {
             paymentTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No data found</td></tr>';
+            totalPaidField.textContent = '';
         }
 
         submitButton.addEventListener('click', function () {
@@ -97,17 +130,20 @@
                 .then(data => {
                     if (data.payments && data.payments.length > 0) {
                         paymentTableBody.innerHTML = '';
+                        let totalPaid = 0;
                         data.payments.forEach(payment => {
+                            totalPaid += payment.amount_paid;
                             const row = `
-                                <tr>
-                                    <td>${payment.paid_on}</td>
-                                    <td>${payment.invoice_number}</td>
-                                    <td>${payment.mode_of_payment}</td>
-                                    <td>${payment.amount_paid}</td>
-                                </tr>
-                            `;
+                            <tr>
+                                <td>${payment.paid_on}</td>
+                                <td>${payment.invoice_number}</td>
+                                <td>${payment.mode_of_payment}</td>
+                                <td>${payment.amount_paid}</td>
+                            </tr>
+                        `;
                             paymentTableBody.insertAdjacentHTML('beforeend', row);
                         });
+                        totalPaidField.textContent = `Total Paid: Rs. ${totalPaid.toFixed(2)}`;
                     } else {
                         resetTable();
                     }
@@ -117,6 +153,60 @@
                     resetTable();
                 });
         });
+
+        printButton.addEventListener('click', function () {
+            const printContent = `
+        <div>
+            <h3>Payment Receipt</h3>
+            <h2> Dharani Group </h2>
+            <p><b>Vendor:</b> ${vendorInput.value}</p>
+            <p><b>Date Range:</b> ${fromDateInput.value} to ${toDateInput.value}</p>
+            <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Invoice Number</th>
+                        <th>Payment Mode</th>
+                        <th>Amount Paid</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${paymentTableBody.innerHTML}
+                </tbody>
+            </table>
+            <p><strong>${totalPaidField.textContent}</strong></p>
+            <br><br>
+            <div style="display: flex; justify-content: space-between;">
+                <p>Authorized Signature: __________</p>
+                <p>Receiver Signature: __________</p>
+            </div>
+        </div>
+    `;
+
+            let iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+
+            let doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write('<html><head><title>Print Payment Receipt</title></head><body>');
+            doc.write(printContent);
+            doc.write('</body></html>');
+            doc.close();
+
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+
+            // Remove iframe after printing to clean up
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        });
+
     });
+
 </script>
 {% endblock %}
