@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Purchase Record</h4>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="row">
+                        <!-- Transaction Date Field -->
+                        <div class="col-lg-5 col-md-6 col-12">
+                            <label for=" transaction_date">Transaction Date:</label>
+                            <input type="date" id="transaction_date" class="form-control" value="{{ today_date }}">
+                        </div>
+                        <!-- Total Cost Field -->
+                        <div class="col-lg-5 col-md-6 col-12">
+                            <label for=" total_cost">Total Cost (Rs):</label>
+                            <input type="text" id="total_cost" class="form-control" readonly>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table" id="paymentTable">
+                        <thead>
+                            <tr>
+                                <th>Purchase ID</th>
+                                <th>Vendor</th>
+                                <th>Invoice Number</th>
+                                <th>Raw Material</th>
+                                <th>Quantity</th>
+                                <th>Metric</th>
+                                <th>Total Cost (Rs)</th>
+                                <th>Storage Room</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchaseData">
+                            <tr>
+                                <td colspan="8" class="text-center">No data available</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const dateInput = document.getElementById("transaction_date");
+        const totalCostField = document.getElementById("total_cost");
+
+        fetchTransactions(dateInput.value);
+
+        dateInput.addEventListener("change", function () {
+            fetchTransactions(dateInput.value);
+        });
+
+        function fetchTransactions(date) {
+            fetch(`/get_purchase_transaction?date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Fetched Data:", data);
+                    console.log("Purchases Length:", data.purchases.length);  // Debugging
+                    console.log("Has Data:", data.purchases.length > 0);
+
+                    const tableBody = document.getElementById("purchaseData");
+                    tableBody.innerHTML = "";
+
+                    if (data.purchases.length > 0) {
+                        let totalPurchaseAmount = data.total_amount; // Use total_amount from API
+
+                        data.purchases.forEach(history => {
+                            const row = `<tr>
+                            <td>${history.id}</td>
+                            <td>${history.vendor_name}</td>
+                            <td>${history.invoice_number}</td>
+                            <td>${history.raw_material_name}</td>
+                            <td>${history.quantity}</td>
+                            <td>${history.metric}</td>
+                            <td>${history.total_cost}</td>
+                            <td>${history.storageroom_name}</td>
+                        </tr>`;
+                            tableBody.innerHTML += row;
+                        });
+
+                        // Update Total Cost field
+                        totalCostField.value = parseFloat(totalPurchaseAmount).toFixed(2);
+                    } else {
+                        tableBody.innerHTML = `<tr><td colspan="8" class="text-center">No data available</td></tr>`;
+                        totalCostField.value = "0.00"; // Reset total cost
+                    }
+                })
+                .catch(error => console.error("Error fetching transactions:", error));
+        }
+    });
+
+</script>
+{% endblock %}

@@ -26,7 +26,8 @@ def decrypt_message(encrypted_message: bytes, key: bytes) -> str:
 
 
 def generate_random_password(length=10):
-    characters = string.ascii_letters + string.digits + string.punctuation
+    special_characters = "!@#$%^&*-_="
+    characters = string.ascii_letters + string.digits + special_characters
     return ''.join(random.choice(characters) for _ in range(length))
 
 # If you want to generate a key, you can run this separately and store the key securely

@@ -7,11 +7,13 @@
             <div class="page-title">
                 <h4>Dishes Recipe list</h4>
             </div>
+            {% if user.role=='admin' or user.role=='store_manager' %}
             <div class="page-btn">
                 <a href="/add_dish_recipe" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Dish Recipe
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

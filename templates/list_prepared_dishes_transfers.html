@@ -7,11 +7,14 @@
                 <h4>Prepared Dishes Transfer List</h4>
                 <h6>Manage your Prepared Dishes Transfer</h6>
             </div>
+            {% if user.role=='admin' or user.role=='store_manager' or
+            user.role=='branch_manager' %}
             <div class="page-btn">
                 <a href="/transfer_prepared_dishes" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" alt="img">Transfer Raw Material
+                    <img src="../static/img/icons/plus.svg" alt="img">Transfer Prepared Dishes
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

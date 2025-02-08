@@ -93,6 +93,11 @@ def fetch_all(query, params=None):
             connection.close()
 
 
+def fetch_one(query, params=None):
+    results = fetch_all(query, params)
+    return results[0] if results else None
+
+
 def get_user_by_email(email):
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -146,15 +151,19 @@ def get_all_storagerooms(only_active=False):
     return storagerooms
 
 
-def get_all_kitchens():
+def get_all_kitchens(only_active=False):
     query = 'SELECT * FROM kitchen ORDER BY id ASC'
+    if only_active:
+        query = 'SELECT * FROM kitchen WHERE status="active" ORDER BY id ASC'
     kitchens = fetch_all(query)
     logger.debug(f"kitchens -- {kitchens}")
     return kitchens
 
 
-def get_all_restaurants():
+def get_all_restaurants(only_active=False):
     query = 'SELECT * FROM restaurant ORDER BY id ASC'
+    if only_active:
+        query = 'SELECT * FROM restaurant WHERE status="active" ORDER BY id ASC'
     restaurants = fetch_all(query)
     logger.debug(f"restaurants -- {restaurants}")
     return restaurants
@@ -584,8 +593,9 @@ def get_payment_record():
         payment_records AS pr
     JOIN
         vendor_list AS vl ON pr.vendor_id = vl.id
+    WHERE pr.paid_on = %s
         """
-    payments = fetch_all(query)
+    payments = fetch_all(query, (get_current_date(),))
     logger.debug(f"vendor due payments -- {payments}")
     return payments
 
@@ -613,9 +623,11 @@ def get_rawmaterial_transfer_history():
     LEFT JOIN
         kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
     LEFT JOIN
-        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id;
+        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
+    WHERE
+        DATE(rmt.transferred_date) = %s;
     """
-    rawmaterial_transfer = fetch_all(query)
+    rawmaterial_transfer = fetch_all(query, (get_current_date(),))
     logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
     return rawmaterial_transfer
 
@@ -838,7 +850,7 @@ def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
     required_quantities = {}
     for material in raw_materials:
         logger.debug(f"mm {material}")
-        total_quantity = material['quantity'] * float(prepared_quantity)
+        total_quantity = material['quantity'] * prepared_quantity
         raw_material_id = material['raw_material_id']
 
         # Convert grams to kilograms and milliliters to liters
@@ -968,3 +980,34 @@ def update_user_password(new_encrypted_password, email):
         status = e
         logger.debug(f"ERROR: {e}")
     return status
+
+
+def get_purchase_record(date):
+    query = """
+    SELECT
+        ph.id,
+        v.vendor_name,
+        ph.invoice_number,
+        ph.raw_material_name,
+        ph.quantity,
+        ph.metric,
+        ph.total_cost,
+        sr.storageroomname AS storageroom_name,
+        (SELECT SUM(total_cost) FROM purchase_history WHERE purchase_date = %s) AS total_purchase_amount
+    FROM
+        purchase_history ph
+    JOIN
+        vendor_list v ON ph.vendor_id = v.id
+    JOIN
+        storagerooms sr ON ph.storageroom_id = sr.id
+    WHERE ph.purchase_date = %s
+    ORDER BY
+        ph.created_at DESC;
+    """
+
+    purchases = fetch_all(query, (date, date))
+    total_purchase_amount = purchases[0]['total_purchase_amount'] if purchases else 0
+
+    logger.debug(f"Purchase records: {purchases}")
+    logger.debug(f"Total purchase amount on {date}: {total_purchase_amount}")
+    return purchases, total_purchase_amount

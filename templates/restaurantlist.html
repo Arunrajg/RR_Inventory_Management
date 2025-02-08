@@ -6,11 +6,13 @@
             <div class="page-title">
                 <h4>Restaurant List</h4>
             </div>
+            {% if user.role=='admin' %}
             <div class="page-btn">
                 <a href="/addrestaurant" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Restaurant
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

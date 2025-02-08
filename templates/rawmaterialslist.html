@@ -6,11 +6,13 @@
             <div class="page-title">
                 <h4>Raw Materials list</h4>
             </div>
+            {% if user.role=='admin' or user.role=='store_manager' %}
             <div class="page-btn">
                 <a href="/addrawmaterials" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Raw Material
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

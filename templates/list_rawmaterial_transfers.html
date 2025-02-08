@@ -7,11 +7,14 @@
                 <h4>Raw Material Transfer List</h4>
                 <h6>Manage your Raw Material Transfer</h6>
             </div>
+            {% if user.role=='admin' or user.role=='store_manager' or
+            user.role=='branch_manager' %}
             <div class="page-btn">
                 <a href="/transfer_raw_material" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" alt="img">Transfer Raw Material
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

@@ -7,11 +7,13 @@
                 <h4>Payment Record</h4>
                 <!-- <h6>Manage your purchases</h6> -->
             </div>
+            {% if user.role=='admin' or user.role=='branch_manager' %}
             <div class="page-btn">
                 <a href="/pending_payments" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" alt="img">Pay Amount
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">

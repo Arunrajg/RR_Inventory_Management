@@ -6,11 +6,14 @@
             <div class="page-title">
                 <h4>Vendor List</h4>
             </div>
+            {% if user.role=='admin' or user.role=='store_manager' or
+            user.role=='branch_manager' %}
             <div class="page-btn">
                 <a href="/add_vendor" class="btn btn-added">
                     <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Vendor
                 </a>
             </div>
+            {% endif %}
         </div>
 
         <div class="card">
