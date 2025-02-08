@@ -1108,7 +1108,8 @@ def purchase_record():
     if "user" not in session:
         return redirect("/login")
     # purchases = get_all_purchases()
-    return render_template('purchase_record.html', user=session["user"])
+    today_date = get_current_date()
+    return render_template('purchase_record.html', user=session["user"], today_date=today_date)
 
 
 @app.route("/get_purchase_transaction", methods=["GET"])
@@ -1119,6 +1120,16 @@ def get_purchase_transaction():
     app.logger.debug("heyy")
     app.logger.debug({"purchases": transactions, "total_amount": total_purchase_amount})
     return jsonify({"purchases": transactions, "total_amount": total_purchase_amount})
+
+
+@app.route("/get_payment_transaction", methods=["GET"])
+def get_payment_transaction():
+    date = request.args.get("date")
+    app.logger.debug(f"date {date}")
+    transactions, total_paid_amount = get_payment_record_on_date(date=date)
+    app.logger.debug("heyy")
+    app.logger.debug({"payments": transactions, "total_amount": total_paid_amount})
+    return jsonify({"payments": transactions, "total_amount": total_paid_amount})
 
 
 @app.route("/pending_payments", methods=["GET", "POST"])
@@ -1270,16 +1281,17 @@ def payment_receipt():
         return redirect("/login")
     inv_payment_details = get_invoice_payment_details()
     vendors = get_all_vendors()
-    return render_template('payment_receipt.html', vendors=vendors, inv_payment_details=inv_payment_details, user=session["user"])
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('payment_receipt.html', vendors=vendors, owner=owner, inv_payment_details=inv_payment_details, user=session["user"])
 
 
 @app.route("/payment_record")
 def payment_record():
     if "user" not in session:
         return redirect("/login")
-    payment_record = get_payment_record()
-
-    return render_template('payment_record.html', payment_record=payment_record, user=session["user"])
+    # payment_record = get_payment_record()
+    today_date = get_current_date()
+    return render_template('payment_record.html', user=session["user"], today_date=today_date)
 
 
 @app.route('/restaurant_inventory_stock')

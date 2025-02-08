@@ -5,50 +5,41 @@
         <div class="page-header">
             <div class="page-title">
                 <h4>Payment Record</h4>
-                <!-- <h6>Manage your purchases</h6> -->
             </div>
-            {% if user.role=='admin' or user.role=='branch_manager' %}
-            <div class="page-btn">
-                <a href="/pending_payments" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" alt="img">Pay Amount
-                </a>
-            </div>
-            {% endif %}
         </div>
 
         <div class="card">
             <div class="card-body">
                 <div class="table-top">
-                    <div class="search-set">
-                        <div class="search-input">
-                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                    <div class="row">
+                        <!-- Transaction Date Field -->
+                        <div class="col-lg-5 col-md-6 col-12">
+                            <label for=" transaction_date">Transaction Date:</label>
+                            <input type="date" id="transaction_date" class="form-control" value="{{ today_date }}">
+                        </div>
+                        <!-- Total Cost Field -->
+                        <div class="col-lg-5 col-md-6 col-12">
+                            <label for=" total_cost">Total Amount Paid(Rs):</label>
+                            <input type="text" id="total_cost" class="form-control" readonly>
                         </div>
                     </div>
                 </div>
 
                 <div class="table-responsive">
-                    <table class="table datanew">
+                    <table class="table" id="paymentTable">
                         <thead>
                             <tr>
                                 <th>Payment ID</th>
                                 <th>Vendor</th>
                                 <th>Invoice Number</th>
+                                <th>Mode of Payment</th>
                                 <th>Amount Paid(Rs)</th>
-                                <th>Mode of payment</th>
-                                <th>Paid on</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            {% for history in payment_record %}
+                        <tbody id="paymentData">
                             <tr>
-                                <td>{{ history['payment_id']}}</td>
-                                <td>{{ history['vendor_name'] }}</td>
-                                <td>{{ history['invoice_number']}}</td>
-                                <td>{{ history['amount_paid'] }}</td>
-                                <td>{{ history['mode_of_payment'] }}</td>
-                                <td>{{ history['paid_on'] }}</td>
+                                <td colspan="8" class="text-center">No data available</td>
                             </tr>
-                            {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -56,4 +47,53 @@
         </div>
     </div>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const dateInput = document.getElementById("transaction_date");
+        const totalCostField = document.getElementById("total_cost");
+
+        fetchTransactions(dateInput.value);
+
+        dateInput.addEventListener("change", function () {
+            fetchTransactions(dateInput.value);
+        });
+
+        function fetchTransactions(date) {
+            fetch(`/get_payment_transaction?date=${date}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Fetched Data:", data);
+                    console.log("Payments Length:", data.payments.length);  // Debugging
+                    console.log("Has Data:", data.payments.length > 0);
+
+                    const tableBody = document.getElementById("paymentData");
+                    tableBody.innerHTML = "";
+
+                    if (data.payments.length > 0) {
+                        let totalPaidAmount = data.total_amount; // Use total_amount from API
+
+                        data.payments.forEach(history => {
+                            const row = `<tr>
+                            <td>${history.payment_id}</td>
+                            <td>${history.vendor_name}</td>
+                            <td>${history.invoice_number}</td>
+                            <td>${history.mode_of_payment}</td>
+                            <td>${history.amount_paid}</td>
+                        </tr>`;
+                            tableBody.innerHTML += row;
+                        });
+
+                        // Update Total Cost field
+                        totalCostField.value = parseFloat(totalPaidAmount).toFixed(2);
+                    } else {
+                        tableBody.innerHTML = `<tr><td colspan="8" class="text-center">No data available</td></tr>`;
+                        totalCostField.value = "0.00"; // Reset total cost
+                    }
+                })
+                .catch(error => console.error("Error fetching transactions:", error));
+        }
+    });
+
+</script>
 {% endblock %}

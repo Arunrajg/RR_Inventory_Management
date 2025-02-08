@@ -1011,3 +1011,28 @@ def get_purchase_record(date):
     logger.debug(f"Purchase records: {purchases}")
     logger.debug(f"Total purchase amount on {date}: {total_purchase_amount}")
     return purchases, total_purchase_amount
+
+
+def get_payment_record_on_date(date):
+    query = """
+    SELECT
+        pr.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        pr.invoice_number,
+        pr.mode_of_payment,
+        pr.amount_paid,
+        (SELECT SUM(amount_paid) FROM payment_records WHERE paid_on = %s) AS total_paid_amount
+    FROM
+        payment_records AS pr
+    JOIN
+        vendor_list AS vl ON pr.vendor_id = vl.id
+    WHERE pr.paid_on = %s
+        """
+
+    payments = fetch_all(query, (date, date))
+    total_paid_amount = payments[0]['total_paid_amount'] if payments else 0
+
+    logger.debug(f"Payment records: {payments}")
+    logger.debug(f"Total paid amount on {date}: {total_paid_amount}")
+    return payments, total_paid_amount

@@ -8,14 +8,15 @@
             </div>
             <div class="page-btn">
                 <a href="/pending_payments" class="btn btn-added">
-                    <img src="../static/img/icons/plus.svg" alt="img">Pay Amount
+                    <img src="../static/img/icons/plus.svg" alt="img"> Pay Amount
                 </a>
             </div>
         </div>
 
         <div class="card">
             <div class="card-body">
-                <div class="row align-items-center mb-4">
+                <!-- Filters Section -->
+                <div class="row align-items-end mb-4">
                     <div class="col-md-4">
                         <label for="vendorDropdown" class="form-label">Vendor</label>
                         <input list="vendorList" id="vendorDropdown" class="form-control">
@@ -27,83 +28,58 @@
                     </div>
                     <div class="col-md-2">
                         <label for="fromDate" class="form-label">From Date</label>
-                        <input type="date" id="from_date" name="from_date" class="form-control" required>
+                        <input type="date" id="from_date" class="form-control" required>
                     </div>
                     <div class="col-md-2">
                         <label for="toDate" class="form-label">To Date</label>
-                        <input type="date" id="to_date" name="to_date" class="form-control" required>
+                        <input type="date" id="to_date" class="form-control" required>
                     </div>
-                    <div class="col-md-4 d-flex align-items-end">
-                        <button type="submit" id="submitBtn" class="btn btn-primary me-2">Submit</button>
-                        <button id="printButton" class="btn btn-secondary">Print</button>
+                    <div class="col-md-4 text-end">
+                        <button id="submitBtn" class="btn btn-primary me-2">Submit</button>
+                        <button id="printButton" class="btn btn-secondary" disabled>Print</button>
                     </div>
                 </div>
 
-
+                <!-- Table Section -->
                 <div class="table-responsive">
-                    <table class="table">
-                        <thead>
+                    <table class="table table-bordered">
+                        <thead class="table">
                             <tr>
                                 <th>Date</th>
                                 <th>Invoice Number</th>
                                 <th>Payment Mode</th>
-                                <th>Amount Paid</th>
+                                <th>Amount Paid (Rs)</th>
                             </tr>
                         </thead>
                         <tbody id="paymentTableBody">
                             <tr>
-                                <td colspan="9" class="text-center">No data found</td>
+                                <td colspan="4" class="text-center">No data found</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Total Paid Amount Section -->
+                <div class="mt-3 text-end">
+                    <h5 id="totalPaid" class="fw-bold text-primary"></h5>
                 </div>
             </div>
         </div>
     </div>
 </div>
 {% endblock %}
+
 {% block scripts %}
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const fromDateInput = document.getElementById('from_date');
-        const toDateInput = document.getElementById('to_date');
-        const submitBtn = document.getElementById('submitBtn');
-
-        function validateDates() {
-            const fromDate = new Date(fromDateInput.value);
-            const toDate = new Date(toDateInput.value);
-            const today = new Date();
-
-            if (fromDate > toDate) {
-                alert('From Date cannot be greater than To Date.');
-                toDateInput.value = ''; // Reset invalid input
-            }
-
-            if (toDate > today) {
-                alert('To Date cannot be in the future.');
-                toDateInput.value = ''; // Reset invalid input
-            }
-        }
-
-        fromDateInput.addEventListener('change', validateDates);
-        toDateInput.addEventListener('change', validateDates);
-    });
-
     document.addEventListener('DOMContentLoaded', function () {
         const vendorInput = document.getElementById('vendorDropdown');
         const vendorList = document.getElementById('vendorList');
         const fromDateInput = document.getElementById('from_date');
         const toDateInput = document.getElementById('to_date');
-        const submitButton = document.querySelector('.btn-primary');
-        // const printButton = document.createElement('button');
-        // printButton.textContent = 'Print';
-        // printButton.classList.add('btn', 'btn-secondary', 'mt-3');
-        // submitButton.parentNode.appendChild(printButton);
+        const submitButton = document.getElementById('submitBtn');
+        const printButton = document.getElementById('printButton');
         const paymentTableBody = document.getElementById('paymentTableBody');
-        const totalPaidField = document.createElement('div');
-        totalPaidField.classList.add('mt-3', 'fw-bold');
-        totalPaidField.id = 'totalPaid';
-        submitButton.parentNode.appendChild(totalPaidField);
+        const totalPaidField = document.getElementById('totalPaid');
 
         function getVendorId(vendorName) {
             const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
@@ -113,6 +89,7 @@
         function resetTable() {
             paymentTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No data found</td></tr>';
             totalPaidField.textContent = '';
+            printButton.disabled = true; // Disable print button when no data
         }
 
         submitButton.addEventListener('click', function () {
@@ -143,7 +120,9 @@
                         `;
                             paymentTableBody.insertAdjacentHTML('beforeend', row);
                         });
+
                         totalPaidField.textContent = `Total Paid: Rs. ${totalPaid.toFixed(2)}`;
+                        printButton.disabled = false; // Enable print button when data is available
                     } else {
                         resetTable();
                     }
@@ -157,8 +136,11 @@
         printButton.addEventListener('click', function () {
             const printContent = `
         <div>
-            <h3>Payment Receipt</h3>
-            <h2> Dharani Group </h2>
+            <div style="text-align: center;">
+                <h2> {{ owner.name }} </h2>
+                <p> Contact: {{ owner.phone_num }} </p>
+                <p> Address: {{ owner.address }} </p>
+            </div>
             <p><b>Vendor:</b> ${vendorInput.value}</p>
             <p><b>Date Range:</b> ${fromDateInput.value} to ${toDateInput.value}</p>
             <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
@@ -181,7 +163,7 @@
                 <p>Receiver Signature: __________</p>
             </div>
         </div>
-    `;
+        `;
 
             let iframe = document.createElement('iframe');
             iframe.style.position = 'absolute';
@@ -192,7 +174,7 @@
 
             let doc = iframe.contentWindow.document;
             doc.open();
-            doc.write('<html><head><title>Print Payment Receipt</title></head><body>');
+            doc.write('<html><head><title>Payment Receipt</title></head><body>');
             doc.write(printContent);
             doc.write('</body></html>');
             doc.close();
@@ -200,13 +182,11 @@
             iframe.contentWindow.focus();
             iframe.contentWindow.print();
 
-            // Remove iframe after printing to clean up
             setTimeout(() => {
                 document.body.removeChild(iframe);
             }, 1000);
         });
 
     });
-
 </script>
 {% endblock %}
