@@ -284,8 +284,15 @@
             const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
             availableQuantityInput.value = availableQuantity.toFixed(5);
 
+            // Update max attribute for transfer quantity
             transferQuantityInput.setAttribute('max', availableQuantity);
-            transferQuantityInput.addEventListener('input', function () {
+
+            // Remove any previous event listeners to avoid conflicts
+            transferQuantityInput.replaceWith(transferQuantityInput.cloneNode(true));
+            const newTransferQuantityInput = row.querySelector('input[name="quantity[]"]');
+
+            // Add new event listener with updated max limit
+            newTransferQuantityInput.addEventListener('input', function () {
                 if (parseFloat(this.value) > availableQuantity) {
                     alert('Transfer Quantity cannot exceed Available Quantity.');
                     this.value = availableQuantity.toFixed(5);

@@ -34,10 +34,10 @@
                             <th>S.No</th>
                             <th>Kitchen Name</th>
                             <th>Raw Material Name</th>
-                            <th>Metric</th>
                             <th>Transferred Quantity</th>
                             <th>Estimated Consumed Quantity</th>
                             <th>Remaining Quantity</th>
+                            <th>Metric</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -46,10 +46,10 @@
                             <td>{{ loop.index }}</td>
                             <td>{{ row[0] }}</td>
                             <td>{{ row[1] }}</td>
-                            <td>{{ row[2] }}</td>
                             <td>{{ row[3] }}</td>
                             <td>{{ row[4] }}</td>
                             <td>{{ row[5] }}</td>
+                            <td>{{ row[2] }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

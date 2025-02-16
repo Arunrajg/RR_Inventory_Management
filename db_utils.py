@@ -234,9 +234,9 @@ def get_restaurant_consumption_report(restaurant_id, report_date):
         r.restaurantname AS restaurant_name,
         rm.name AS raw_material_name,
         ris.metric AS metric,
-        ROUND(SUM(rmtd.quantity),5) AS transferred_quantity,
-        ROUND(SUM(c.quantity),5) AS estimated_consumed_quantity,
-        ROUND((SUM(rmtd.quantity) - COALESCE(SUM(c.quantity), 0)),5) AS remaining_quantity
+        ROUND(SUM(CASE WHEN rmtd.destination_type = 'restaurant' THEN rmtd.quantity ELSE 0 END), 5) AS transferred_quantity,
+        ROUND(SUM(c.quantity), 5) AS consumed_quantity,
+        ROUND((SUM(CASE WHEN rmtd.destination_type = 'restaurant' THEN rmtd.quantity ELSE 0 END) - COALESCE(SUM(c.quantity), 0)), 5) AS remaining_quantity
     FROM 
         restaurant_inventory_stock ris
     JOIN 
@@ -244,7 +244,7 @@ def get_restaurant_consumption_report(restaurant_id, report_date):
     JOIN 
         raw_materials rm ON ris.raw_material_id = rm.id
     LEFT JOIN 
-        raw_material_transfer_details rmtd ON rmtd.destination_id = ris.restaurant_id AND rmtd.raw_material_id = ris.raw_material_id AND DATE(rmtd.transferred_date) = %s
+        raw_material_transfer_details rmtd ON rmtd.destination_id = ris.restaurant_id AND rmtd.raw_material_id = ris.raw_material_id AND DATE(rmtd.transferred_date) = %s AND rmtd.destination_type = 'restaurant'
     LEFT JOIN 
         consumption c ON c.location_id = ris.restaurant_id AND c.raw_material_id = ris.raw_material_id AND c.location_type = 'restaurant' AND DATE(c.consumption_date) = %s
     WHERE 
@@ -341,6 +341,19 @@ def subtract_raw_materials(raw_materials, destination_type, type_id, report_date
         cursor.close()
 
 
+def get_purchase_years():
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT DISTINCT YEAR(purchase_date) AS year FROM purchase_history ORDER BY year DESC;")
+    years = [row[0] for row in cursor.fetchall()]
+
+    cursor.close()
+    connection.close()
+    logger.debug(f"years {years}")
+    return {"years": years}
+
+
 def get_dish_recipe_raw_materials(dish_id):
     query = """
         SELECT 
@@ -388,16 +401,16 @@ def get_prepared_dishes_today():
     return prepared_dishes
 
 
-def get_all_prepared_dishes():
+def get_all_prepared_dishes(prepared_date):
     query = """
-    SELECT kpd.id, kpd.prepared_dish_id, kpd.prepared_quantity, kpd.prepared_in_kitchen, kpd.prepared_on,
+    SELECT kpd.id, kpd.prepared_dish_id, kpd.prepared_quantity, kpd.available_quantity, kpd.prepared_in_kitchen, kpd.prepared_on,
         d.name AS dish_name, d.category AS dish_category, k.kitchenname AS kitchen_name
     FROM kitchen_prepared_dishes kpd
     JOIN dishes d ON kpd.prepared_dish_id = d.id
-    JOIN kitchen k ON kpd.prepared_in_kitchen = k.id;
-
+    JOIN kitchen k ON kpd.prepared_in_kitchen = k.id
+    WHERE kpd.prepared_on=%s;
     """
-    prepared_dishes = fetch_all(query)
+    prepared_dishes = fetch_all(query, (prepared_date,))
     logger.debug(f"prepared_dishes -- {prepared_dishes}")
     return prepared_dishes
 
@@ -600,7 +613,7 @@ def get_payment_record():
     return payments
 
 
-def get_rawmaterial_transfer_history():
+def get_rawmaterial_transfer_history(transferred_date):
     query = """
     SELECT
         rm.name AS raw_material_name,
@@ -627,12 +640,12 @@ def get_rawmaterial_transfer_history():
     WHERE
         DATE(rmt.transferred_date) = %s;
     """
-    rawmaterial_transfer = fetch_all(query, (get_current_date(),))
+    rawmaterial_transfer = fetch_all(query, (transferred_date,))
     logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
     return rawmaterial_transfer
 
 
-def get_prepared_dishes_transfer_history():
+def get_prepared_dishes_transfer_history(transferred_date):
     query = """
     SELECT
         k.kitchenname AS kitchen_name,
@@ -648,9 +661,11 @@ def get_prepared_dishes_transfer_history():
     JOIN
         restaurant r ON pdt.destination_restaurant_id = r.id
     JOIN
-        dishes d ON pdt.dish_id = d.id;
+        dishes d ON pdt.dish_id = d.id
+    WHERE
+        DATE(pdt.transferred_date) = %s;
     """
-    prepared_dishes_transfer = fetch_all(query)
+    prepared_dishes_transfer = fetch_all(query, (transferred_date,))
     logger.debug(f"prepared_dishes_transfer -- {prepared_dishes_transfer}")
     return prepared_dishes_transfer
 
@@ -763,11 +778,11 @@ def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
     """, (dish_id,))
     raw_materials = cursor.fetchall()
     logger.debug(f"raw_materials for dish {dish_id} {raw_materials} qty {sold_quantity}")
-    # Calculate the total quantity needed for the prepared dishes
+    # Calculate the total quantity needed for the sold dishes
     required_quantities = {}
     for material in raw_materials:
         logger.debug(f"mm {material}")
-        total_quantity = material['quantity'] * float(sold_quantity)
+        total_quantity = material['quantity'] * sold_quantity
         logger.debug(f"{material['quantity']} * {sold_quantity}, {total_quantity}")
         raw_material_id = material['raw_material_id']
 
@@ -784,7 +799,7 @@ def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
         else:
             required_quantities[raw_material_id] = total_quantity
     logger.debug(f"required quantities {required_quantities}")
-    # Update the kitchen inventory stock
+    # Update the restaurant inventory stock
     for raw_material_id, required_quantity in required_quantities.items():
         cursor.execute("""
             SELECT quantity, metric

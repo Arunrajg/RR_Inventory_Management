@@ -154,11 +154,19 @@
     function addMaterialRow(name, quantity, metric) {
         const row = document.createElement("tr");
         row.innerHTML = `
-            <td><input type="text" class="form-control" name="material_names[]" value="${name}" required></td>
-            <td><input type="number" class="form-control" name="quantities[]" value="${quantity}" required></td>
-            <td><input type="text" class="form-control" name="metrics[]" value="${metric}" required></td>
-            <td><button type="button" class="btn btn-danger btn-remove">X</button></td>
-        `;
+        <td><input type="text" class="form-control" name="material_names[]" value="${name}" required></td>
+        <td><input type="number" class="form-control" name="quantities[]" value="${quantity}" required></td>
+        <td>
+            <select name="metrics[]" class="form-control metric-input" required>
+                <option value="kg" ${metric === "kg" ? "selected" : ""}>kilograms (kg)</option>
+                <option value="grams" ${metric === "grams" ? "selected" : ""}>grams (g)</option>
+                <option value="liter" ${metric === "liter" ? "selected" : ""}>liter (l)</option>
+                <option value="ml" ${metric === "ml" ? "selected" : ""}>milliliter (ml)</option>
+                <option value="unit" ${metric === "unit" ? "selected" : ""}>unit</option>
+            </select>
+        </td>
+        <td><button type="button" class="btn btn-danger btn-remove">X</button></td>
+    `;
         rawMaterialsTable.appendChild(row);
 
         // Attach remove event to the button

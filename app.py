@@ -141,6 +141,12 @@ def index():
     return render_template("index.html", user=session["user"], cost_details=cost_details)
 
 
+@app.route('/api/years', methods=['GET'])
+def get_years():
+    years = get_purchase_years()
+    return jsonify(years)
+
+
 @app.route("/forgotpassword", methods=["GET", "POST"])
 def forgot_password():
     app.logger.debug(request.method)
@@ -1280,7 +1286,7 @@ def payment_receipt():
     if "user" not in session:
         return redirect("/login")
     inv_payment_details = get_invoice_payment_details()
-    vendors = get_all_vendors()
+    vendors = get_all_vendors(only_active=True)
     owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
     return render_template('payment_receipt.html', vendors=vendors, owner=owner, inv_payment_details=inv_payment_details, user=session["user"])
 
@@ -1410,20 +1416,26 @@ def transfer_raw_material():
     )
 
 
-@app.route('/list_rawmaterial_transfers')
+@app.route('/list_rawmaterial_transfers', methods=["GET", "POST"])
 def list_rawmaterial_transfers():
     if "user" not in session:
         return redirect("/login")
-    transfers = get_rawmaterial_transfer_history()
-    return render_template('list_rawmaterial_transfers.html', transfers=transfers, user=session["user"])
+    if request.method == "POST":
+        selected_date = request.form['transfer_date']
+        transfers = get_rawmaterial_transfer_history(selected_date)
+        return render_template('list_rawmaterial_transfers.html', transfers=transfers, current_date=selected_date, user=session["user"])
+    return render_template('list_rawmaterial_transfers.html', user=session["user"])
 
 
-@app.route('/list_prepared_dishes_transfers')
+@app.route('/list_prepared_dishes_transfers', methods=["GET", "POST"])
 def list_prepared_dishes_transfers():
     if "user" not in session:
         return redirect("/login")
-    transfers = get_prepared_dishes_transfer_history()
-    return render_template('list_prepared_dishes_transfers.html', transfers=transfers, user=session["user"])
+    if request.method == "POST":
+        selected_date = request.form['transfer_date']
+        transfers = get_prepared_dishes_transfer_history(selected_date)
+        return render_template('list_prepared_dishes_transfers.html', transfers=transfers, current_date=selected_date, user=session["user"])
+    return render_template('list_prepared_dishes_transfers.html', user=session["user"])
 
 
 @app.route('/profile', methods=['GET', 'POST'])
@@ -1725,6 +1737,9 @@ def upload_sales_report():
         app.logger.debug(f"request.files {request.files}")
         file = request.files.get('file')
         restaurant_id = request.form.get("restaurant_id")
+        sales_date = request.form.get("sales_report_date")
+        app.logger.debug(f"restaurant_id {restaurant_id}")
+        app.logger.debug(f"sales_date {sales_date}")
 
         if 'file' not in request.files:
             flash('No file part found. Please try again.', "danger")
@@ -1762,31 +1777,33 @@ def upload_sales_report():
                 # Process the data and update the daily_sales table
                 df = pd.read_excel(file_path)
                 # Extract sales date from filename format: Restaurant_item_tax_report_YYYY_MM_DD_HH_MM_SS.xlsx
-                filename_parts = file.filename.split('_')
-                sales_date_str = f"{filename_parts[4]}-{filename_parts[5]}-{filename_parts[6]}"
-                sales_date = datetime.strptime(sales_date_str, '%Y-%m-%d').date()
+                # filename_parts = file.filename.split('_')
+                # sales_date_str = f"{filename_parts[4]}-{filename_parts[5]}-{filename_parts[6]}"
+                # sales_date = datetime.strptime(sales_date_str, '%Y-%m-%d').date()
 
                 conn = get_db_connection()
                 cursor = conn.cursor()
-
+                sales_report_data = []
                 for index, row in df.iterrows():
-                    category = row['Category']
-                    item_name = row['Item Name']
-                    quantity = row['Qty']
-
+                    temp = {}
+                    temp["category"] = row['Category']
+                    temp["item_name"] = row['Item Name']
+                    temp["quantity"] = row['Qty']
                     cursor.execute(
-                        "SELECT id FROM dishes WHERE category = %s AND name = %s", (category, item_name))
+                        "SELECT id FROM dishes WHERE category = %s AND name = %s", (temp["category"], temp["item_name"]))
                     dish = cursor.fetchone()
                     app.logger.debug(f"dish fetchone one {dish}")
                     if dish:
                         dish_id = dish[0]
+                        temp["dish_id"] = dish_id
                         cursor.execute("""
-                            INSERT INTO daily_sales (sales_date, dish_id, quantity)
-                            VALUES (%s, %s, %s)
+                            INSERT INTO daily_sales (sales_date, dish_id, restaurant_id, quantity)
+                            VALUES (%s, %s, %s, %s)
                             ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
-                        """, (sales_date, dish_id, quantity))
+                        """, (sales_date, dish_id, restaurant_id, temp["quantity"]))
                     else:
-                        missing_recipes.append(item_name)
+                        missing_recipes.append(temp["item_name"])
+                    sales_report_data.append(temp)
 
                 conn.commit()
                 cursor.close()
@@ -1794,11 +1811,11 @@ def upload_sales_report():
 
                 # Delete the uploaded Excel file
                 os.remove(file_path)
-                adjust_stocks(sales_date, restaurant_id)
-            flash("Sales report data has been processed succesfully and the inventory stocks have been adjusted accordingly. Please do not reupload the sales report as it will modify the inventory.", "success")
+                adjust_stocks(sales_report_data, sales_date, restaurant_id)
+                flash("Sales report data has been processed succesfully and the inventory stocks have been adjusted accordingly. Please do not reupload the sales report as it will modify the inventory.", "success")
             return redirect(url_for('upload_sales_report'))
 
-    restaurants = get_all_restaurants()
+    restaurants = get_all_restaurants(only_active=True)
     return render_template('upload_sales_report.html', user=session["user"], restaurants=restaurants, current_date=get_current_date())
 
 
@@ -1913,9 +1930,12 @@ def add_prepared_dishes():
 def list_prepared_dishes():
     if "user" not in session:
         return redirect("/login")
-    prepared_dishes = get_all_prepared_dishes()
-
-    return render_template('list_prepared_dishes.html', user=session["user"], prepared_dishes=prepared_dishes)
+    if request.method == 'POST':
+        prepared_date = request.form['prepared_date']
+        app.logger.debug(f"prepared_date {prepared_date}")
+        prepared_dishes = get_all_prepared_dishes(prepared_date)
+        return render_template('list_prepared_dishes.html', user=session["user"], prepared_dishes=prepared_dishes, current_date=prepared_date)
+    return render_template('list_prepared_dishes.html', user=session["user"])
 
 
 @app.route('/userlist', methods=['GET', 'POST'])
@@ -1938,8 +1958,8 @@ def transfer_prepared_dishes():
     # Fetch dishes, restaurants, and kitchens to populate in the form
     prepared_dishes_today = get_prepared_dishes_today()
     dish_categories = list(set([dish["prepared_dish_category"] for dish in prepared_dishes_today]))
-    kitchens = get_all_kitchens()
-    restaurants = get_all_restaurants()
+    kitchens = get_all_kitchens(only_active=True)
+    restaurants = get_all_restaurants(only_active=True)
 
     current_date = get_current_date()
     app.logger.debug(f"dish_categories {dish_categories}")
@@ -2022,8 +2042,6 @@ def transfer_prepared_dishes():
     return render_template('transfer_prepared_dishes.html', dish_categories=dish_categories, current_date=current_date, prepared_dishes_today=prepared_dishes_today, restaurants=restaurants, kitchens=kitchens, user=session["user"])
 
 
-# def upload_sales_report():
-
 @app.route('/check_dish_availability', methods=['GET', 'POST'])
 def check_dish_availability():
     if "user" not in session:
@@ -2096,14 +2114,14 @@ def process_data(file_path):
     return missing_recipes
 
 
-def adjust_stocks(report_date, restaurant_id):
+def adjust_stocks(sales_report_data, report_date, restaurant_id):
     conn = get_db_connection()
     if not conn:
         print("Failed to connect to the database.")
         return []
     app.logger.debug(report_date)
-    data = get_sales_report_data(report_date)
-    for dish_data in data:
+    # data = get_sales_report_data(report_date)
+    for dish_data in sales_report_data:
         app.logger.debug(f"dish data for loop {dish_data}")
         dish_recipe = get_dish_recipe(dish_data["dish_id"])
         app.logger.debug(f"dish recipeee {dish_recipe}")
@@ -2136,7 +2154,7 @@ def adjust_stocks(report_date, restaurant_id):
 def restaurant_consumption():
     if "user" not in session:
         return redirect("/login")
-    restaurants = get_all_restaurants()
+    restaurants = get_all_restaurants(only_active=True)
     if request.method == 'POST':
         selected_date = request.form['report_date']
         restaurant_id = request.form['restaurant_id']
@@ -2151,7 +2169,7 @@ def restaurant_consumption():
 def kitchen_consumption():
     if "user" not in session:
         return redirect("/login")
-    kitchens = get_all_kitchens()
+    kitchens = get_all_kitchens(only_active=True)
     if request.method == 'POST':
         selected_date = request.form['report_date']
         kitchen_id = request.form['kitchen_id']
@@ -2160,6 +2178,46 @@ def kitchen_consumption():
         consumption_data = get_kitchen_consumption_report(kitchen_id, selected_date)
         return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=selected_date, query_result=consumption_data)
     return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=get_current_date())
+
+
+@app.route("/api/purchase_trend")
+def purchase_trend():
+    year = request.args.get("year", type=int)
+    app.logger.debug(f"yearr {year}")
+    query = """
+        SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
+        FROM purchase_history
+        WHERE YEAR(purchase_date) = %s
+        GROUP BY MONTH(purchase_date)
+        ORDER BY MONTH(purchase_date);
+    """
+
+    connection = get_db_connection()
+    with connection.cursor() as cursor:
+        cursor.execute(query, (year,))
+        result = cursor.fetchall()
+
+    connection.close()
+    app.logger.debug(f"result {result}")
+
+    # Mapping database results to required format
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    purchase_data = {row[0]: row[1] for row in result}
+
+    purchase_amounts = [purchase_data.get(i+1, 0) for i in range(12)]  # Fill missing months with 0
+
+    response = {
+        "year": year,
+        "months": months,
+        "purchase_amounts": purchase_amounts
+    }
+
+    return jsonify(response)
+    # return {
+    #     "year": 2025,
+    #     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+    #     "purchase_amounts": [12000, 15000, 18000, 11000, 9000, 20000, 25000, 23000, 17000, 19000, 22000, 24000]
+    # }
 
 
 if __name__ == "__main__":

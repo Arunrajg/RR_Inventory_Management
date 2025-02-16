@@ -16,49 +16,51 @@
             </div>
             {% endif %}
         </div>
-
-        <div class="card">
-            <div class="card-body">
-                <div class="table-top">
-                    <div class="search-set">
-                        <div class="search-input">
-                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table datanew">
-                        <thead>
-                            <tr>
-                                <th>S.No</th>
-                                <th>Raw Material</th>
-                                <th>Quantity</th>
-                                <th>Metric</th>
-                                <th>Transferred From</th>
-                                <th>Destination Type</th>
-                                <th>Transferred To</th>
-                                <th>Transfered on</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for transfer in transfers %}
-                            <tr>
-                                <td>{{ loop.index }}</td>
-                                <td>{{ transfer['raw_material_name']}}</td>
-                                <td>{{ transfer['quantity']}}</td>
-                                <td>{{ transfer['metric'] }}</td>
-                                <td>{{ transfer['transferred_from'] }}</td>
-                                <td>{{ transfer['destination_type'] }}</td>
-                                <td>{{ transfer['transferred_to'] }}</td>
-                                <td>{{ transfer['transferred_date'] }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <form method="POST" action="/list_rawmaterial_transfers">
+            <div class="row align-items-center mb-3">
+                <div class="col-md-6">
+                    <label>Transferred Date</label>
+                    <input type="date" name="transfer_date" class="form-control" value="{{ current_date }}" required>
                 </div>
             </div>
-        </div>
+            <div class="table-responsive">
+                {% if transfers %}
+                <table class="table datanew">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Raw Material</th>
+                            <th>Quantity</th>
+                            <th>Metric</th>
+                            <th>Transferred From</th>
+                            <th>Destination Type</th>
+                            <th>Transferred To</th>
+                            <th>Transfered on</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transfer in transfers %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ transfer['raw_material_name']}}</td>
+                            <td>{{ transfer['quantity']}}</td>
+                            <td>{{ transfer['metric'] }}</td>
+                            <td>{{ transfer['transferred_from'] }}</td>
+                            <td>{{ transfer['destination_type'] }}</td>
+                            <td>{{ transfer['transferred_to'] }}</td>
+                            <td>{{ transfer['transferred_date'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No data available for the selected date.</p>
+                {% endif %}
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+        </form>
 
     </div>
 </div>

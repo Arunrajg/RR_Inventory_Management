@@ -260,23 +260,6 @@
                                 </ul>
                             </li>
                             <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
-                                        alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
-                                <ul>
-                                    {% if user.role=='admin' or user.role=='store_manager' or
-                                    user.role=='branch_manager' %}
-                                    <li><a href="/add_prepared_dishes"
-                                            class="{{ 'active' if request.path == '/add_prepared_dishes' else '' }}">Add
-                                            Prepared Dishes</a></li>
-                                    {% endif %}
-                                    <li><a href="/list_prepared_dishes"
-                                            class="{{ 'active' if request.path == '/list_prepared_dishes' else '' }}">List
-                                            Prepared Dishes</a></li>
-                                    <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
-                                    <li><a href="addquotation.html">Add Quotation</a></li> -->
-                                </ul>
-                            </li>
-                            <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg"
                                         alt="img"><span>
                                         Transfer</span> <span class="menu-arrow"></span></a>
@@ -301,6 +284,23 @@
                                             class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
                                             Prepared
                                             Dishes Transfers </a></li>
+                                </ul>
+                            </li>
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
+                                        alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    {% if user.role=='admin' or user.role=='store_manager' or
+                                    user.role=='branch_manager' %}
+                                    <li><a href="/add_prepared_dishes"
+                                            class="{{ 'active' if request.path == '/add_prepared_dishes' else '' }}">Add
+                                            Prepared Dishes</a></li>
+                                    {% endif %}
+                                    <li><a href="/list_prepared_dishes"
+                                            class="{{ 'active' if request.path == '/list_prepared_dishes' else '' }}">List
+                                            Prepared Dishes</a></li>
+                                    <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
+                                    <li><a href="addquotation.html">Add Quotation</a></li> -->
                                 </ul>
                             </li>
                             <li class="submenu">

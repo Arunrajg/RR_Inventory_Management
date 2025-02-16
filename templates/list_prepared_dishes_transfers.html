@@ -16,47 +16,49 @@
             </div>
             {% endif %}
         </div>
-
-        <div class="card">
-            <div class="card-body">
-                <div class="table-top">
-                    <div class="search-set">
-                        <div class="search-input">
-                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-responsive">
-                    <table class="table datanew">
-                        <thead>
-                            <tr>
-                                <th>S.No</th>
-                                <th>Transferred From</th>
-                                <th>Transferred To</th>
-                                <th>Dish Category</th>
-                                <th>Dish Name</th>
-                                <th>Quantity</th>
-                                <th>Transferred on</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for transfer in transfers %}
-                            <tr>
-                                <td>{{ loop.index }}</td>
-                                <td>{{ transfer['kitchen_name']}}</td>
-                                <td>{{ transfer['restaurant_name']}}</td>
-                                <td>{{ transfer['dish_category'] }}</td>
-                                <td>{{ transfer['dish_name'] }}</td>
-                                <td>{{ transfer['transferred_quantity'] }}</td>
-                                <td>{{ transfer['transferred_on'] }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+        <form method="POST" action="/list_prepared_dishes_transfers">
+            <div class="row align-items-center mb-3">
+                <div class="col-md-6">
+                    <label>Transferred Date</label>
+                    <input type="date" name="transfer_date" class="form-control" value="{{ current_date }}" required>
                 </div>
             </div>
-        </div>
+            <div class="table-responsive">
+                {% if transfers %}
+                <table class="table datanew">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Transferred From</th>
+                            <th>Transferred To</th>
+                            <th>Dish Category</th>
+                            <th>Dish Name</th>
+                            <th>Quantity</th>
+                            <th>Transfered on</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for transfer in transfers %}
+                        <tr>
+                            <td>{{ loop.index }}</td>
+                            <td>{{ transfer['kitchen_name']}}</td>
+                            <td>{{ transfer['restaurant_name']}}</td>
+                            <td>{{ transfer['dish_category'] }}</td>
+                            <td>{{ transfer['dish_name'] }}</td>
+                            <td>{{ transfer['transferred_quantity'] }}</td>
+                            <td>{{ transfer['transferred_on'] }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p>No data available for the selected date.</p>
+                {% endif %}
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary mt-3">Submit</button>
+        </form>
 
     </div>
 </div>

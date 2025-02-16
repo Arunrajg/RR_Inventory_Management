@@ -4,7 +4,7 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Dishes list</h4>
+                <h4>Prepared Dishes list</h4>
             </div>
             {% if user.role=='admin' or user.role=='store_manager' or
             user.role=='branch_manager' %}
@@ -18,14 +18,58 @@
 
         <div class="card">
             <div class="card-body">
-                <div class="table-top">
+                <!-- <div class="table-top">
                     <div class="search-set">
                         <div class="search-input">
                             <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
                         </div>
                     </div>
-                </div>
-                <div class="table-responsive">
+                </div> -->
+                <form method="POST" action="/list_prepared_dishes">
+                    <div class="row align-items-center mb-3">
+                        <div class="col-md-6">
+                            <label>Prepared on</label>
+                            <input type="date" name="prepared_date" class="form-control" value="{{ current_date }}"
+                                required>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        {% if prepared_dishes %}
+                        <table class="table datanew">
+                            <thead>
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Prepared In Kitchen</th>
+                                    <th>Dish Category</th>
+                                    <th>Dish Name</th>
+                                    <th>Prepared Quantity</th>
+                                    <th>Available Quantity</th>
+                                    <th>Prepared On</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for detail in prepared_dishes %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td>{{ detail['kitchen_name'] }}</td>
+                                    <td>{{ detail['dish_category'] }}</td>
+                                    <td>{{ detail['dish_name'] }}</td>
+                                    <td>{{ detail['prepared_quantity'] }}</td>
+                                    <td>{{ detail['available_quantity'] }}</td>
+                                    <td>{{ detail['prepared_on'] }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        {% else %}
+                        <p>No data available for the selected date.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary mt-3">Submit</button>
+                </form>
+                <!-- <div class="table-responsive">
                     <table class="table  datanew">
                         <thead>
                             <tr>
@@ -52,7 +96,7 @@
                             {% endfor %}
                         </tbody>
                     </table>
-                </div>
+                </div> -->
             </div>
         </div>
 
