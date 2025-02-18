@@ -24,23 +24,47 @@
                         </div>
                     </div>
                 </div>
-
+                <div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    <ul class="flash-messages">
+                        {% for category, message in messages %}
+                        <li class="{{ category }}"><b>**{{ message }}</b></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% endwith %}
+                </div>
 
                 <div class="table-responsive">
                     <table class="table  datanew">
                         <thead>
                             <tr>
                                 <th>Raw Material Number</th>
+                                <th>Category</th>
                                 <th>Raw Material Name</th>
                                 <th>Metric</th>
+                                {% if user.role == 'admin' %}
+                                <th>Action</th>
+                                {% endif %}
                             </tr>
                         </thead>
                         <tbody>
                             {% for material in rawmaterials %}
                             <tr>
                                 <td style="width: 10%;">{{ material.id }}</td>
+                                <td style="width: 35%;">{{ material.category }}</td>
                                 <td style="width: 35%;">{{ material.name }}</td>
-                                <td style="width: 55%;">{{ material.metric }}</td>
+                                <td style="width: 10%;">{{ material.metric }}</td>
+                                {% if user.role == 'admin' %}
+                                <td style="width: 10%;">
+                                    <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#editModal"
+                                        data-id="{{ material.id }}" data-name="{{ material.name }}"
+                                        data-category="{{ material.category }}" data-metric="{{ material.metric }}">
+                                        <img src="../static/img/icons/edit.svg" alt="img">
+                                    </button>
+                                </td>
+                                {% endif %}
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -51,6 +75,40 @@
 
     </div>
 </div>
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editModalLabel">Edit Raw Material</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="POST" action="/editrawmaterial">
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="editRawmaterialId">
+                    <div class="mb-3">
+                        <label for="editRawmaterialCategory" class="form-label">Category</label>
+                        <input type="text" class="form-control" id="editRawmaterialCategory" name="category" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editRawmaterialMetric" class="form-label">Metric</label>
+                        <select class="form-control" id="editRawmaterialMetric" name="metric" required>
+                            <option value="kg">kilograms(kg)</option>
+                            <option value="grams">grams(g)</option>
+                            <option value="liter">liter(l)</option>
+                            <option value="ml">milliliter(ml)</option>
+                            <option value="unit">unit</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 
@@ -58,4 +116,22 @@
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var editButtons = document.querySelectorAll('.btn-edit');
+        editButtons.forEach(function (button) {
+            button.addEventListener('click', function () {
+                var materialId = button.getAttribute('data-id');
+                var materialCategory = button.getAttribute('data-category');
+                var materialMetric = button.getAttribute('data-metric');
+
+                document.getElementById('editRawmaterialId').value = materialId;
+                document.getElementById('editRawmaterialCategory').value = materialCategory;
+
+                var metricDropdown = document.getElementById('editRawmaterialMetric');
+                metricDropdown.value = materialMetric;
+            });
+        });
+    });
+</script>
 {% endblock %}

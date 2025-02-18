@@ -335,6 +335,32 @@ def edit_restaurant():
     return redirect(url_for('restaurantlist'))
 
 
+@app.route('/editrawmaterial', methods=['POST'])
+def edit_rawmaterial():
+    # Get data from the form
+    rawmaterial_id = request.form.get('id')
+    rawmaterial_category = request.form.get('category')
+    rawmaterial_metric = request.form.get('metric')
+    # SQL query to update the rawmaterial
+    query = """
+        UPDATE raw_materials
+        SET category = %s, metric= %s
+        WHERE id = %s
+    """
+    params = (rawmaterial_category, rawmaterial_metric, rawmaterial_id)
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("rawmaterial details updated successfully.", "success")
+    else:
+        flash("Failed to update the rawmaterial details. Please try again.", "danger")
+
+    # Redirect back to the rawmaterial list
+    return redirect(url_for('rawmaterialslist'))
+
+
 @app.route('/edituser', methods=['POST'])
 def edituser():
     # Get data from the form
@@ -577,41 +603,45 @@ def addrawmaterials():
     if request.method == "POST":
         raw_materials = request.form.getlist("rawmaterial_name[]")
         metrics = request.form.getlist("metric[]")
+        categories = request.form.getlist("materialcategory")
 
         # Check for mismatched lengths (in case of any unexpected UI issues)
-        if len(raw_materials) != len(metrics):
+        if len(raw_materials) != len(metrics) and len(raw_materials) != len(categories):
             flash("Error: Inconsistent data. Please try again.", "danger")
             return redirect("/addrawmaterials")
 
         # Fetch all existing raw materials in one query
         existing_materials = get_all_rawmaterials()
-        existing_set = {(row["name"].lower(), row["metric"].lower()) for row in existing_materials}
+        existing_set = {(row["name"].lower(), row["metric"].lower(), row["category"].lower())
+                        for row in existing_materials}
 
         # Prepare data for bulk insert
         to_insert = []
         errors = []
         successes = []
 
-        for raw_material, metric in zip(raw_materials, metrics):
+        for raw_material, metric, category in zip(raw_materials, metrics, categories):
             raw_material = raw_material.strip().lower()
             metric = metric.strip().lower()
+            category = category.strip().lower()
 
             if not raw_material:
                 errors.append("Raw material name cannot be empty.")
                 continue
 
-            if (raw_material, metric) in existing_set:
-                errors.append(f"Raw material '{raw_material}' with metric '{metric}' already exists.")
+            if (raw_material, metric, category) in existing_set:
+                errors.append(
+                    f"Raw material '{raw_material}' with metric '{metric}' under category '{category}' already exists.")
                 continue
 
             # Add to batch insert list
-            to_insert.append((raw_material, metric))
+            to_insert.append((raw_material, metric, category))
 
         # Perform bulk insert if there are valid entries
         if to_insert:
-            insert_query = "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)"
+            insert_query = "INSERT INTO raw_materials (name, metric, category) VALUES (%s, %s, %s)"
             if execute_query(insert_query, to_insert, bulk=True):  # Pass `bulk=True` to handle batch inserts
-                successes = [f"{raw_material}-{metric}" for raw_material, metric in to_insert]
+                successes = [f"{raw_material}-{metric}-{category}" for raw_material, metric, category in to_insert]
             else:
                 errors.append("Error: Unable to add some raw materials due to a database issue.")
 
@@ -2211,6 +2241,7 @@ def purchase_trend():
         "months": months,
         "purchase_amounts": purchase_amounts
     }
+    app.logger.debug(f"res {response}")
 
     return jsonify(response)
     # return {
