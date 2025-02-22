@@ -62,15 +62,22 @@ def execute_query(query, params=None, bulk=False):
             cursor.execute(query, params)
         else:
             cursor.execute(query)
+
+        # Ensure all results are read before returning
+        if query.strip().lower().startswith("select"):
+            result = cursor.fetchall()
+            cursor.close()  # Close the cursor before returning
+            return result
+
         connection.commit()
-        return cursor.fetchall() if query.strip().lower().startswith("select") else True
+        return True  # Return True for non-SELECT queries
+
     except Exception as e:
         logger.error(f"Database Error: {e}")
         return False
     finally:
         if connection.is_connected():
-            cursor.close()
-            connection.close()
+            connection.close()  # Close the connection to prevent locking
 
 
 # Generic function to execute SELECT queries
@@ -1243,3 +1250,64 @@ def get_payment_record_on_date(date):
     logger.debug(f"Payment records: {payments}")
     logger.debug(f"Total paid amount on {date}: {total_paid_amount}")
     return payments, total_paid_amount
+
+
+def update_minimum_stock(destination_type, destination_id, min_stock_data):
+    try:
+        # Step 1: Fetch all existing records in one query
+        existing_records_query = """
+            SELECT raw_material_id, min_quantity 
+            FROM minimum_stock 
+            WHERE type = %s AND destination_id = %s
+        """
+        existing_records = execute_query(existing_records_query, (destination_type, destination_id))
+        logger.debug(f"existing_records {existing_records}")
+        existing_records_dict = {row[0]: row[1] for row in existing_records} if existing_records else {}
+
+        # Step 2: Prepare bulk UPDATE and INSERT data
+        update_data = []
+        insert_data = []
+
+        for material_id, min_quantity in min_stock_data.items():
+            min_quantity = max(round(min_quantity, 5), 0)  # Ensure 5 decimal points & no negatives
+
+            if material_id in existing_records_dict:
+                # If exists, prepare for UPDATE
+                update_data.append((min_quantity, destination_type, destination_id, material_id))
+            else:
+                # If new, prepare for INSERT
+                insert_data.append((destination_type, destination_id, material_id, min_quantity))
+
+        # Step 3: Bulk UPDATE (if any)
+        if update_data:
+            update_query = """
+                UPDATE minimum_stock 
+                SET min_quantity = %s, updated_at = NOW()
+                WHERE type = %s AND destination_id = %s AND raw_material_id = %s
+            """
+            execute_query(update_query, update_data, bulk=True)
+
+        # Step 4: Bulk INSERT (if any)
+        if insert_data:
+            insert_query = """
+                INSERT INTO minimum_stock (type, destination_id, raw_material_id, min_quantity) 
+                VALUES (%s, %s, %s, %s)
+            """
+            execute_query(insert_query, insert_data, bulk=True)
+
+        return True  # Success
+
+    except Exception as e:
+        logger.error(f"Error updating minimum stock: {str(e)}")
+        return False  # Failure
+
+
+def get_raw_materials_min_stock(destination_type, destination_id):
+    query = """
+        SELECT rm.id, rm.name, rm.category, rm.metric, COALESCE(ms.min_quantity, 0) AS min_quantity
+        FROM raw_materials rm
+        LEFT JOIN minimum_stock ms 
+        ON rm.id = ms.raw_material_id AND ms.type = %s AND ms.destination_id = %s
+    """
+    result = execute_query(query, (destination_type, destination_id))
+    return [{"id": row[0], "name": row[1], "category": row[2], "metric": row[3], "min_quantity": float(row[4])} for row in result]

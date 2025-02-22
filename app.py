@@ -1421,7 +1421,68 @@ def restaurant_inventory_stock():
     return render_template('restaurant_inventory_stock.html', restaurantinv_stock=restaurantinv_stock, user=session["user"])
 
 
+@app.route("/set_minimum_stock", methods=["GET", "POST"])
+def set_minimum_stock():
+    if "user" not in session:
+        return redirect("/login")
+    if request.method == "POST":
+        # app.logger.debug(f"min stock {request.json}")
+        try:
+            destination_type = request.form.get("destination_type")
+            destination_id = request.form.get("destination_id")
+            app.logger.debug(request.form)
+            min_stock_data = {}
+            for key, value in request.form.items():
+                app.logger.debug(f"{key}, {value}")
+                if key.startswith("min_quantity_"):
+                    app.logger.debug(f"yes {key}")
+                    material_id = key.replace("min_quantity_", "")
+                    app.logger.debug(material_id)
+                    min_stock_data[material_id] = float(value)
+                    # app.logger.debug(min_stock_data)
+
+            app.logger.debug(f"Destination Type: {destination_type}, Destination Id: {destination_id}")
+            app.logger.debug(f"Minimum Stock Data: {min_stock_data}")
+            result = update_minimum_stock(destination_type, destination_id, min_stock_data)
+            if result:
+                flash("Minimum stock updated successfully!", "success")
+            else:
+                flash("Error: Unable to add minimum stock details", "danger")
+        except Exception as e:
+            flash(f"Error: {str(e)}", "danger")
+        return redirect(url_for("set_minimum_stock"))
+    return render_template(
+        'set_minimum_stock.html',
+        raw_materials=get_all_rawmaterials(),
+        storage_rooms=get_all_storagerooms(only_active=True),
+        restaurants=get_all_restaurants(only_active=True),
+        kitchens=get_all_kitchens(only_active=True),
+        user=session["user"],
+        today_date=get_current_date()
+    )
+
+
+@app.route("/get_raw_materials_min_stock")
+def fetch_raw_materials_min_stock():
+    if "user" not in session:
+        return redirect("/login")
+
+    # Fetch query parameters from request
+    destination_type = request.args.get("destination_type")
+    destination_id = request.args.get("destination_id")
+
+    if not destination_type or not destination_id:
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    # Fetch raw materials with minimum stock details
+    rm = get_raw_materials_min_stock(destination_type, destination_id)
+
+    app.logger.debug(f"Fetched Raw Materials: {rm}")
+
+    return jsonify(rm)  # Return as JSON response
+
 # Utility function for converting metric units
+
 
 def convert_to_base_units(quantity, metric):
     if metric == "grams":
@@ -1567,101 +1628,6 @@ def logout():
     return redirect("/login")
 
 
-# @app.route('/bulk_add_purchases', methods=['GET', 'POST'])
-# def bulk_add_purchases():
-#     try:
-#         conn = get_db_connection()
-#         with conn.cursor() as cursor:
-#             # Fetch inventory
-#             cursor.execute("SELECT id, inventoryname, inventorycode FROM inventory")
-#             inventories = cursor.fetchall()
-
-#         if request.method == 'POST':
-#             app.logger.debug(f"Request data: {request.data}")
-#             app.logger.debug(f"Form keys: {list(request.form.keys())}")
-
-#             inventory_id = request.form.get('inventory_id')
-#             if not inventory_id:
-#                 flash('Inventory selection is required.', 'danger')
-#                 return redirect(url_for('bulk_add_purchases'))
-
-#             inventory_name = get_inventory_by_id(inventory_id).get("inventoryname", "Unknown Inventory")
-#             raw_material_data = []
-
-#             for key, value in request.form.items():
-#                 if key.startswith('material_'):
-#                     raw_material_id = key.split('_')[1]
-#                     raw_material_name = value
-#                     try:
-#                         quantity = float(request.form[f'quantity_{raw_material_id}'])
-#                         metric = request.form[f'metric_{raw_material_id}']
-#                         total_cost = float(request.form[f'total_cost_{raw_material_id}'])
-#                         purchase_date = request.form[f'purchase_date_{raw_material_id}']
-#                         raw_material_data.append((raw_material_id, raw_material_name,
-#                                                  quantity, metric, total_cost, purchase_date))
-#                     except KeyError as e:
-#                         flash(f'Missing data for raw material {raw_material_name}: {str(e)}', 'danger')
-#                         return redirect(url_for('bulk_add_purchases'))
-
-#             with conn.cursor() as cursor:
-#                 for raw_material in raw_material_data:
-#                     raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date = raw_material
-#                     # Insert or update purchase history
-#                     cursor.execute("""
-#                         INSERT INTO purchase_history
-#                         (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id)
-#                         VALUES (%s, %s, %s, %s, %s, %s, %s)
-#                     """, (raw_material_id, raw_material_name, quantity, metric, total_cost, purchase_date, inventory_id))
-
-#                     # Update inventory stock
-#                     cursor.execute("""
-#                         INSERT INTO inventory_stock
-#                         (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric)
-#                         VALUES (%s, %s, %s, %s, %s, %s)
-#                         ON DUPLICATE KEY UPDATE
-#                         quantity = quantity + VALUES(quantity),
-#                         metric = VALUES(metric),
-#                         inventory_name = VALUES(inventory_name),
-#                         raw_material_name = VALUES(raw_material_name)
-#                     """, (inventory_id, inventory_name, raw_material_id, raw_material_name, quantity, metric))
-#                 conn.commit()
-
-#             flash('Bulk purchase data submitted successfully!', 'success')
-#             return redirect(url_for('bulk_add_purchases'))
-
-#         # Fetch raw materials and last purchase details
-#         with conn.cursor() as cursor:
-#             cursor.execute("""
-#                 SELECT r.id, r.name, r.metric,
-#                        COALESCE(p.quantity, NULL) AS last_quantity,
-#                        COALESCE(p.metric, NULL) AS last_metric,
-#                        COALESCE(p.total_cost, NULL) AS last_cost,
-#                        COALESCE(p.purchase_date, NULL) AS last_date
-#                 FROM raw_materials r
-#                 LEFT JOIN (
-#                     SELECT raw_material_id, quantity, metric, total_cost, purchase_date
-#                     FROM purchase_history
-#                     WHERE purchase_date = (SELECT MAX(purchase_date)
-#                                            FROM purchase_history
-#                                            WHERE raw_material_id = purchase_history.raw_material_id)
-#                 ) p ON r.id = p.raw_material_id
-#             """)
-#             raw_materials = cursor.fetchall()
-
-#         # Deduplicate raw materials
-#         columns = ['id', 'name', 'metric', 'last_quantity', 'last_metric', 'last_cost', 'last_date']
-#         raw_materials = [dict(zip(columns, row)) for row in raw_materials]
-#         unique_raw_materials = {material['id']: material for material in raw_materials}
-#         raw_materials = list(unique_raw_materials.values())
-
-#         return render_template('bulk_add_purchases.html', user=session["user"], raw_materials=raw_materials, current_date=get_current_date(), inventories=inventories)
-
-#     except Exception as e:
-#         app.logger.error(f"An error occurred: {e}")
-#         flash('An unexpected error occurred. Please try again.', 'danger')
-#         return redirect(url_for('bulk_add_purchases'))
-
-
 def convert_to_base_unit(quantity, metric):
     """Converts the given quantity to its base unit (grams or ml)."""
     conversions = {
@@ -1785,59 +1751,6 @@ def estimate_dishes():
         finally:
             connection.close()
     return render_template("estimate_dishes.html", user=session["user"], estimates=estimates_data, selected_date=None)
-
-
-# @app.route('/bulk_transfer', methods=['GET', 'POST'])
-# def bulk_transfer():
-#     if request.method == 'GET':
-#         # Query the list of available dishes for selection (if applicable)
-#         dishes_query = "SELECT id, name FROM dishes"
-#         dishes = execute_query(dishes_query)
-
-#         return render_template('bulk_raw_material_transfer.html', dishes=dishes)
-
-#     elif request.method == 'POST':
-#         try:
-#             # Get form data
-#             inventory_id = request.form.get('inventory_id')
-#             dish_id = request.form.get('dish_id')
-#             transfer_data = {
-#                 key: value
-#                 for key, value in request.form.items()
-#                 if key.startswith("transfer_quantity_")
-#             }
-
-#             # Process each raw material transfer
-#             for raw_material_id, transfer_quantity in transfer_data.items():
-#                 raw_material_id = raw_material_id.replace("transfer_quantity_", "")
-#                 transfer_quantity = float(transfer_quantity)
-
-#                 # Validate available quantity
-#                 query = """
-#                     SELECT quantity
-#                     FROM inventory_stock
-#                     WHERE raw_material_id = %s AND inventory_id = %s
-#                 """
-#                 available_quantity = execute_query(query, (raw_material_id, inventory_id))[0][0]
-
-#                 if transfer_quantity > available_quantity:
-#                     flash(f"Transfer quantity for raw material {raw_material_id} exceeds available quantity.", "danger")
-#                     return redirect('/bulk_transfer')
-
-#                 # Update inventory
-#                 update_query = """
-#                     UPDATE inventory_stock
-#                     SET quantity = quantity - %s
-#                     WHERE raw_material_id = %s AND inventory_id = %s
-#                 """
-#                 execute_query(update_query, (transfer_quantity, raw_material_id, inventory_id))
-
-#             flash("Bulk transfer completed successfully.", "success")
-#             return redirect('/bulk_transfer')
-
-#         except Exception as e:
-#             flash(f"An error occurred: {e}", "danger")
-#             return redirect('/bulk_transfer')
 
 
 @app.route('/upload_sales_report', methods=['GET', 'POST'])

@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Set Minimum Stock</h4>
+                <h6>Set minimum quantity of raw material that needs to be available</h6>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/set_minimum_stock" id="stockForm">
+            <!-- Hidden inputs to send Type and Name -->
+            <input type="hidden" name="destination_type" id="hidden_destination_type">
+            <input type="hidden" name="destination_id" id="hidden_destination_id">
+
+            <div class="card">
+                <div class="card-body">
+                    <!-- First Row -->
+                    <div class="row">
+                        <!-- Type -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select name="destination_type" class="form-control" id="destination_type" required>
+                                    <option value="storageroom">Storage Room</option>
+                                    <option value="kitchen">Kitchen</option>
+                                    <option value="restaurant">Restaurant</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Name -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <select name="destination_id" class="form-control" id="destination_id" required>
+                                    <!-- Dynamic options will be added -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Fetch Details Button -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label style="visibility: hidden;">Fetch</label>
+                                <button type="button" id="fetch_details" class="btn btn-primary form-control">Fetch
+                                    Details</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table" id="rawMaterialTable">
+                            <thead>
+                                <tr>
+                                    <th>Raw Material Number</th>
+                                    <th>Category</th>
+                                    <th>Raw Material Name</th>
+                                    <th>Metric</th>
+                                    <th>Minimum Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rawMaterialTableBody">
+                                <!-- Data will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Submit Buttons -->
+                    <div class="row mt-3">
+                        <div class="col-lg-12">
+                            <button type="button" id="submitBtn" class="btn btn-submit me-2">Submit</button>
+                            <a href="/" class="btn btn-cancel">Cancel</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const destinationTypeSelect = document.getElementById('destination_type');
+        const destinationNameSelect = document.getElementById('destination_id');
+        const fetchButton = document.getElementById('fetch_details');
+        const submitButton = document.getElementById('submitBtn');
+        const rawMaterialTableBody = document.getElementById('rawMaterialTableBody');
+        const stockForm = document.getElementById('stockForm');
+
+        const kitchens = {{ kitchens | tojson
+    }};
+    const restaurants = {{ restaurants | tojson }};
+    const storageRooms = {{ storage_rooms | tojson }};
+
+    function updateDestinationNameOptions() {
+        const selectedType = destinationTypeSelect.value;
+        let options = [];
+
+        if (selectedType === 'kitchen') {
+            options = kitchens;
+        } else if (selectedType === 'restaurant') {
+            options = restaurants;
+        } else if (selectedType === 'storageroom') {
+            options = storageRooms;
+        }
+
+        destinationNameSelect.innerHTML = '';
+        const defaultOption = document.createElement('option');
+        defaultOption.text = 'Select Destination';
+        defaultOption.disabled = true;
+        defaultOption.selected = true;
+        destinationNameSelect.appendChild(defaultOption);
+
+        options.forEach(option => {
+            const newOption = document.createElement('option');
+            newOption.value = option.id;
+            newOption.textContent = option[`${selectedType}name`];
+            destinationNameSelect.appendChild(newOption);
+        });
+    }
+
+    function fetchRawMaterials() {
+        const destinationType = destinationTypeSelect.value;
+        const destinationId = destinationNameSelect.value;
+
+        if (!destinationType || !destinationId) {
+            alert("Please select both Type and Name.");
+            return;
+        }
+
+        fetch(`/get_raw_materials_min_stock?destination_type=${destinationType}&destination_id=${destinationId}`)
+            .then(response => response.json())
+            .then(data => {
+                // console.log("Fetched Data:", data);
+                rawMaterialTableBody.innerHTML = '';
+                data.forEach((material, index) => {
+                    const minQuantity = material.min_quantity !== null ? material.min_quantity : 0;  // Use DB value or 0
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                            <td>${material.id}</td>
+                            <td>${material.category}</td>
+                            <td>${material.name}</td>
+                            <td>${material.metric}</td>
+                            <td>
+                                <input type="number" step="0.00001" min="0" name="min_quantity_${material.id}" 
+                                    class="form-control min-qty-input" value="${minQuantity}" required>
+                            </td>
+                        `;
+                    rawMaterialTableBody.appendChild(row);
+                });
+
+                // Add Enter Key Navigation and Decimal Validation
+                enableEnterKeyNavigation();
+                enableDecimalValidation();
+            })
+            .catch(error => console.error('Error fetching raw materials:', error));
+    }
+
+    function enableEnterKeyNavigation() {
+        const inputs = document.querySelectorAll('.min-qty-input');
+
+        inputs.forEach((input, index) => {
+            input.addEventListener('keydown', function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault(); // Prevent form submission
+                    const nextInput = inputs[index + 1];
+                    if (nextInput) {
+                        nextInput.focus();
+                    } else {
+                        inputs[0].focus(); // If last input, loop back to the first one
+                    }
+                }
+            });
+        });
+    }
+
+    function enableDecimalValidation() {
+        document.querySelectorAll('.min-qty-input').forEach(input => {
+            input.addEventListener('input', function () {
+                let value = this.value;
+
+                // Prevent negative values
+                if (parseFloat(value) < 0) {
+                    this.value = "0";
+                }
+
+                // Limit to 5 decimal places
+                if (value.includes('.')) {
+                    let parts = value.split('.');
+                    if (parts[1].length > 5) {
+                        this.value = `${parts[0]}.${parts[1].substring(0, 5)}`;
+                    }
+                }
+            });
+        });
+    }
+
+    function submitFormData() {
+        const destinationType = destinationTypeSelect.value;
+        const destinationName = destinationNameSelect.value;
+
+        if (!destinationType || !destinationName) {
+            alert("Please select both Type and Name before submitting.");
+            return;
+        }
+
+        document.getElementById("hidden_destination_type").value = destinationType;
+        document.getElementById("hidden_destination_id").value = destinationName;
+
+        stockForm.submit();
+    }
+
+    destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
+    fetchButton.addEventListener('click', fetchRawMaterials);
+    submitButton.addEventListener('click', submitFormData);
+    updateDestinationNameOptions();
+    });
+</script>
+
+{% endblock %}
