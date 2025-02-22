@@ -225,9 +225,9 @@
                                         Payments</span> <span class="menu-arrow"></span></a>
                                 <ul>
                                     {% if user.role=='admin' or user.role=='branch_manager' %}
-                                    <li><a href="/pending_payments"
-                                            class="{{ 'active' if request.path == '/pending_payments' else '' }}">Pending
-                                            Payments</a></li>
+                                    <li><a href="/pay_vendor"
+                                            class="{{ 'active' if request.path == '/pay_vendor' else '' }}">Pay
+                                            Vendor</a></li>
                                     {% endif %}
                                     {% if user.role=='admin' or user.role=='branch_manager' %}
                                     <li><a href="/payment_receipt"
@@ -237,6 +237,9 @@
                                     <li><a href="/payment_record"
                                             class="{{ 'active' if request.path == '/payment_record' else '' }}">Payment
                                             Record</a></li>
+                                    <li><a href="/pending_payments"
+                                            class="{{ 'active' if request.path == '/pending_payments' else '' }}">Pending
+                                            Payments</a></li>
                                 </ul>
                             </li>
                             <li class="submenu">

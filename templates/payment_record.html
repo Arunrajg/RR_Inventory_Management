@@ -75,6 +75,7 @@
         const printButton = document.getElementById('printButton');
         const purchaseTableBody = document.getElementById('purchaseTableBody');
         const totalCostField = document.getElementById('totalCost');
+        let vendorTotals = [];
 
         function getVendorId(vendorName) {
             const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
@@ -85,6 +86,7 @@
             purchaseTableBody.innerHTML = '<tr><td colspan="7" class="text-center">No data found</td></tr>';
             totalCostField.textContent = '';
             printButton.disabled = true;
+            vendorTotals = [];
         }
 
         submitButton.addEventListener('click', function () {
@@ -103,6 +105,7 @@
                     if (data.payments && data.payments.length > 0) {
                         purchaseTableBody.innerHTML = '';
                         let totalCost = 0;
+                        vendorTotals = data.vendor_totals || [];
                         data.payments.forEach(payment => {
                             totalCost += parseFloat(payment.amount_paid);
                             const row = `
@@ -116,7 +119,7 @@
                             purchaseTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        totalCostField.textContent = `Total Paid: Rs. ${totalCost.toFixed(2)}`;
+                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toFixed(2)}`;
                         printButton.disabled = false;
                     } else {
                         resetTable();
@@ -129,10 +132,33 @@
         });
 
         printButton.addEventListener('click', function () {
+            let vendorTotalTable = '';
+            if (vendorInput.value.toLowerCase() === 'all' && vendorTotals.length > 0) {
+                vendorTotalTable = `
+                <h3>Vendor-wise Total Payment</h3>
+                <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Total Paid (Rs)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${vendorTotals.map(vendor => `
+                            <tr>
+                                <td>${vendor.vendor_name}</td>
+                                <td>${vendor.amount_paid}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <br>
+                `;
+            }
             const printContent = `
         <div>
             <div style="text-align: center;">
-                <h2> Payment Report </h2>
+                <h4> Payment Report </h4>
             </div>
             <div style="text-align: center;">
                 <h2> {{ owner.name }} </h2>
@@ -154,6 +180,8 @@
                     ${purchaseTableBody.innerHTML}
                 </tbody>
             </table>
+          <br>
+            ${vendorTotalTable}
             <p><strong>${totalCostField.textContent}</strong></p>
             <br><br>
             <div style="display: flex; justify-content: space-between;">
@@ -171,7 +199,7 @@
             document.body.appendChild(iframe);
             let doc = iframe.contentWindow.document;
             doc.open();
-            doc.write('<html><head><title>Payment Report</title></head><body>');
+            doc.write('<html><head></head><body>');
             doc.write(printContent);
             doc.write('</body></html>');
             doc.close();

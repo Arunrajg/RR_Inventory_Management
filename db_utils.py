@@ -1074,12 +1074,6 @@ def get_purchase_records(vendor_id, from_date, to_date):
         total_cost DESC;
     """
 
-    grand_total_query = """
-    SELECT SUM(total_cost) AS grand_total
-    FROM purchase_history
-    WHERE purchase_date BETWEEN %s AND %s;
-    """
-
     # Handling 'All' vendors by removing the vendor_id filter
     vendor_filter = "AND ph.vendor_id = %s" if vendor_id != "all" else ""
 
@@ -1090,28 +1084,23 @@ def get_purchase_records(vendor_id, from_date, to_date):
     if vendor_id == "all":
         purchase_params = (from_date, to_date)
         vendor_total_params = (from_date, to_date)
-        grand_total_params = (from_date, to_date)
     else:
         purchase_params = (from_date, to_date, vendor_id)
         vendor_total_params = (from_date, to_date, vendor_id)
-        grand_total_params = (from_date, to_date)
 
     purchases = fetch_all(purchase_query, purchase_params)
     vendor_totals = fetch_all(vendor_total_query, vendor_total_params)
-    grand_total = fetch_one(grand_total_query, grand_total_params)["grand_total"] or 0
 
-    return purchases, vendor_totals, grand_total
+    return purchases, vendor_totals
 
 
 def get_payment_records(vendor_id, from_date, to_date):
-    query = """
+    payment_query = """
     SELECT
         ph.invoice_number,
         v.vendor_name,
         SUM(ph.amount_paid) AS amount_paid,
-        DATE_FORMAT(ph.paid_on, '%Y-%m-%d') as paid_on,
-        (SELECT SUM(amount_paid) FROM payment_records 
-         WHERE paid_on BETWEEN %s AND %s {vendor_filter}) AS total_paid_amount
+        DATE_FORMAT(ph.paid_on, '%Y-%m-%d') as paid_on
     FROM
         payment_records ph
     JOIN
@@ -1124,27 +1113,111 @@ def get_payment_records(vendor_id, from_date, to_date):
     ORDER BY
         ph.paid_on ASC;
     """
-
+    vendor_total_query = """
+    SELECT
+        v.vendor_name,
+        SUM(pr.amount_paid) AS amount_paid
+    FROM
+        payment_records pr
+    JOIN
+        vendor_list v ON pr.vendor_id = v.id
+    WHERE
+        pr.paid_on BETWEEN %s AND %s
+        {vendor_filter}
+    GROUP BY
+        v.vendor_name
+    ORDER BY
+        amount_paid DESC;
+    """
     # Handling 'All' vendors by removing the vendor_id filter
     vendor_filter = "AND vendor_id = %s" if vendor_id != "all" else ""
 
     # Format the query dynamically
-    query = query.format(vendor_filter=vendor_filter)
+    payment_query = payment_query.format(vendor_filter=vendor_filter)
+    vendor_total_query = vendor_total_query.format(vendor_filter=vendor_filter)
 
     # Define query parameters
     if vendor_id == "all":
-        params = (from_date, to_date, from_date, to_date)
+        payment_params = (from_date, to_date)
+        vendor_total_params = (from_date, to_date)
     else:
-        params = (from_date, to_date, vendor_id, from_date, to_date, vendor_id)
+        payment_params = (from_date, to_date, vendor_id)
+        vendor_total_params = (from_date, to_date, vendor_id)
 
-    payments = fetch_all(query, params)
-    total_paid_amount = payments[0]['total_paid_amount'] if payments else 0
+    payments = fetch_all(payment_query, payment_params)
+    vendor_totals = fetch_all(vendor_total_query, vendor_total_params)
 
     logger.debug(f"payment records: {payments}")
-    logger.debug(
-        f"Total payment amount between '{from_date}' and '{to_date}' for vendor {vendor_id}: {total_paid_amount}")
+    logger.debug(f"vendor_totals: {vendor_totals}")
+    # logger.debug(
+    #     f"Total payment amount between '{from_date}' and '{to_date}' for vendor {vendor_id}: {vendor_totals}")
 
-    return payments, total_paid_amount
+    return payments, vendor_totals
+
+
+def get_pending_payments_record(vendor_id):
+    payment_query = """
+    SELECT
+        vpt.id AS payment_id,
+        vl.id AS vendor_id,
+        vl.vendor_name,
+        vpt.invoice_number,
+        vpt.outstanding_cost,
+        vpt.total_paid,
+        vpt.total_due,
+        DATE_FORMAT(ph.purchase_date, '%Y-%m-%d') AS purchase_date
+    FROM
+        vendor_payment_tracker AS vpt
+    JOIN
+        vendor_list AS vl ON vpt.vendor_id = vl.id
+    JOIN
+        (SELECT invoice_number, MAX(purchase_date) AS purchase_date FROM purchase_history GROUP BY invoice_number) AS ph
+        ON vpt.invoice_number = ph.invoice_number
+    WHERE
+        vpt.total_due != 0 
+        {vendor_filter}
+    ORDER BY
+        purchase_date ASC;
+    """
+    vendor_total_query = """
+    SELECT
+        v.vendor_name,
+        SUM(vpt.outstanding_cost) AS outstanding_cost,
+        SUM(vpt.total_paid) AS total_paid,
+        SUM(vpt.total_due) AS total_due
+    FROM
+        vendor_payment_tracker AS vpt
+    JOIN
+        vendor_list v ON vpt.vendor_id = v.id
+    WHERE
+        1=1 {vendor_filter}
+    GROUP BY
+        v.id
+    ORDER BY
+        total_due DESC;
+    """
+    # Handling 'All' vendors by removing the vendor_id filter
+    vendor_filter = "AND vendor_id = %s" if vendor_id != "all" else ""
+
+    # Format the query dynamically
+    payment_query = payment_query.format(vendor_filter=vendor_filter)
+    vendor_total_query = vendor_total_query.format(vendor_filter=vendor_filter)
+
+    payment_params = None
+    vendor_total_params = None
+    # Define query parameters
+    if vendor_id != "all":
+        payment_params = (vendor_id,)
+        vendor_total_params = (vendor_id,)
+    pending_payments = fetch_all(payment_query, payment_params)
+    vendor_totals = fetch_all(vendor_total_query, vendor_total_params)
+
+    logger.debug(f"pending payment records: {pending_payments}")
+    logger.debug(f"vendor_totals: {vendor_totals}")
+    # logger.debug(
+    #     f"Total payment amount between '{from_date}' and '{to_date}' for vendor {vendor_id}: {vendor_totals}")
+
+    return pending_payments, vendor_totals
 
 
 def get_payment_record_on_date(date):

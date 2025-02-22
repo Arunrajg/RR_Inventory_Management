@@ -77,6 +77,7 @@
         const printButton = document.getElementById('printButton');
         const purchaseTableBody = document.getElementById('purchaseTableBody');
         const totalCostField = document.getElementById('totalCost');
+        let vendorTotals = [];
 
         function getVendorId(vendorName) {
             const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
@@ -87,6 +88,7 @@
             purchaseTableBody.innerHTML = '<tr><td colspan="7" class="text-center">No data found</td></tr>';
             totalCostField.textContent = '';
             printButton.disabled = true;
+            vendorTotals = [];
         }
 
         submitButton.addEventListener('click', function () {
@@ -105,6 +107,8 @@
                     if (data.purchases && data.purchases.length > 0) {
                         purchaseTableBody.innerHTML = '';
                         let totalCost = 0;
+                        vendorTotals = data.vendor_totals || [];
+
                         data.purchases.forEach(purchase => {
                             totalCost += parseFloat(purchase.total_cost);
                             const row = `
@@ -120,7 +124,7 @@
                             purchaseTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        totalCostField.textContent = `Total Cost: Rs. ${totalCost.toFixed(2)}`;
+                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toFixed(2)}`;
                         printButton.disabled = false;
                     } else {
                         resetTable();
@@ -133,41 +137,67 @@
         });
 
         printButton.addEventListener('click', function () {
+            let vendorTotalTable = '';
+            if (vendorInput.value.toLowerCase() === 'all' && vendorTotals.length > 0) {
+                vendorTotalTable = `
+                <h3>Vendor-wise Total Purchases</h3>
+                <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Total Cost (Rs)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${vendorTotals.map(vendor => `
+                            <tr>
+                                <td>${vendor.vendor_name}</td>
+                                <td>${vendor.total_cost}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <br>
+                `;
+            }
+
             const printContent = `
-        <div>
-            <div style="text-align: center;">
-                <h2> Purchase Report </h2>
+            <div>
+                <div style="text-align: center;">
+                    <h4 >Purchase Report</h4 >
+                </div>
+                <div style="text-align: center;">
+                    <h2>{{ owner.name }}</h2>
+                    <p>Contact: {{ owner.phone_num }}</p>
+                    <p>Address: {{ owner.address }}</p>
+                </div>
+                <p><b>Vendor:</b> ${vendorInput.value}</p>
+                <p><b>Date Range:</b> ${fromDateInput.value} to ${toDateInput.value}</p>
+                <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Vendor</th>
+                            <th>Invoice Number</th>
+                            <th>No.of Items</th>
+                            <th>Total Cost (Rs)</th>
+                            <th>Storage Room</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${purchaseTableBody.innerHTML}
+                    </tbody>
+                </table>
+                <br>
+                ${vendorTotalTable}
+                <p><strong>${totalCostField.textContent}</strong></p>
+                <br><br>
+                <div style="display: flex; justify-content: space-between;">
+                    <p>Authorized Signature: __________</p>
+                    <p>Receiver Signature: __________</p>
+                </div>
             </div>
-            <div style="text-align: center;">
-                <h2> {{ owner.name }} </h2>
-                <p> Contact: {{ owner.phone_num }} </p>
-                <p> Address: {{ owner.address }} </p>
-            </div>
-            <p><b>Vendor:</b> ${vendorInput.value}</p>
-            <p><b>Date Range:</b> ${fromDateInput.value} to ${toDateInput.value}</p>
-            <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Vendor</th>
-                        <th>Invoice Number</th>
-                        <th>No.of Items</th>
-                        <th>Total Cost (Rs)</th>
-                        <th>Storage Room</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${purchaseTableBody.innerHTML}
-                </tbody>
-            </table>
-            <p><strong>${totalCostField.textContent}</strong></p>
-            <br><br>
-            <div style="display: flex; justify-content: space-between;">
-                <p>Authorized Signature: __________</p>
-                <p>Receiver Signature: __________</p>
-            </div>
-        </div>
-        `;
+            `;
 
             let iframe = document.createElement('iframe');
             iframe.style.position = 'absolute';
@@ -177,7 +207,7 @@
             document.body.appendChild(iframe);
             let doc = iframe.contentWindow.document;
             doc.open();
-            doc.write('<html><head><title>Purchase Record</title></head><body>');
+            doc.write('<html><head></head><body>');
             doc.write(printContent);
             doc.write('</body></html>');
             doc.close();

@@ -1145,7 +1145,7 @@ def purchase_record():
         return redirect("/login")
     # purchases = get_all_purchases()
     today_date = get_current_date()
-    vendors = get_all_vendors()
+    vendors = get_all_vendors(only_active=True)
     owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
     return render_template('purchase_record.html', user=session["user"], owner=owner, vendors=vendors, today_date=today_date)
 
@@ -1174,12 +1174,15 @@ def fetch_purchase_records():
     except ValueError:
         return jsonify({"error": "Invalid date format"}), 400
 
-    purchases, vendor_totals, grand_total = get_purchase_records(vendor_id, from_date, to_date)
+    purchases, vendor_totals = get_purchase_records(vendor_id, from_date, to_date)
+    # app.logger.debug({
+    #     "purchases": purchases,
+    #     "vendor_totals": vendor_totals
+    # })
 
     return jsonify({
         "purchases": purchases,
-        "vendor_totals": vendor_totals,
-        "grand_total": grand_total
+        "vendor_totals": vendor_totals
     })
 
 
@@ -1198,9 +1201,32 @@ def fetch_payment_records():
     except ValueError:
         return jsonify({"error": "Invalid date format"}), 400
 
-    payments, total_paid_amount = get_payment_records(vendor_id, from_date, to_date)
+    payments, vendor_totals = get_payment_records(vendor_id, from_date, to_date)
 
-    return jsonify({"payments": payments, "total_amount": total_paid_amount})
+    return jsonify({"payments": payments, "vendor_totals": vendor_totals})
+
+
+@app.route("/get_pending_payments_record", methods=["GET"])
+def fetch_pending_payments_record():
+    vendor_id = request.args.get("vendor_id", "all")
+    app.logger.debug(f"get_pending_payments_record {vendor_id}")
+    # from_date = request.args.get("from_date")
+    # to_date = request.args.get("to_date")
+
+    # if not from_date or not to_date:
+    #     return jsonify({"error": "Invalid date range"}), 400
+
+    # try:
+    #     datetime.strptime(from_date, "%Y-%m-%d")
+    #     datetime.strptime(to_date, "%Y-%m-%d")
+    # except ValueError:
+    #     return jsonify({"error": "Invalid date format"}), 400
+
+    pending_payments, vendor_totals = get_pending_payments_record(vendor_id)
+    app.logger.debug(f"get_pending_payments_record {pending_payments}")
+    app.logger.debug(f"get_pending_payments_record {vendor_totals}")
+
+    return jsonify({"payments": pending_payments, "vendor_totals": vendor_totals})
 
 
 @app.route("/get_payment_transaction", methods=["GET"])
@@ -1212,8 +1238,8 @@ def get_payment_transaction():
     return jsonify({"payments": transactions, "total_amount": total_paid_amount})
 
 
-@app.route("/pending_payments", methods=["GET", "POST"])
-def pending_payments():
+@app.route("/pay_vendor", methods=["GET", "POST"])
+def pay_vendor():
     if "user" not in session:
         return redirect("/login")
     if request.method == "POST":
@@ -1239,9 +1265,18 @@ def pending_payments():
         connection.close()
         flash('Payment done successfully!', "success")
         return redirect(url_for("pending_payments"))
-    # pending_payments = get_all_pending_payments()
     pending_payments_vendor_cumulative = get_all_pending_payments_vendor_cumulative()
-    return render_template("pending_payments.html", user=session["user"], pending_payments_vendor_cumulative=pending_payments_vendor_cumulative, todays_date=get_current_date())
+    return render_template("pay_vendor.html", user=session["user"], pending_payments_vendor_cumulative=pending_payments_vendor_cumulative, todays_date=get_current_date())
+
+
+@app.route("/pending_payments", methods=["GET", "POST"])
+def pending_payments():
+    if "user" not in session:
+        return redirect("/login")
+    today_date = get_current_date()
+    vendors = get_all_vendors(only_active=True)
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('pending_payments.html', user=session["user"], owner=owner, vendors=vendors, today_date=today_date)
 
 
 @app.route("/process_payments", methods=["POST"])
@@ -1372,7 +1407,7 @@ def payment_record():
         return redirect("/login")
     # payment_record = get_payment_record()
     today_date = get_current_date()
-    vendors = get_all_vendors()
+    vendors = get_all_vendors(only_active=True)
     owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
     return render_template('payment_record.html', user=session["user"], vendors=vendors, owner=owner, today_date=today_date)
 
