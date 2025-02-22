@@ -78,6 +78,7 @@
                             <thead>
                                 <tr>
                                     <th>Invoice Number</th>
+                                    <th>Purchase Date</th>
                                     <th>Outstanding Cost(Rs)</th>
                                     <th>Pay Amount(Rs)</th>
                                     <th>Due(Rs)</th>
@@ -139,6 +140,7 @@
                         const row = document.createElement('tr');
                         row.innerHTML = `
                         <td>${payment.invoice_number}</td>
+                        <td>${payment.purchase_date}</td>
                         <td>${payment.total_due.toFixed(2)}</td>
                         <td>
                             <input type="number" class="form-control pay-amount" 

@@ -10,96 +10,183 @@
 
         <div class="card">
             <div class="card-body">
-                <div class="table-top">
-                    <div class="row">
-                        <!-- Transaction Date Field -->
-                        <div class="col-lg-5 col-md-6 col-12">
-                            <label for=" transaction_date">Transaction Date:</label>
-                            <input type="date" id="transaction_date" class="form-control" value="{{ today_date }}">
-                        </div>
-                        <!-- Total Cost Field -->
-                        <div class="col-lg-5 col-md-6 col-12">
-                            <label for=" total_cost">Total Cost (Rs):</label>
-                            <input type="text" id="total_cost" class="form-control" readonly>
-                        </div>
+                <!-- Filters Section -->
+                <div class="row align-items-end mb-4">
+                    <div class="col-md-4">
+                        <label for="vendorDropdown" class="form-label">Vendor</label>
+                        <input list="vendorList" id="vendorDropdown" class="form-control">
+                        <datalist id="vendorList">
+                            <option value="All" data-id="all"></option>
+                            {% for vendor in vendors %}
+                            <option value="{{ vendor.vendor_name }}" data-id="{{ vendor.id }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="fromDate" class="form-label">From Date</label>
+                        <input type="date" id="from_date" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="toDate" class="form-label">To Date</label>
+                        <input type="date" id="to_date" class="form-control" required>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <button id="submitBtn" class="btn btn-primary me-2">Submit</button>
+                        <button id="printButton" class="btn btn-secondary" disabled>Print</button>
                     </div>
                 </div>
 
+                <!-- Table Section -->
                 <div class="table-responsive">
-                    <table class="table" id="paymentTable">
-                        <thead>
+                    <table class="table table-bordered">
+                        <thead class="table">
                             <tr>
-                                <th>Purchase ID</th>
+                                <th>Date</th>
                                 <th>Vendor</th>
                                 <th>Invoice Number</th>
-                                <th>Raw Material</th>
-                                <th>Quantity</th>
-                                <th>Metric</th>
+                                <th>No.of Items</th>
                                 <th>Total Cost (Rs)</th>
                                 <th>Storage Room</th>
                             </tr>
                         </thead>
-                        <tbody id="purchaseData">
+                        <tbody id="purchaseTableBody">
                             <tr>
-                                <td colspan="8" class="text-center">No data available</td>
+                                <td colspan="7" class="text-center">No data found</td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+
+                <!-- Total Cost Section -->
+                <div class="mt-3 text-end">
+                    <h5 id="totalCost" class="fw-bold text-primary"></h5>
                 </div>
             </div>
         </div>
     </div>
 </div>
-
+{% endblock %}
+{% block scripts %}
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const dateInput = document.getElementById("transaction_date");
-        const totalCostField = document.getElementById("total_cost");
+    document.addEventListener('DOMContentLoaded', function () {
+        const vendorInput = document.getElementById('vendorDropdown');
+        const vendorList = document.getElementById('vendorList');
+        const fromDateInput = document.getElementById('from_date');
+        const toDateInput = document.getElementById('to_date');
+        const submitButton = document.getElementById('submitBtn');
+        const printButton = document.getElementById('printButton');
+        const purchaseTableBody = document.getElementById('purchaseTableBody');
+        const totalCostField = document.getElementById('totalCost');
 
-        fetchTransactions(dateInput.value);
+        function getVendorId(vendorName) {
+            const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
+            return option ? option.getAttribute('data-id') : null;
+        }
 
-        dateInput.addEventListener("change", function () {
-            fetchTransactions(dateInput.value);
-        });
+        function resetTable() {
+            purchaseTableBody.innerHTML = '<tr><td colspan="7" class="text-center">No data found</td></tr>';
+            totalCostField.textContent = '';
+            printButton.disabled = true;
+        }
 
-        function fetchTransactions(date) {
-            fetch(`/get_purchase_transaction?date=${date}`)
+        submitButton.addEventListener('click', function () {
+            const vendorId = getVendorId(vendorInput.value);
+            const fromDate = fromDateInput.value;
+            const toDate = toDateInput.value;
+
+            if (!vendorId || !fromDate || !toDate) {
+                alert('Please select a vendor and date range');
+                return;
+            }
+
+            fetch(`/get_purchase_records?vendor_id=${vendorId}&from_date=${fromDate}&to_date=${toDate}`)
                 .then(response => response.json())
                 .then(data => {
-                    console.log("Fetched Data:", data);
-                    console.log("Purchases Length:", data.purchases.length);  // Debugging
-                    console.log("Has Data:", data.purchases.length > 0);
-
-                    const tableBody = document.getElementById("purchaseData");
-                    tableBody.innerHTML = "";
-
-                    if (data.purchases.length > 0) {
-                        let totalPurchaseAmount = data.total_amount; // Use total_amount from API
-
-                        data.purchases.forEach(history => {
-                            const row = `<tr>
-                            <td>${history.id}</td>
-                            <td>${history.vendor_name}</td>
-                            <td>${history.invoice_number}</td>
-                            <td>${history.raw_material_name}</td>
-                            <td>${history.quantity}</td>
-                            <td>${history.metric}</td>
-                            <td>${history.total_cost}</td>
-                            <td>${history.storageroom_name}</td>
-                        </tr>`;
-                            tableBody.innerHTML += row;
+                    if (data.purchases && data.purchases.length > 0) {
+                        purchaseTableBody.innerHTML = '';
+                        let totalCost = 0;
+                        data.purchases.forEach(purchase => {
+                            totalCost += parseFloat(purchase.total_cost);
+                            const row = `
+                            <tr>
+                                <td>${purchase.purchase_date}</td>
+                                <td>${purchase.vendor_name}</td>
+                                <td>${purchase.invoice_number}</td>
+                                <td>${purchase.item_count}</td>
+                                <td>${purchase.total_cost}</td>
+                                <td>${purchase.storageroom_name}</td>
+                            </tr>
+                        `;
+                            purchaseTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        // Update Total Cost field
-                        totalCostField.value = parseFloat(totalPurchaseAmount).toFixed(2);
+                        totalCostField.textContent = `Total Cost: Rs. ${totalCost.toFixed(2)}`;
+                        printButton.disabled = false;
                     } else {
-                        tableBody.innerHTML = `<tr><td colspan="8" class="text-center">No data available</td></tr>`;
-                        totalCostField.value = "0.00"; // Reset total cost
+                        resetTable();
                     }
                 })
-                .catch(error => console.error("Error fetching transactions:", error));
-        }
-    });
+                .catch(error => {
+                    console.error('Error fetching purchase records:', error);
+                    resetTable();
+                });
+        });
 
+        printButton.addEventListener('click', function () {
+            const printContent = `
+        <div>
+            <div style="text-align: center;">
+                <h2> Purchase Report </h2>
+            </div>
+            <div style="text-align: center;">
+                <h2> {{ owner.name }} </h2>
+                <p> Contact: {{ owner.phone_num }} </p>
+                <p> Address: {{ owner.address }} </p>
+            </div>
+            <p><b>Vendor:</b> ${vendorInput.value}</p>
+            <p><b>Date Range:</b> ${fromDateInput.value} to ${toDateInput.value}</p>
+            <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Vendor</th>
+                        <th>Invoice Number</th>
+                        <th>No.of Items</th>
+                        <th>Total Cost (Rs)</th>
+                        <th>Storage Room</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${purchaseTableBody.innerHTML}
+                </tbody>
+            </table>
+            <p><strong>${totalCostField.textContent}</strong></p>
+            <br><br>
+            <div style="display: flex; justify-content: space-between;">
+                <p>Authorized Signature: __________</p>
+                <p>Receiver Signature: __________</p>
+            </div>
+        </div>
+        `;
+
+            let iframe = document.createElement('iframe');
+            iframe.style.position = 'absolute';
+            iframe.style.width = '0px';
+            iframe.style.height = '0px';
+            iframe.style.border = 'none';
+            document.body.appendChild(iframe);
+            let doc = iframe.contentWindow.document;
+            doc.open();
+            doc.write('<html><head><title>Purchase Record</title></head><body>');
+            doc.write(printContent);
+            doc.write('</body></html>');
+            doc.close();
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 1000);
+        });
+    });
 </script>
 {% endblock %}

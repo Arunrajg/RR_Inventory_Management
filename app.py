@@ -1145,7 +1145,9 @@ def purchase_record():
         return redirect("/login")
     # purchases = get_all_purchases()
     today_date = get_current_date()
-    return render_template('purchase_record.html', user=session["user"], today_date=today_date)
+    vendors = get_all_vendors()
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('purchase_record.html', user=session["user"], owner=owner, vendors=vendors, today_date=today_date)
 
 
 @app.route("/get_purchase_transaction", methods=["GET"])
@@ -1153,9 +1155,52 @@ def get_purchase_transaction():
     date = request.args.get("date")
     app.logger.debug(f"date {date}")
     transactions, total_purchase_amount = get_purchase_record(date=date)
-    app.logger.debug("heyy")
     app.logger.debug({"purchases": transactions, "total_amount": total_purchase_amount})
     return jsonify({"purchases": transactions, "total_amount": total_purchase_amount})
+
+
+@app.route("/get_purchase_records", methods=["GET"])
+def fetch_purchase_records():
+    vendor_id = request.args.get("vendor_id", "all")
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+
+    if not from_date or not to_date:
+        return jsonify({"error": "Invalid date range"}), 400
+
+    try:
+        datetime.strptime(from_date, "%Y-%m-%d")
+        datetime.strptime(to_date, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    purchases, vendor_totals, grand_total = get_purchase_records(vendor_id, from_date, to_date)
+
+    return jsonify({
+        "purchases": purchases,
+        "vendor_totals": vendor_totals,
+        "grand_total": grand_total
+    })
+
+
+@app.route("/get_payment_records", methods=["GET"])
+def fetch_payment_records():
+    vendor_id = request.args.get("vendor_id", "all")
+    from_date = request.args.get("from_date")
+    to_date = request.args.get("to_date")
+
+    if not from_date or not to_date:
+        return jsonify({"error": "Invalid date range"}), 400
+
+    try:
+        datetime.strptime(from_date, "%Y-%m-%d")
+        datetime.strptime(to_date, "%Y-%m-%d")
+    except ValueError:
+        return jsonify({"error": "Invalid date format"}), 400
+
+    payments, total_paid_amount = get_payment_records(vendor_id, from_date, to_date)
+
+    return jsonify({"payments": payments, "total_amount": total_paid_amount})
 
 
 @app.route("/get_payment_transaction", methods=["GET"])
@@ -1163,7 +1208,6 @@ def get_payment_transaction():
     date = request.args.get("date")
     app.logger.debug(f"date {date}")
     transactions, total_paid_amount = get_payment_record_on_date(date=date)
-    app.logger.debug("heyy")
     app.logger.debug({"payments": transactions, "total_amount": total_paid_amount})
     return jsonify({"payments": transactions, "total_amount": total_paid_amount})
 
@@ -1302,6 +1346,7 @@ def get_payment_details(vendor_id):
         return {
             'payment_id': payment['payment_id'],
             'invoice_number': payment['invoice_number'],
+            'purchase_date': payment['purchase_date'],
             'outstanding_cost': float(payment['outstanding_cost']),
             'total_paid': float(payment['total_paid']),
             'total_due': float(payment['total_due']),
@@ -1327,7 +1372,9 @@ def payment_record():
         return redirect("/login")
     # payment_record = get_payment_record()
     today_date = get_current_date()
-    return render_template('payment_record.html', user=session["user"], today_date=today_date)
+    vendors = get_all_vendors()
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('payment_record.html', user=session["user"], vendors=vendors, owner=owner, today_date=today_date)
 
 
 @app.route('/restaurant_inventory_stock')
