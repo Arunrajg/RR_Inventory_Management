@@ -296,6 +296,14 @@
                                             class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
                                             Raw
                                             Material Transfers </a></li>
+                                    {% if user.role=='admin' or user.role=='store_manager' or
+                                    user.role=='branch_manager' %}
+                                    <li><a href="/transfer_raw_material_report"
+                                            class="{{ 'active' if request.path == '/transfer_raw_material_report' else '' }}">Raw
+                                            Material Transfer
+                                            Report
+                                        </a></li>
+                                    {% endif %}
                                     <!-- <li><a href="/list_prepared_dishes_transfers"
                                             class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
                                             Prepared

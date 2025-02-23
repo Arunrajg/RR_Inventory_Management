@@ -1426,3 +1426,39 @@ def get_rawmaterial_category():
     cursor.close()
     logger.debug(f"categories {categories}")
     return categories
+
+
+def get_transfer_raw_material_report(storageroom, destination_type, destination_id, transferred_date):
+    query = """
+    SELECT
+        rm.name AS raw_material_name,
+        rm.category,
+        rmt.quantity,
+        rmt.metric,
+        sr.storageroomname AS transferred_from,
+        rmt.destination_type,
+        CASE
+            WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
+            WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
+            ELSE 'Unknown'
+        END AS transferred_to,
+        DATE_FORMAT(rmt.transferred_date, '%Y-%m-%d') as transferred_date
+    FROM
+        raw_material_transfer_details rmt
+    JOIN
+        raw_materials rm ON rmt.raw_material_id = rm.id
+    JOIN
+        storagerooms sr ON rmt.source_storage_room_id = sr.id
+    LEFT JOIN
+        kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
+    LEFT JOIN
+        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
+    WHERE
+        sr.id = %s
+        AND rmt.destination_type = %s
+        AND rmt.destination_id = %s
+        AND DATE(rmt.transferred_date) = %s;
+    """
+    rawmaterial_transfer = fetch_all(query, (storageroom, destination_type, destination_id, transferred_date))
+    logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
+    return rawmaterial_transfer

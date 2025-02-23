@@ -2325,5 +2325,42 @@ def stock_report():
                            kitchens=get_all_kitchens(only_active=True), rawmaterial_category=rm_categories, owner=owner)
 
 
+@app.route('/transfer_raw_material_report', methods=["GET", "POST"])
+def transfer_raw_material_report():
+    if "user" not in session:
+        return redirect("/login")
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('transfer_raw_material_report.html', user=session["user"], storage_rooms=get_all_storagerooms(only_active=True),
+                           restaurants=get_all_restaurants(only_active=True),
+                           kitchens=get_all_kitchens(only_active=True), owner=owner)
+
+
+@app.route('/get_transfer_details_report', methods=["GET"])
+def get_transfer_details():
+    if "user" not in session:
+        return redirect("/login")
+
+    # Fetch query parameters from request
+    storageroom_id = request.args.get("storageroom")
+    destination_type = request.args.get("destination_type")
+    destination_id = request.args.get("destination_name")
+    transfer_date = request.args.get("transfer_date")
+    app.logger.debug("transfer_raw_material_report")
+    app.logger.debug(f"storageroom_id {storageroom_id}")
+    app.logger.debug(f"destination_type {destination_type}")
+    app.logger.debug(f"destination_id {destination_id}")
+    app.logger.debug(f"transfer_date {transfer_date}")
+
+    if not destination_type or not destination_id or not storageroom_id or not transfer_date:
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    # Fetch raw material transfer details
+    rm = get_transfer_raw_material_report(storageroom_id, destination_type, destination_id, transfer_date)
+
+    app.logger.debug(f"Fetched Raw Materials Transfer: {rm}")
+
+    return jsonify(rm)  # Return as JSON response
+
+
 if __name__ == "__main__":
     app.run(debug=True)
