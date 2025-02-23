@@ -40,9 +40,9 @@
                     <a href="/index" class="logo">
                         <img src="../static/img/applogo.jpg" alt="">
                     </a>
-                    <a href="/index" class="logo-small">
+                    <!-- <a href="/index" class="logo-small">
                         <img src="../static/img/logo-small.png" alt="">
-                    </a>
+                    </a> -->
                     <!-- <a id="toggle_btn" href="javascript:void(0);">
                     </a> -->
                 </div>
@@ -250,7 +250,7 @@
                                             class="{{ 'active' if request.path == '/storageroom_stock' else '' }}">Storage
                                             Room Stock
                                         </a></li>
-                                    <li><a href="/kitchen_inventory_stock"
+                                    <!-- <li><a href="/kitchen_inventory_stock"
                                             class="{{ 'active' if request.path == '/kitchen_inventory_stock' else '' }}">Kitchen
                                             Inventory
                                             Stock
@@ -259,7 +259,7 @@
                                             class="{{ 'active' if request.path == '/restaurant_inventory_stock' else '' }}">Restaurant
                                             Inventory
                                             Stock
-                                        </a></li>
+                                        </a></li> -->
                                     {% if user.role=='admin' %}
                                     <li><a href="/set_minimum_stock"
                                             class="{{ 'active' if request.path == '/set_minimum_stock' else '' }}">Set

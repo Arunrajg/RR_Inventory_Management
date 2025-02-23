@@ -18,10 +18,12 @@ logging.basicConfig(level=logging.DEBUG,  # You can change the log level to INFO
 logger = logging.getLogger()
 
 DB_CONFIG = {
-    "host": os.getenv("DB_HOST", "db"),  # Default to 'db' if not set
+    # Default to 'db' if not set
+    "host": os.getenv("DB_HOST", "db"),
     "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
-    "database": os.getenv("DB_DATABASE", "dharaniinventorymanagement")  # Default to 'rrinventorymanagement' if not set
+    "database": os.getenv("DB_DATABASE", "rrinventorymanagement"),  # Default to 'rrinventorymanagement' if not set
+    "init_command": "SET time_zone = 'Asia/Kolkata'"
 }
 
 

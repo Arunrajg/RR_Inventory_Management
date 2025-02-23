@@ -173,7 +173,7 @@
                         input.addEventListener('input', function () {
                             const payAmount = parseFloat(input.value || 0);
                             const row = input.closest('tr');
-                            const outstandingCost = parseFloat(row.querySelector('td:nth-child(2)').textContent);
+                            const outstandingCost = parseFloat(row.querySelector('td:nth-child(3)').textContent);
 
                             // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
                             if (payAmount > outstandingCost) {
