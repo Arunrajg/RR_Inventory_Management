@@ -143,7 +143,6 @@
         fetch(`/get_raw_materials_min_stock?destination_type=${destinationType}&destination_id=${destinationId}`)
             .then(response => response.json())
             .then(data => {
-                // console.log("Fetched Data:", data);
                 rawMaterialTableBody.innerHTML = '';
                 data.forEach((material, index) => {
                     const minQuantity = material.min_quantity !== null ? material.min_quantity : 0;  // Use DB value or 0

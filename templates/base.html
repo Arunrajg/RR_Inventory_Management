@@ -11,7 +11,7 @@
         <meta name="robots" content="noindex, nofollow">
         <title>Dharani Inventory Solution</title>
 
-        <link rel="shortcut icon" type="image/x-icon" href="../static/img/favicon.jpg">
+        <link rel="shortcut icon" type="image/x-icon" href="../static/img/applogo.jpg">
 
         <link rel="stylesheet" href="../static/css/bootstrap.min.css">
 
@@ -38,7 +38,7 @@
 
                 <div class="header-left active">
                     <a href="/index" class="logo">
-                        <img src="../static/img/logo.png" alt="">
+                        <img src="../static/img/applogo.jpg" alt="">
                     </a>
                     <a href="/index" class="logo-small">
                         <img src="../static/img/logo-small.png" alt="">
@@ -346,6 +346,19 @@
                                         </a></li>
                                 </ul>
                             </li> -->
+                            {% if user.role=='admin' %}
+                            <li class="submenu">
+                                <a href="javascript:void(0);"><img src="../static/img/icons/settings.svg"
+                                        alt="img"><span>
+                                        Settings</span> <span class="menu-arrow"></span></a>
+                                <ul>
+                                    <li><a href="/contact_details"
+                                            class="{{ 'active' if request.path == '/contact_details' else '' }}">Contact
+                                            Details</a>
+                                    </li>
+                                </ul>
+                            </li>
+                            {% endif %}
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/users1.svg" alt="img"><span>
                                         Users</span> <span class="menu-arrow"></span></a>

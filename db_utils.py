@@ -43,14 +43,13 @@ def get_db_connection():
         connection = mysql.connector.connect(**DB_CONFIG)
         return connection
     except Error as e:
-        logger.debug(f"Error: {e}")
+        logger.error(f"Error: {e}")
         return None
 
 # Generic function to execute INSERT/UPDATE/DELETE queries
 
 
 def execute_query(query, params=None, bulk=False):
-    logger.debug(query)
     connection = get_db_connection()
     if connection is None:
         return False
@@ -92,7 +91,7 @@ def fetch_all(query, params=None):
         cursor.execute(query, params)
         return cursor.fetchall()
     except Error as e:
-        logger.debug(f"Database Error: {e}")
+        logger.error(f"Database Error: {e}")
         return []
     finally:
         if connection.is_connected():
@@ -112,7 +111,6 @@ def get_user_by_email(email):
     user = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"user -- {user}")
     return user
 
 
@@ -123,7 +121,6 @@ def get_storageroom_by_name(storageroom_name):
     storageroom_name = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"storageroom_name -- {storageroom_name}")
     return storageroom_name
 
 
@@ -134,7 +131,6 @@ def get_kitchen_by_name(kitchen_name):
     kitchen = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"kitchen -- {kitchen}")
     return kitchen
 
 
@@ -145,7 +141,6 @@ def get_restaurant_by_name(restaurant_name):
     restaurant = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"restaurant -- {restaurant}")
     return restaurant
 
 
@@ -154,7 +149,6 @@ def get_all_storagerooms(only_active=False):
     if only_active:
         query = 'SELECT * FROM storagerooms WHERE status="active" ORDER BY id ASC'
     storagerooms = fetch_all(query)
-    logger.debug(f"storagerooms -- {storagerooms}")
     return storagerooms
 
 
@@ -163,7 +157,6 @@ def get_all_kitchens(only_active=False):
     if only_active:
         query = 'SELECT * FROM kitchen WHERE status="active" ORDER BY id ASC'
     kitchens = fetch_all(query)
-    logger.debug(f"kitchens -- {kitchens}")
     return kitchens
 
 
@@ -172,14 +165,12 @@ def get_all_restaurants(only_active=False):
     if only_active:
         query = 'SELECT * FROM restaurant WHERE status="active" ORDER BY id ASC'
     restaurants = fetch_all(query)
-    logger.debug(f"restaurants -- {restaurants}")
     return restaurants
 
 
 def get_dish_details_from_category(category_name, dish_name):
     query = 'SELECT id FROM dishes WHERE category =%s and name=%s'
     dish_id = fetch_all(query, (category_name, dish_name))
-    logger.debug(f"dish_id -- {dish_id}")
     return dish_id
 
 
@@ -199,14 +190,12 @@ def get_sales_report_data(sales_date):
     WHERE sales_date=%s;
         """
     sales_report_data = fetch_all(query, (sales_date,))
-    logger.debug(f"sales_report_data -- {sales_report_data}")
     return sales_report_data
 
 
 def get_dish_recipe(dish_id):
     query = 'SELECT dish_id, raw_material_id, quantity, metric FROM dish_raw_materials WHERE dish_id =%s'
     recipe = fetch_all(query, (dish_id,))
-    logger.debug(f"recipe -- {recipe}")
     return recipe
 
 
@@ -217,7 +206,6 @@ def check_dish_transferred(dish_id, prepared_date, restaurant_id):
     cursor = conn.cursor()
     cursor.execute(query, (dish_id, prepared_date, restaurant_id))
     result = cursor.fetchone()
-    logger.debug(f"transfer result {result}")
     cursor.close()
     return result
 
@@ -225,12 +213,10 @@ def check_dish_transferred(dish_id, prepared_date, restaurant_id):
 def check_prepared_dish(dish_id, prepared_date, restaurant_id):
     result = None
     conn = get_db_connection()
-    logger.debug(f"check preapred {dish_id} {prepared_date} {restaurant_id}")
     query = """SELECT id FROM kitchen_prepared_dishes WHERE prepared_dish_id = %s AND prepared_on = %s and prepared_in_kitchen=%s"""
     cursor = conn.cursor()
     cursor.execute(query, (dish_id, prepared_date, restaurant_id))
     result = cursor.fetchone()
-    logger.debug(f"check_prepared_dish result {result}")
     cursor.close()
     return result
 
@@ -263,7 +249,6 @@ def get_restaurant_consumption_report(restaurant_id, report_date):
     cursor = conn.cursor()
     cursor.execute(query, (report_date, report_date, restaurant_id, report_date))
     result = cursor.fetchall()  # Fetch all results instead of just one
-    logger.debug(f"restaurant consumption result {result}")
     cursor.close()
     return result
 
@@ -296,14 +281,12 @@ GROUP BY
     cursor = conn.cursor()
     cursor.execute(query, (report_date, report_date, kitchen_id, report_date))
     result = cursor.fetchall()
-    logger.debug(f"kitchen consumption result {result}")
     cursor.close()
     return result
 
 
 def subtract_raw_materials(raw_materials, destination_type, type_id, report_date):
     conn = get_db_connection()
-    logger.debug(f"raw_materials {raw_materials} destination_type {destination_type} type_id {type_id}")
     for material in raw_materials:
         # if destination_type == "restaurant":
         query = """SELECT quantity FROM restaurant_inventory_stock WHERE raw_material_id = %s AND restaurant_id = %s"""
@@ -323,11 +306,10 @@ def subtract_raw_materials(raw_materials, destination_type, type_id, report_date
         #         ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
         #     """
 
-        logger.debug(f"query {query}")
         cursor = conn.cursor()
         cursor.execute(query, (material['raw_material_id'], type_id))
         stock = cursor.fetchone()
-        logger.debug(f"stock {stock}")
+
         if stock:
             metric = material["metric"]
             quantity = material["quantity"]
@@ -339,7 +321,7 @@ def subtract_raw_materials(raw_materials, destination_type, type_id, report_date
                 quantity = float(quantity) / 1000  # Convert to liters
                 metric = 'liter'
             new_quantity = float(stock[0]) - quantity
-            logger.debug(f"new_quantity {new_quantity}")
+
             cursor.execute(update_query, (new_quantity, material['raw_material_id'], type_id))
             cursor.execute(insert_consumption_query, (material['raw_material_id'], material["quantity"],
                            material["metric"], report_date, destination_type, type_id, material["quantity"]))
@@ -357,7 +339,6 @@ def get_purchase_years():
 
     cursor.close()
     connection.close()
-    logger.debug(f"years {years}")
     return {"years": years}
 
 
@@ -380,7 +361,6 @@ def get_dish_recipe_raw_materials(dish_id):
     cursor.execute(query, (dish_id,))
     materials = cursor.fetchall()
     cursor.close()
-    logger.debug(f"dish materialsss {materials}")
     return materials
 
 
@@ -391,7 +371,6 @@ def get_raw_materials(dish_id):
     cursor.execute(query, (dish_id,))
     materials = cursor.fetchall()
     cursor.close()
-    logger.debug(f"materialsss {materials}")
     return materials
 
 
@@ -404,7 +383,6 @@ def get_prepared_dishes_today():
     WHERE prepared_on = %s
     """
     prepared_dishes = fetch_all(query, (get_current_date(),))
-    logger.debug(f"prepared_dishes -- {prepared_dishes}")
     return prepared_dishes
 
 
@@ -418,7 +396,6 @@ def get_all_prepared_dishes(prepared_date):
     WHERE kpd.prepared_on=%s;
     """
     prepared_dishes = fetch_all(query, (prepared_date,))
-    logger.debug(f"prepared_dishes -- {prepared_dishes}")
     return prepared_dishes
 
 
@@ -460,7 +437,6 @@ def get_all_purchases():
             ph.created_at DESC
             """
     purchases = fetch_all(query)
-    logger.debug(f"purchases -- {purchases}")
     return purchases
 
 
@@ -483,7 +459,6 @@ def get_all_pending_payments():
         vpt.total_due != 0;
     """
     payments = fetch_all(query)
-    logger.debug(f"payments -- {payments}")
     return payments
 
 
@@ -506,7 +481,6 @@ def get_all_pending_payments_vendor_cumulative():
         total_due != 0;
     """
     payments = fetch_all(query)
-    logger.debug(f"payments cumulative -- {payments}")
     return payments
 
 
@@ -531,7 +505,6 @@ def get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date):
     pr.paid_on ASC;
     """
     payments = fetch_all(query, (vendor_id, from_date, to_date))
-    logger.debug(f"vendor due payments between dates -- {payments}")
     return payments
 
 
@@ -559,7 +532,6 @@ def get_payment_details_of_vendor(vendor_id):
         AND vpt.vendor_id = %s;
     """
     payments = fetch_all(query, (vendor_id,))
-    logger.debug(f"vendor due payments -- {payments}")
     return payments
 
 
@@ -606,7 +578,6 @@ def get_storageroom_stock(destination_id=None, category=None):
     query += " ORDER BY sr.storageroomname, rm.name;"
 
     storage_stock = fetch_all(query, params)
-    logger.debug(f"storage_stock -- {storage_stock}")
     return storage_stock
 
 
@@ -626,7 +597,6 @@ def get_invoice_payment_details():
         vendor_list AS vl ON vpt.vendor_id = vl.id
     """
     payments = fetch_all(query)
-    logger.debug(f"vendor due payments -- {payments}")
     return payments
 
 
@@ -647,7 +617,6 @@ def get_payment_record():
     WHERE pr.paid_on = %s
         """
     payments = fetch_all(query, (get_current_date(),))
-    logger.debug(f"vendor due payments -- {payments}")
     return payments
 
 
@@ -679,7 +648,6 @@ def get_rawmaterial_transfer_history(transferred_date):
         DATE(rmt.transferred_date) = %s;
     """
     rawmaterial_transfer = fetch_all(query, (transferred_date,))
-    logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
     return rawmaterial_transfer
 
 
@@ -704,7 +672,6 @@ def get_prepared_dishes_transfer_history(transferred_date):
         DATE(pdt.transferred_date) = %s;
     """
     prepared_dishes_transfer = fetch_all(query, (transferred_date,))
-    logger.debug(f"prepared_dishes_transfer -- {prepared_dishes_transfer}")
     return prepared_dishes_transfer
 
 
@@ -715,7 +682,6 @@ def get_prepared_dishes_transfer_history(transferred_date):
 #     FROM storageroom_stock
 #     WHERE storageroom_id=%s AND raw_material_id=%s"""
 #     data = fetch_all(query, (storageroom_id, rawmaterial_id))
-#     logger.debug(f"ddddaaata {data}")
 #     return data
 
 def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
@@ -725,7 +691,6 @@ def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
     FROM inventory_stock
     WHERE destination_type='storageroom' AND destination_id=%s AND raw_material_id=%s"""
     data = fetch_all(query, (storageroom_id, rawmaterial_id))
-    logger.debug(f"ddddaaata {data}")
     return data
 
 
@@ -741,21 +706,18 @@ def get_total_cost_stats():
     cost_data = fetch_all(query)
     if cost_data:
         data = cost_data
-    logger.debug(f"total cost {data}")
     return data
 
 
 def get_all_dishes():
     query = 'SELECT * FROM dishes ORDER BY id ASC'
     dishes = fetch_all(query)
-    logger.debug(f"dishes -- {dishes}")
     return dishes
 
 
 def get_unique_dish_categories():
     query = 'SELECT DISTINCT(category) FROM dishes'
     dish_categories = fetch_all(query)
-    logger.debug(f"dish_categories -- {dish_categories}")
     return dish_categories
 
 
@@ -801,7 +763,6 @@ ORDER BY
     k.kitchenname, rm.name;
 """
     kitchen_inventory_stock = fetch_all(query)
-    logger.debug(f"kitchen_inventory_stock -- {kitchen_inventory_stock}")
     return kitchen_inventory_stock
 
 
@@ -833,7 +794,6 @@ ORDER BY
     r.restaurantname, rm.name;
         """
     restaurant_inventory_stock = fetch_all(query)
-    logger.debug(f"restaurant_inventory_stock -- {restaurant_inventory_stock}")
     return restaurant_inventory_stock
 
 
@@ -849,28 +809,21 @@ def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
         WHERE dish_id = %s
     """, (dish_id,))
     raw_materials = cursor.fetchall()
-    logger.debug(f"raw_materials for dish {dish_id} {raw_materials} qty {sold_quantity}")
     # Calculate the total quantity needed for the sold dishes
     required_quantities = {}
     for material in raw_materials:
-        logger.debug(f"mm {material}")
         total_quantity = material['quantity'] * sold_quantity
-        logger.debug(f"{material['quantity']} * {sold_quantity}, {total_quantity}")
         raw_material_id = material['raw_material_id']
 
         # Convert grams to kilograms and milliliters to liters
         if material['metric'] == 'grams':
             total_quantity /= 1000  # Convert to kg
-            logger.debug("grams")
         elif material['metric'] == 'ml':
             total_quantity /= 1000  # Convert to liters
-            logger.debug("liter")
-        logger.debug(f"tq {total_quantity}")
         if raw_material_id in required_quantities:
             required_quantities[raw_material_id] += total_quantity
         else:
             required_quantities[raw_material_id] = total_quantity
-    logger.debug(f"required quantities {required_quantities}")
     # Update the restaurant inventory stock
     for raw_material_id, required_quantity in required_quantities.items():
         cursor.execute("""
@@ -880,9 +833,7 @@ def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
         """, (restaurant_id, raw_material_id))
         stock = cursor.fetchone()
         if not stock:
-            logger.debug(f"Stock not found for raw_material_id: {raw_material_id} in restaurant_id: {restaurant_id}")
             continue
-        logger.debug(f"stockkkkkkk {stock}")
         # Convert stock metric to match the required quantity
         available_quantity = stock['quantity']
         if stock['metric'] == 'grams':
@@ -891,10 +842,8 @@ def update_restaurant_stock(restaurant_id, dish_id, sold_quantity, sold_on):
         elif stock['metric'] == 'ml':
             available_quantity /= 1000  # Convert to liters
             stock['metric'] = "liter"
-        logger.debug(f"stockkkkkkk after {stock} {available_quantity} {required_quantity}")
         # Calculate the new quantity after deduction
         new_quantity = available_quantity - required_quantity
-        logger.debug(f"new new {new_quantity}")
         # Update the stock quantity in the database
         cursor.execute("""
             UPDATE restaurant_inventory_stock
@@ -932,11 +881,9 @@ def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
         WHERE dish_id = %s
     """, (dish_id,))
     raw_materials = cursor.fetchall()
-    logger.debug(f"raw_materials for dish {dish_id} {raw_materials} qty {prepared_quantity}")
     # Calculate the total quantity needed for the prepared dishes
     required_quantities = {}
     for material in raw_materials:
-        logger.debug(f"mm {material}")
         total_quantity = material['quantity'] * prepared_quantity
         raw_material_id = material['raw_material_id']
 
@@ -950,7 +897,6 @@ def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
             required_quantities[raw_material_id] += total_quantity
         else:
             required_quantities[raw_material_id] = total_quantity
-    logger.debug(f"required quantities {required_quantities}")
     # Update the kitchen inventory stock
     for raw_material_id, required_quantity in required_quantities.items():
         cursor.execute("""
@@ -960,7 +906,6 @@ def update_kitchen_stock(kitchen_id, dish_id, prepared_quantity, prepared_on):
         """, (kitchen_id, raw_material_id))
         stock = cursor.fetchone()
         if not stock:
-            logger.debug(f"Stock not found for raw_material_id: {raw_material_id} in kitchen_id: {kitchen_id}")
             continue
         # Convert stock metric to match the required quantity
         available_quantity = stock['quantity']
@@ -1005,7 +950,6 @@ def get_raw_material_by_id(rawmaterial_id):
     material = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"material -- {material}")
     return material
 
 
@@ -1016,28 +960,24 @@ def get_raw_material_by_name(rawmaterial_name):
     material = cursor.fetchone()
     cursor.close()
     conn.close()
-    logger.debug(f"material -- {material}")
     return material
 
 
 def get_all_rawmaterials():
     query = 'SELECT * FROM raw_materials ORDER BY id ASC'
     raw_materials = fetch_all(query)
-    logger.debug(f"raw_materials -- {raw_materials}")
     return raw_materials
 
 
 def get_all_dish_categories():
     query = 'SELECT DISTINCT category from dishes'
     dish_categories = fetch_all(query)
-    logger.debug(f"dish_categories -- {dish_categories}")
     return dish_categories
 
 
 def get_all_users():
     query = 'SELECT id, username, email, role, status from users'
     users = fetch_all(query)
-    logger.debug(f"users -- {users}")
     return users
 
 
@@ -1046,7 +986,6 @@ def get_all_vendors(only_active=False):
     if only_active:
         query = 'SELECT * from vendor_list WHERE status="active" ORDER BY id ASC'
     vendors = fetch_all(query)
-    logger.debug(f"vendors -- {vendors}")
     return vendors
 
 
@@ -1054,18 +993,16 @@ def update_user_password(new_encrypted_password, email):
     status = False
     try:
         conn = get_db_connection()
-        logger.debug(f"conn {conn}")
         cursor = conn.cursor(dictionary=True)
         cursor.execute('UPDATE users SET password = %s WHERE email = %s', (new_encrypted_password, email))
         conn.commit()
         rows_affected = cursor.rowcount
-        logger.debug(f"Rows affected: {rows_affected}")
         cursor.close()
         conn.close()
         status = True
     except Exception as e:
         status = e
-        logger.debug(f"ERROR: {e}")
+        logger.error(f"ERROR: {e}")
     return status
 
 
@@ -1094,9 +1031,6 @@ def get_purchase_record(date):
 
     purchases = fetch_all(query, (date, date))
     total_purchase_amount = purchases[0]['total_purchase_amount'] if purchases else 0
-
-    logger.debug(f"Purchase records: {purchases}")
-    logger.debug(f"Total purchase amount on {date}: {total_purchase_amount}")
     return purchases, total_purchase_amount
 
 
@@ -1214,11 +1148,6 @@ def get_payment_records(vendor_id, from_date, to_date):
     payments = fetch_all(payment_query, payment_params)
     vendor_totals = fetch_all(vendor_total_query, vendor_total_params)
 
-    logger.debug(f"payment records: {payments}")
-    logger.debug(f"vendor_totals: {vendor_totals}")
-    # logger.debug(
-    #     f"Total payment amount between '{from_date}' and '{to_date}' for vendor {vendor_id}: {vendor_totals}")
-
     return payments, vendor_totals
 
 
@@ -1279,11 +1208,6 @@ def get_pending_payments_record(vendor_id):
     pending_payments = fetch_all(payment_query, payment_params)
     vendor_totals = fetch_all(vendor_total_query, vendor_total_params)
 
-    logger.debug(f"pending payment records: {pending_payments}")
-    logger.debug(f"vendor_totals: {vendor_totals}")
-    # logger.debug(
-    #     f"Total payment amount between '{from_date}' and '{to_date}' for vendor {vendor_id}: {vendor_totals}")
-
     return pending_payments, vendor_totals
 
 
@@ -1307,8 +1231,6 @@ def get_payment_record_on_date(date):
     payments = fetch_all(query, (date, date))
     total_paid_amount = payments[0]['total_paid_amount'] if payments else 0
 
-    logger.debug(f"Payment records: {payments}")
-    logger.debug(f"Total paid amount on {date}: {total_paid_amount}")
     return payments, total_paid_amount
 
 
@@ -1321,27 +1243,20 @@ def update_minimum_stock(destination_type, destination_id, min_stock_data):
             WHERE type = %s AND destination_id = %s
         """
         existing_records = execute_query(existing_records_query, (destination_type, destination_id))
-        logger.debug(f"existing_records {existing_records}")
         existing_records_dict = {row[0]: row[1] for row in existing_records} if existing_records else {}
-        logger.debug(f"existing_records_dict {existing_records_dict}")
         # Step 2: Prepare bulk UPDATE and INSERT data
         update_data = []
         insert_data = []
 
         for material_id, min_quantity in min_stock_data.items():
             material_id = int(material_id)
-            logger.debug(f"material_id {material_id} {type(material_id)} min_quantity {min_quantity}")
             min_quantity = max(round(min_quantity, 5), 0)  # Ensure 5 decimal points & no negatives
-            logger.debug(material_id in existing_records_dict)
-            # logger.debug(existing_records_dict[material_id])
             if material_id in existing_records_dict:
                 # If exists, prepare for UPDATE
                 update_data.append((min_quantity, destination_type, destination_id, material_id))
             else:
                 # If new, prepare for INSERT
                 insert_data.append((destination_type, destination_id, material_id, min_quantity))
-        logger.debug(f"insert_data {insert_data}")
-        logger.debug(f"update_data {update_data}")
 
         # Step 3: Bulk UPDATE (if any)
         if update_data:
@@ -1424,7 +1339,6 @@ def get_rawmaterial_category():
     cursor.execute(query)
     categories = cursor.fetchall()
     cursor.close()
-    logger.debug(f"categories {categories}")
     return categories
 
 
@@ -1460,5 +1374,14 @@ def get_transfer_raw_material_report(storageroom, destination_type, destination_
         AND DATE(rmt.transferred_date) = %s;
     """
     rawmaterial_transfer = fetch_all(query, (storageroom, destination_type, destination_id, transferred_date))
-    logger.debug(f"rawmaterial_transfer -- {rawmaterial_transfer}")
     return rawmaterial_transfer
+
+
+def get_contact_details():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute('SELECT name, contact_number, address FROM contact_details')
+    contact_details = cursor.fetchone() or {"name": "", "contact_number": "", "address": ""}
+    cursor.close()
+    conn.close()
+    return contact_details

@@ -100,7 +100,6 @@
                 fetch(`/get_invoices/${vendorId}`)
                     .then(response => response.json())
                     .then(data => {
-                        console.log(data);
                         if (data && data.length > 0) {
                             invoiceInput.disabled = false;
                             data.forEach(invoice => {

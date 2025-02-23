@@ -28,7 +28,7 @@ app = Flask(__name__)
 app.secret_key = "your_secret_key"
 encryption_key = b'ES4FoQd6EwUUUY3v-_WwoyYsBEYkWUTOrQD1VEngBkI='
 
-app.logger.setLevel(logging.DEBUG)
+app.logger.setLevel(logging.INFO)
 # Mail configuration for Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -84,7 +84,6 @@ def login():
         email = request.form["email"].strip()
         password = request.form["password"].strip()
         existing_user = get_user_by_email(email)
-        app.logger.debug(f"existing_user {existing_user}")
         if not existing_user:
             flash("User doesnot exist with this email. Please Sign Up and Create a new account.", "danger")
             return render_template("login.html")
@@ -112,7 +111,6 @@ def signup():
         # Check if the email is already registered
 
         existing_user = get_user_by_email(email)
-        app.logger.debug(f"existing_user {existing_user}")
 
         if existing_user:
             # Email already exists
@@ -149,7 +147,6 @@ def get_years():
 
 @app.route("/forgotpassword", methods=["GET", "POST"])
 def forgot_password():
-    app.logger.debug(request.method)
     if request.method == 'POST':
 
         email = request.form['email']
@@ -161,12 +158,9 @@ def forgot_password():
         else:
             # Generate a new password
             new_password = generate_random_password()
-            app.logger.debug(new_password)
             new_encrypted_password = encrypt_message(new_password, key=encryption_key)
-            app.logger.debug(new_encrypted_password)
             # Update the password in the database
             status = update_user_password(new_encrypted_password, email)
-            app.logger.debug(f"password update status {status}")
             # Send the email
             try:
                 send_email(email, new_password)
@@ -192,12 +186,9 @@ def change_password():
             flash("Current password is wrong. kindly provide the correct password")
             return redirect(url_for("change_password"))
         else:
-            app.logger.debug(new_password)
             new_encrypted_password = encrypt_message(new_password, key=encryption_key)
-            app.logger.debug(new_encrypted_password)
             # Update the password in the database
             status = update_user_password(new_encrypted_password, email)
-            app.logger.debug(f"password update status {status}")
             if status:
                 flash('Password has been changed successfully.', 'success')
             else:
@@ -397,8 +388,6 @@ def edituser():
 def invoice_page():
     conn = get_db_connection()
     vendors = get_all_vendors()
-    app.logger.debug(f"vvv {vendors}")
-    app.logger.debug(session["user"])
     conn.close()
     return render_template('invoice.html', user=session["user"], vendors=vendors)
 
@@ -432,9 +421,6 @@ def get_invoice_data():
     vendor_id = request.json.get('vendor_id')
     from_date = request.json.get('from_date')
     to_date = request.json.get('to_date')
-    app.logger.debug(vendor_id)
-    app.logger.debug(from_date)
-    app.logger.debug(to_date)
 
     conn = get_db_connection()
     with conn.cursor() as cursor:
@@ -451,11 +437,9 @@ def get_invoice_data():
             ORDER BY date
         """, (vendor_id, from_date, to_date, vendor_id, from_date, to_date))
         transactions = cursor.fetchall()
-        app.logger.debug(f"transactions {transactions}")
         cursor.execute("SELECT SUM(total_cost) AS total_credit FROM purchase_history WHERE vendor_id = %s AND purchase_date BETWEEN %s AND %s",
                        (vendor_id, from_date, to_date))
         total_credit = cursor.fetchone()[0]
-        app.logger.debug(f"total_credit {total_credit}")
         cursor.execute("SELECT SUM(amount_paid) AS total_debit FROM payment_records WHERE vendor_id = %s AND paid_on BETWEEN %s AND %s",
                        (vendor_id, from_date, to_date))
         total_debit = cursor.fetchone()[0]
@@ -794,14 +778,12 @@ def get_dish_raw_materials():
 @app.route('/submit_raw_materials', methods=['POST'])
 def submit_raw_materials():
     data = request.get_json()
-    app.logger.debug(f"Received data: {data}")
 
     dish_id = data["dish_id"]
     incoming_materials = data["materials"]
 
     # Fetch current materials from the database
     current_materials = get_dish_recipe_raw_materials(dish_id)
-    app.logger.debug(f"Current materials: {current_materials}")
 
     # Map current materials for easy comparison
     current_map = {mat[1].lower(): (mat[2], mat[3]) for mat in current_materials}  # {name: (quantity, metric)}
@@ -887,9 +869,7 @@ def edit_dish_recipe():
     if "user" not in session:
         return redirect("/login")
     dish_categories = get_unique_dish_categories()
-    app.logger.debug(dish_categories)
     dishes = get_all_dishes()
-    app.logger.debug(dishes)
     return render_template('edit_dish_recipe.html', user=session["user"], dish_categories=dish_categories, dishes=dishes)
 
 
@@ -902,11 +882,7 @@ def add_vendor():
         vendor_names = request.form.getlist("vendor_name[]")
         phone_numbers = request.form.getlist("phone_number[]")
         addresses = request.form.getlist("address[]")
-        app.logger.debug(f"vendor_names {vendor_names}")
-        app.logger.debug(f"phone_numbers {phone_numbers}")
-        app.logger.debug(f"addresses {addresses}")
         if vendor_names and phone_numbers and addresses:
-            app.logger.debug("if")
             try:
                 db_connection = get_db_connection()
                 cursor = db_connection.cursor()
@@ -948,7 +924,6 @@ def add_purchase():
     vendors = get_all_vendors(only_active=True)
 
     if request.method == 'POST':
-        app.logger.debug(f"request {request.form}")
 
         vendor_name = request.form.get('vendor')
         storageroom_name = request.form.get('storage_room')
@@ -1002,7 +977,6 @@ def add_purchase():
                     (vendor["id"], invoice_number, raw_material_id, raw_material_name,
                      quantity, metric, cost, purchase_date, storageroom['id'])
                 )
-                app.logger.debug(f"purchase_history_done")
 
                 #  Update Vendor Payment Tracker
                 cursor.execute(
@@ -1013,7 +987,6 @@ def add_purchase():
                     """,
                     (vendor['id'], invoice_number, cost)
                 )
-                app.logger.debug(f"vendor_payment_tracker_done")
 
                 # Fetch minimum_quantity first, ensuring it exists
                 cursor.execute(
@@ -1060,8 +1033,6 @@ def add_purchase():
                     (storageroom['id'], raw_material_id, metric, opening_stock, quantity,
                      new_currently_available, min_quantity, new_quantity_needed)
                 )
-                app.logger.debug(
-                    f"storeroom_stock_done: min_quantity={min_quantity}, quantity_needed={new_quantity_needed}")
 
             #  Commit all changes after successful operations
             connection.commit()
@@ -1110,10 +1081,7 @@ def get_ledger_statement():
     # invoices = [{"invoice_number": row[0]} for row in cursor.fetchall()]
     # cursor.close()
     # connection.close()
-    # app.logger.debug(f"hey {invoices}")
-    app.logger.debug(f"hey {vendor_id}")
-    app.logger.debug(f"hey {from_date}")
-    app.logger.debug(f"hey {to_date}")
+
     invoices = [
         {"date": "19-June-2024", "type": "Purchase Bill", "sr_no": 17,
          "payment_mode": "-", "credit": 22819.93, "debit": 0.0, "balance": -22819.93},
@@ -1159,7 +1127,7 @@ def get_purchases(invoice_number):
     ]
 
     total_amount = sum(purchase["total_cost"] for purchase in purchases)
-    app.logger.debug(f"pur {purchases}")
+
     cursor.close()
     connection.close()
     return jsonify({"purchases": purchases, "total_amount": total_amount})
@@ -1181,16 +1149,14 @@ def purchase_record():
     # purchases = get_all_purchases()
     today_date = get_current_date()
     vendors = get_all_vendors(only_active=True)
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
-    return render_template('purchase_record.html', user=session["user"], owner=owner, vendors=vendors, today_date=today_date)
+    contact_details = get_contact_details()
+    return render_template('purchase_record.html', user=session["user"], contact_details=contact_details, vendors=vendors, today_date=today_date)
 
 
 @app.route("/get_purchase_transaction", methods=["GET"])
 def get_purchase_transaction():
     date = request.args.get("date")
-    app.logger.debug(f"date {date}")
     transactions, total_purchase_amount = get_purchase_record(date=date)
-    app.logger.debug({"purchases": transactions, "total_amount": total_purchase_amount})
     return jsonify({"purchases": transactions, "total_amount": total_purchase_amount})
 
 
@@ -1210,10 +1176,6 @@ def fetch_purchase_records():
         return jsonify({"error": "Invalid date format"}), 400
 
     purchases, vendor_totals = get_purchase_records(vendor_id, from_date, to_date)
-    # app.logger.debug({
-    #     "purchases": purchases,
-    #     "vendor_totals": vendor_totals
-    # })
 
     return jsonify({
         "purchases": purchases,
@@ -1244,7 +1206,7 @@ def fetch_payment_records():
 @app.route("/get_pending_payments_record", methods=["GET"])
 def fetch_pending_payments_record():
     vendor_id = request.args.get("vendor_id", "all")
-    app.logger.debug(f"get_pending_payments_record {vendor_id}")
+
     # from_date = request.args.get("from_date")
     # to_date = request.args.get("to_date")
 
@@ -1258,8 +1220,6 @@ def fetch_pending_payments_record():
     #     return jsonify({"error": "Invalid date format"}), 400
 
     pending_payments, vendor_totals = get_pending_payments_record(vendor_id)
-    app.logger.debug(f"get_pending_payments_record {pending_payments}")
-    app.logger.debug(f"get_pending_payments_record {vendor_totals}")
 
     return jsonify({"payments": pending_payments, "vendor_totals": vendor_totals})
 
@@ -1267,9 +1227,9 @@ def fetch_pending_payments_record():
 @app.route("/get_payment_transaction", methods=["GET"])
 def get_payment_transaction():
     date = request.args.get("date")
-    app.logger.debug(f"date {date}")
+
     transactions, total_paid_amount = get_payment_record_on_date(date=date)
-    app.logger.debug({"payments": transactions, "total_amount": total_paid_amount})
+
     return jsonify({"payments": transactions, "total_amount": total_paid_amount})
 
 
@@ -1282,9 +1242,6 @@ def pay_vendor():
         vendor_id = request.json.get("vendorId")
         vendor_name = request.json.get("vendorName")
         amount_paid = float(request.json.get("amountPaid"))
-        app.logger.debug(f"vendor_id {vendor_id}")
-        app.logger.debug(f"vendor_name {vendor_name}")
-        app.logger.debug(f"amount_paid {amount_paid}")
         connection = get_db_connection()
         cursor = connection.cursor()
         cursor.execute(
@@ -1310,26 +1267,24 @@ def pending_payments():
         return redirect("/login")
     today_date = get_current_date()
     vendors = get_all_vendors(only_active=True)
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
-    return render_template('pending_payments.html', user=session["user"], owner=owner, vendors=vendors, today_date=today_date)
+    contact_details = get_contact_details()
+    return render_template('pending_payments.html', user=session["user"], contact_details=contact_details, vendors=vendors, today_date=today_date)
 
 
 @app.route("/process_payments", methods=["POST"])
 def process_payments():
     # try:
     if request.method == "POST":
-        app.logger.debug(f"process_payments {request.json}")
         vendor_id = request.json.get("vendor_id")
         paid_values = []
         for payment in request.json.get("payments", []):
             if payment["pay_amount"] > 0:
                 paid_values.append(payment)
-        app.logger.debug(f"vendor id {vendor_id}")
-        app.logger.debug(f"paid values {paid_values}")
+
         connection = get_db_connection()
         cursor = connection.cursor()
         for payment_detail in paid_values:
-            app.logger.debug(payment_detail)
+
             cursor.execute(
                 """
                     INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid)
@@ -1381,8 +1336,6 @@ def get_vendor_payments():
     from_date = request.args.get('from_date')
     to_date = request.args.get('to_date')
 
-    app.logger.debug(f"Vendor ID: {vendor_id}, From Date: {from_date}, To Date: {to_date}")
-
     # Convert string dates to datetime objects
     try:
         from_date = datetime.strptime(from_date, '%Y-%m-%d')
@@ -1392,7 +1345,6 @@ def get_vendor_payments():
 
     # Fetch payment records for the given vendor and date range
     payments_per_vendor = get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date)
-    app.logger.debug(f"payments_per_vendor {payments_per_vendor}")
 
     def serialize(payment):
         return {
@@ -1408,9 +1360,8 @@ def get_vendor_payments():
 @app.route("/get_payment_details/<vendor_id>", methods=["GET"])
 def get_payment_details(vendor_id):
     # vendor_id = request.args.get('vendor_id')
-    app.logger.debug(f"modal vendor_id input {vendor_id}")
+
     payments_per_vendor = get_payment_details_of_vendor(vendor_id)
-    app.logger.debug(f"payments_per_vendor {payments_per_vendor}")
 
     def serialize(payment):
         return {
@@ -1432,8 +1383,8 @@ def payment_receipt():
         return redirect("/login")
     inv_payment_details = get_invoice_payment_details()
     vendors = get_all_vendors(only_active=True)
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
-    return render_template('payment_receipt.html', vendors=vendors, owner=owner, inv_payment_details=inv_payment_details, user=session["user"])
+    contact_details = get_contact_details()
+    return render_template('payment_receipt.html', vendors=vendors, contact_details=contact_details, inv_payment_details=inv_payment_details, user=session["user"])
 
 
 @app.route("/payment_record")
@@ -1443,8 +1394,8 @@ def payment_record():
     # payment_record = get_payment_record()
     today_date = get_current_date()
     vendors = get_all_vendors(only_active=True)
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
-    return render_template('payment_record.html', user=session["user"], vendors=vendors, owner=owner, today_date=today_date)
+    contact_details = get_contact_details()
+    return render_template('payment_record.html', user=session["user"], vendors=vendors, contact_details=contact_details, today_date=today_date)
 
 
 @app.route('/restaurant_inventory_stock')
@@ -1461,23 +1412,18 @@ def set_minimum_stock():
     if "user" not in session:
         return redirect("/login")
     if request.method == "POST":
-        # app.logger.debug(f"min stock {request.json}")
         # try:
         destination_type = request.form.get("destination_type")
         destination_id = request.form.get("destination_id")
-        app.logger.debug(request.form)
         min_stock_data = {}
         for key, value in request.form.items():
-            # app.logger.debug(f"{key}, {value} {type(value)} {float(value)}")
-            if key.startswith("min_quantity_"):
-                app.logger.debug(f"yes {key}")
-                material_id = key.replace("min_quantity_", "")
-                app.logger.debug(material_id)
-                min_stock_data[material_id] = float(value)
-                # app.logger.debug(min_stock_data)
 
-        app.logger.debug(f"Destination Type: {destination_type}, Destination Id: {destination_id}")
-        app.logger.debug(f"Minimum Stock Data: {min_stock_data}")
+            if key.startswith("min_quantity_"):
+
+                material_id = key.replace("min_quantity_", "")
+
+                min_stock_data[material_id] = float(value)
+
         result = update_minimum_stock(destination_type, destination_id, min_stock_data)
         if result:
             flash("Minimum stock updated successfully!", "success")
@@ -1512,8 +1458,6 @@ def fetch_raw_materials_min_stock():
     # Fetch raw materials with minimum stock details
     rm = get_raw_materials_min_stock(destination_type, destination_id)
 
-    app.logger.debug(f"Fetched Raw Materials: {rm}")
-
     return jsonify(rm)  # Return as JSON response
 
 
@@ -1532,8 +1476,6 @@ def fetch_raw_materials_stock_report():
 
     # Fetch raw materials with minimum stock details
     rm = get_raw_materials_stock_report(destination_type, destination_id, category)
-
-    app.logger.debug(f"Fetched Raw Materials: {rm}")
 
     return jsonify(rm)  # Return as JSON response
 
@@ -1597,8 +1539,7 @@ def transfer_raw_material():
                 )
 
                 # Add to kitchen/restaurant inventory
-                app.logger.debug(
-                    f"Executing query for kitchen update: {destination_type}, {destination_id}, {raw_material_id}, {quantity}")
+
                 execute_query(
                     """INSERT INTO inventory_stock (destination_type, destination_id, raw_material_id, metric, opening_stock, incoming_stock, currently_available, minimum_quantity, quantity_needed)
         VALUES (%s, %s, %s, %s,
@@ -1679,7 +1620,6 @@ def profile():
     if "user" not in session:
         return redirect("/login")
     user = get_user_by_email(session["user"]["email"])
-    app.logger.debug(user)
     return render_template('profile.html', user=user)
 
 
@@ -1737,7 +1677,6 @@ def estimate_dishes():
                 """
                 cursor.execute(transfer_query, (selected_date,))
                 transferred_materials = cursor.fetchall()
-                app.logger.debug(f"transferred_materials {transferred_materials}")
 
                 if not transferred_materials:
                     return jsonify({"message": "No data available for the selected date."})
@@ -1750,7 +1689,6 @@ def estimate_dishes():
                         'quantity': convert_to_base_unit(material[2], material[3]),
                         'metric': material[3]
                     }
-                app.logger.debug(f"material_map {material_map}")
 
                 # Query all dishes and their required raw materials
                 dishes_query = """
@@ -1760,7 +1698,6 @@ def estimate_dishes():
                 """
                 cursor.execute(dishes_query)
                 dish_data = cursor.fetchall()
-                app.logger.debug(f"dish_data {dish_data}")
                 # Calculate estimates for each dish
                 dish_estimates = {}
 
@@ -1779,7 +1716,6 @@ def estimate_dishes():
                     # Calculate max dishes that can be prepared with available material
                     available_quantity = material_map[raw_material_id]['quantity']
                     max_dishes = float(available_quantity) // float(required_quantity)
-                    app.logger.debug(f" dish {dish}, max_dishes {max_dishes}")
 
                     if dish_id not in dish_estimates:
                         dish_estimates[dish_id] = {
@@ -1822,12 +1758,9 @@ def upload_sales_report():
         return redirect("/login")
 
     if request.method == 'POST':
-        app.logger.debug(f"request.files {request.files}")
         file = request.files.get('file')
         restaurant_id = request.form.get("restaurant_id")
         sales_date = request.form.get("sales_report_date")
-        app.logger.debug(f"restaurant_id {restaurant_id}")
-        app.logger.debug(f"sales_date {sales_date}")
 
         if 'file' not in request.files:
             flash('No file part found. Please try again.', "danger")
@@ -1880,7 +1813,6 @@ def upload_sales_report():
                     cursor.execute(
                         "SELECT id FROM dishes WHERE category = %s AND name = %s", (temp["category"], temp["item_name"]))
                     dish = cursor.fetchone()
-                    app.logger.debug(f"dish fetchone one {dish}")
                     if dish:
                         dish_id = dish[0]
                         temp["dish_id"] = dish_id
@@ -1911,17 +1843,13 @@ def upload_sales_report():
 def get_available_quantity():
     storageroom_id = int(request.args.get('storageroom_id'))
     raw_material_id = request.args.get('raw_material_id')
-    app.logger.debug(f"ss {storageroom_id}")
-    app.logger.debug(f"rm {raw_material_id}")
     available_quantity = get_storageroom_rawmaterial_quantity(storageroom_id, raw_material_id)
     storage_available_quantity = 0
     if available_quantity:
         storage_available_quantity = available_quantity[0]["quantity"]
-    app.logger.debug(f"storage_available_quantity {storage_available_quantity}")
     # # Check if storage room and raw material exist
     # available_quantity = storage_available_quantity.get(raw_material_id, 0)
     data = {"available_quantity": float(storage_available_quantity)}
-    app.logger.debug(f"jsonify data {data}")
     return jsonify(data)
 
 
@@ -2020,7 +1948,6 @@ def list_prepared_dishes():
         return redirect("/login")
     if request.method == 'POST':
         prepared_date = request.form['prepared_date']
-        app.logger.debug(f"prepared_date {prepared_date}")
         prepared_dishes = get_all_prepared_dishes(prepared_date)
         return render_template('list_prepared_dishes.html', user=session["user"], prepared_dishes=prepared_dishes, current_date=prepared_date)
     return render_template('list_prepared_dishes.html', user=session["user"])
@@ -2050,25 +1977,20 @@ def transfer_prepared_dishes():
     restaurants = get_all_restaurants(only_active=True)
 
     current_date = get_current_date()
-    app.logger.debug(f"dish_categories {dish_categories}")
-    app.logger.debug(f"prepared_dishes_today {prepared_dishes_today}")
-    app.logger.debug(f"restaurants {restaurants}")
-    app.logger.debug(f"kitchens {kitchens}")
 
     # Handle form submission for dish transfer
     if request.method == 'POST':
         source_kitchen_id = request.form['kitchen']
-        app.logger.debug(f"source_kitchen_id {source_kitchen_id}")
+
         destination_restaurant_id = request.form['destination_name']
-        app.logger.debug(f"destination_restaurant_id {destination_restaurant_id}")
+
         dish_categories = request.form.getlist('dish_categories[]')
-        app.logger.debug(f"dish_categories {dish_categories}")
+
         dish_names = request.form.getlist('dish_names[]')
-        app.logger.debug(f"dish_names {dish_names}")
+
         transferred_quantities = request.form.getlist('transferred_quantities[]')
-        app.logger.debug(f"transferred_quantities {transferred_quantities}")
+
         transfer_date = request.form['transfer_date']
-        app.logger.debug(f"transfer_date {transfer_date }")
 
         # try:
         conn = get_db_connection()
@@ -2084,7 +2006,7 @@ def transfer_prepared_dishes():
                 (dish_id, source_kitchen_id, transfer_date)
             )
             dish = cursor.fetchone()
-            app.logger.debug(f"dishhhh {dish}")
+
             if dish and dish[0] >= int(quantity):
                 cursor.execute("""
                 INSERT INTO prepared_dish_transfer (
@@ -2207,15 +2129,14 @@ def adjust_stocks(sales_report_data, report_date, restaurant_id):
     if not conn:
         print("Failed to connect to the database.")
         return []
-    app.logger.debug(report_date)
+
     # data = get_sales_report_data(report_date)
     for dish_data in sales_report_data:
-        app.logger.debug(f"dish data for loop {dish_data}")
+
         dish_recipe = get_dish_recipe(dish_data["dish_id"])
-        app.logger.debug(f"dish recipeee {dish_recipe}")
+
         transferred_dish = check_dish_transferred(dish_data["dish_id"], report_date, restaurant_id)
         if transferred_dish:
-            app.logger.debug(f"{dish_data} is a prepared dish")
             pass
         else:
             update_restaurant_stock(restaurant_id, dish_data["dish_id"], dish_data["quantity"], report_date)
@@ -2227,7 +2148,6 @@ def adjust_stocks(sales_report_data, report_date, restaurant_id):
         #             'quantity': material[1] * dish_data["quantity"],
         #             'metric': material[2]
         #         })
-        #     app.logger.debug(f"raw raw {raw_materials}")
         #     subtract_raw_materials(raw_materials, "restaurant", restaurant_id, report_date)
         # # transferred_dish = check_dish_transferred(dish_data["id"], report_date, restaurant_id)
         # # if transferred_dish:
@@ -2246,8 +2166,6 @@ def restaurant_consumption():
     if request.method == 'POST':
         selected_date = request.form['report_date']
         restaurant_id = request.form['restaurant_id']
-        app.logger.debug(f"selected_date {selected_date}")
-        app.logger.debug(f"restaurant_id {restaurant_id}")
         consumption_data = get_restaurant_consumption_report(restaurant_id, selected_date)
         return render_template("restaurant_consumption.html", user=session["user"], restaurants=restaurants, current_date=selected_date, query_result=consumption_data)
     return render_template("restaurant_consumption.html", user=session["user"], restaurants=restaurants, current_date=get_current_date())
@@ -2261,8 +2179,6 @@ def kitchen_consumption():
     if request.method == 'POST':
         selected_date = request.form['report_date']
         kitchen_id = request.form['kitchen_id']
-        app.logger.debug(f"selected_date {selected_date}")
-        app.logger.debug(f"kitchen_id {kitchen_id}")
         consumption_data = get_kitchen_consumption_report(kitchen_id, selected_date)
         return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=selected_date, query_result=consumption_data)
     return render_template("kitchen_consumption.html", user=session["user"], kitchens=kitchens, current_date=get_current_date())
@@ -2271,7 +2187,6 @@ def kitchen_consumption():
 @app.route("/api/purchase_trend")
 def purchase_trend():
     year = request.args.get("year", type=int)
-    app.logger.debug(f"yearr {year}")
     query = """
         SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
         FROM purchase_history
@@ -2286,7 +2201,6 @@ def purchase_trend():
         result = cursor.fetchall()
 
     connection.close()
-    app.logger.debug(f"result {result}")
 
     # Mapping database results to required format
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -2299,7 +2213,6 @@ def purchase_trend():
         "months": months,
         "purchase_amounts": purchase_amounts
     }
-    app.logger.debug(f"res {response}")
 
     return jsonify(response)
     # return {
@@ -2319,20 +2232,20 @@ def stock_report():
     #     return render_template('stock_report.html', transfers=transfers, current_date=selected_date, user=session["user"])
     rm_categories = get_rawmaterial_category()
     rm_categories = [rmc[0] for rmc in rm_categories]
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    contact_details = get_contact_details()
     return render_template('stock_report.html', user=session["user"], storage_rooms=get_all_storagerooms(only_active=True),
                            restaurants=get_all_restaurants(only_active=True),
-                           kitchens=get_all_kitchens(only_active=True), rawmaterial_category=rm_categories, owner=owner)
+                           kitchens=get_all_kitchens(only_active=True), rawmaterial_category=rm_categories, contact_details=contact_details)
 
 
 @app.route('/transfer_raw_material_report', methods=["GET", "POST"])
 def transfer_raw_material_report():
     if "user" not in session:
         return redirect("/login")
-    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    contact_details = get_contact_details()
     return render_template('transfer_raw_material_report.html', user=session["user"], storage_rooms=get_all_storagerooms(only_active=True),
                            restaurants=get_all_restaurants(only_active=True),
-                           kitchens=get_all_kitchens(only_active=True), owner=owner)
+                           kitchens=get_all_kitchens(only_active=True), contact_details=contact_details)
 
 
 @app.route('/get_transfer_details_report', methods=["GET"])
@@ -2345,11 +2258,6 @@ def get_transfer_details():
     destination_type = request.args.get("destination_type")
     destination_id = request.args.get("destination_name")
     transfer_date = request.args.get("transfer_date")
-    app.logger.debug("transfer_raw_material_report")
-    app.logger.debug(f"storageroom_id {storageroom_id}")
-    app.logger.debug(f"destination_type {destination_type}")
-    app.logger.debug(f"destination_id {destination_id}")
-    app.logger.debug(f"transfer_date {transfer_date}")
 
     if not destination_type or not destination_id or not storageroom_id or not transfer_date:
         return jsonify({"error": "Missing required parameters"}), 400
@@ -2357,9 +2265,29 @@ def get_transfer_details():
     # Fetch raw material transfer details
     rm = get_transfer_raw_material_report(storageroom_id, destination_type, destination_id, transfer_date)
 
-    app.logger.debug(f"Fetched Raw Materials Transfer: {rm}")
-
     return jsonify(rm)  # Return as JSON response
+
+
+@app.route("/contact_details", methods=["GET", "POST"])
+def contact_details():
+    if "user" not in session:
+        return redirect("/login")
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        contact_number = request.form["contact_number"].strip()
+        address = request.form["address"].strip()
+
+        insert_query = """
+            INSERT INTO contact_details (name, contact_number, address)
+            VALUES (%s, %s, %s)
+        """
+        if execute_query(insert_query, (name, contact_number, address)):
+            flash("Details added successfully!", "success")
+        else:
+            flash("Error: Unable to add the details. Please try again later.", "danger")
+        return redirect("/contact_details")
+    contact_details = get_contact_details()
+    return render_template("contact_details.html", user=session["user"], contact_details=contact_details)
 
 
 if __name__ == "__main__":

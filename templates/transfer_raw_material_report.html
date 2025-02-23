@@ -166,9 +166,9 @@
         const printContent = `
         <div style="text-align: left;">
             <h4 style="text-align: center;">Raw Material Transfer Report</h4>
-            <h2 style="text-align: center;">{{ owner.name }}</h2>
-            <p style="text-align: center;">Contact: {{ owner.phone_num }}</p>
-            <p style="text-align: center;">Address: {{ owner.address }}</p>
+            <h2 style="text-align: center;">{{ contact_details.name }}</h2>
+            <p style="text-align: center;">Contact: {{ contact_details.contact_number }}</p>
+            <p style="text-align: center;">Address: {{ contact_details.address }}</p>
             <p><strong>Storage Room:</strong> ${document.querySelector('select[name="storageroom"] option:checked').text}</p>
             <p><strong>Destination Type:</strong> ${destinationTypeSelect.options[destinationTypeSelect.selectedIndex].text}</p>
             <p><strong>Destination Name:</strong> ${destinationNameSelect.options[destinationNameSelect.selectedIndex].text}</p>

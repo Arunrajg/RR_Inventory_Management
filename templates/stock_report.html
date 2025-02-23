@@ -140,9 +140,9 @@
         const printContent = `
                 <div style="text-align: center;">
                     <h4>Stock Report</h4>
-                    <h2>{{ owner.name }}</h2>
-                    <p>Contact: {{ owner.phone_num }}</p>
-                    <p>Address: {{ owner.address }}</p>
+                    <h2>{{ contact_details.name }}</h2>
+                    <p>Contact: {{ contact_details.contact_number }}</p>
+                    <p>Address: {{ contact_details.address }}</p>
                 </div>
                 <p><b>Storage Room:</b> ${destinationNameSelect.options[destinationNameSelect.selectedIndex].text}</p>
                 <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
