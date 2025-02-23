@@ -163,7 +163,7 @@
                                             Materials List</a></li>
                                 </ul>
                             </li>
-                            <li class="submenu">
+                            <!-- <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
                                         alt="img"><span>
                                         Dish Recipe</span> <span class="menu-arrow"></span></a>
@@ -183,7 +183,7 @@
                                             Dish Recipe</a></li>
                                     {% endif %}
                                 </ul>
-                            </li>
+                            </li> -->
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
                                         alt="img"><span>
@@ -260,10 +260,19 @@
                                             Inventory
                                             Stock
                                         </a></li>
+                                    {% if user.role=='admin' %}
                                     <li><a href="/set_minimum_stock"
                                             class="{{ 'active' if request.path == '/set_minimum_stock' else '' }}">Set
                                             Minimum Stock
                                         </a></li>
+                                    {% endif %}
+                                    {% if user.role=='admin' or user.role=='store_manager' or
+                                    user.role=='branch_manager' %}
+                                    <li><a href="/stock_report"
+                                            class="{{ 'active' if request.path == '/stock_report' else '' }}">Stock
+                                            Report
+                                        </a></li>
+                                    {% endif %}
                                 </ul>
                             </li>
                             <li class="submenu">
@@ -277,23 +286,23 @@
                                             class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Transfer
                                             Raw Materials</a></li>
                                     {% endif %}
-                                    {% if user.role=='admin' or user.role=='store_manager' or
+                                    <!-- {% if user.role=='admin' or user.role=='store_manager' or
                                     user.role=='branch_manager' %}
                                     <li><a href="/transfer_prepared_dishes"
                                             class="{{ 'active' if request.path == '/transfer_prepared_dishes' else '' }}">Transfer
                                             Prepared Dishes</a></li>
-                                    {% endif %}
+                                    {% endif %} -->
                                     <li><a href="/list_rawmaterial_transfers"
                                             class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
                                             Raw
                                             Material Transfers </a></li>
-                                    <li><a href="/list_prepared_dishes_transfers"
+                                    <!-- <li><a href="/list_prepared_dishes_transfers"
                                             class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
                                             Prepared
-                                            Dishes Transfers </a></li>
+                                            Dishes Transfers </a></li> -->
                                 </ul>
                             </li>
-                            <li class="submenu">
+                            <!-- <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
                                         alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
                                 <ul>
@@ -306,11 +315,9 @@
                                     <li><a href="/list_prepared_dishes"
                                             class="{{ 'active' if request.path == '/list_prepared_dishes' else '' }}">List
                                             Prepared Dishes</a></li>
-                                    <!-- <li><a href="/restaurant_stock">Restaurant Stock</a></li>
-                                    <li><a href="addquotation.html">Add Quotation</a></li> -->
                                 </ul>
-                            </li>
-                            <li class="submenu">
+                            </li> -->
+                            <!-- <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/time.svg" alt="img"><span>
                                         Report</span> <span class="menu-arrow"></span></a>
                                 <ul>
@@ -329,12 +336,8 @@
                                             class="{{ 'active' if request.path == '/kitchen_consumption' else '' }}">Kitchen
                                             Raw Material Consumption
                                         </a></li>
-                                    <!-- <li><a href="/check_dish_availability"
-                                            class="{{ 'active' if request.path == '/check_dish_availability' else '' }}">Check
-                                            Dish Availability </a></li> -->
-                                    <!-- <li><a href="importtransfer.html">Import Transfer </a></li> -->
                                 </ul>
-                            </li>
+                            </li> -->
                             <li class="submenu">
                                 <a href="javascript:void(0);"><img src="../static/img/icons/users1.svg" alt="img"><span>
                                         Users</span> <span class="menu-arrow"></span></a>

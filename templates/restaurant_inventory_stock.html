@@ -29,7 +29,13 @@
                             <tr>
                                 <th>S.No</th>
                                 <th>Raw Material</th>
-                                <th>Quantity</th>
+                                <th>Category</th>
+                                <th>Opening Quantity</th>
+                                <th>Incoming Quantity</th>
+                                <th>Outgoing Quantity</th>
+                                <th>Available Quantity</th>
+                                <th>Minimum Required Quantity</th>
+                                <th>Quantity Needed</th>
                                 <th>Metric</th>
                                 <th>Restaurant Name</th>
                             </tr>
@@ -38,10 +44,18 @@
                             {% for stock in restaurantinv_stock %}
                             <tr>
                                 <td>{{ loop.index }}</td>
-                                <td>{{ stock['raw_material_name']}}</td>
-                                <td>{{ stock['quantity'] }}</td>
+                                <td>{{ stock['rawmaterial_name']}}</td>
+                                <td>{{ stock['category']}}</td>
+                                <td>{{ stock['opening_stock'] }}</td>
+                                <td>{{ stock['incoming_stock'] }}</td>
+                                <td>{{ stock['outgoing_stock'] }}</td>
+                                <td>{{ stock['currently_available'] }}</td>
+                                <td>{{ stock['minimum_required'] }}</td>
+                                <td style="color: {% if stock['quantity_needed'] > 0 %}red{% else %}black{% endif %};">
+                                    {{ stock['quantity_needed'] }}
+                                </td>
                                 <td>{{ stock['metric'] }}</td>
-                                <td>{{ stock['restaurant_name']}}</td>
+                                <td>{{ stock['restaurantname']}}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

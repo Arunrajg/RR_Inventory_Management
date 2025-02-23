@@ -1,0 +1,193 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Stock Report</h4>
+                <h6>Download and print current stock availability</h6>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/stock_report" id="stockForm">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Type</label>
+                                <select name="destination_type" class="form-control" id="destination_type" required>
+                                    <option value="storageroom">Storage Room</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <select name="destination_id" class="form-control" id="destination_id"
+                                    required></select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Raw Material Category</label>
+                                <input list="rmcategory" name="rmcategory" class="form-control"
+                                    placeholder="Select Category">
+                                <datalist id="rmcategory">
+                                    <option value="All" data-id="all"></option>
+                                    {% for rmc in rawmaterial_category %}
+                                    <option value="{{ rmc }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <button type="button" id="fetch_details" class="btn btn-primary">Fetch Details</button>
+                            <button type="button" id="printReport" class="btn btn-secondary" disabled>Print</button>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table" id="rawMaterialTable">
+                            <thead>
+                                <tr>
+                                    <th>S.No</th>
+                                    <th>Raw Material</th>
+                                    <th>Category</th>
+                                    <th>Opening Quantity</th>
+                                    <th>Incoming Quantity</th>
+                                    <th>Outgoing Quantity</th>
+                                    <th>Available Quantity</th>
+                                    <th>Minimum Required Quantity</th>
+                                    <th>Quantity Needed</th>
+                                    <th>Metric</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rawMaterialTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const destinationNameSelect = document.getElementById('destination_id');
+        const destinationTypeSelect = document.getElementById('destination_type');
+        const fetchButton = document.getElementById('fetch_details');
+        const printButton = document.getElementById('printReport');
+        const rawMaterialTableBody = document.getElementById('rawMaterialTableBody');
+        const storageRooms = {{ storage_rooms | tojson
+    }};
+
+    function updateDestinationNameOptions() {
+        destinationNameSelect.innerHTML = '<option disabled selected>Select Destination</option>';
+        storageRooms.forEach(option => {
+            const newOption = document.createElement('option');
+            newOption.value = option.id;
+            newOption.textContent = option.storageroomname;
+            destinationNameSelect.appendChild(newOption);
+        });
+    }
+
+    function fetchRawMaterials() {
+        const destinationId = destinationNameSelect.value;
+        const destinationType = destinationTypeSelect.value;
+        const category = document.querySelector('[name="rmcategory"]').value.toLowerCase() || "all";
+
+        if (!destinationId) {
+            alert("Please select a Storage Room.");
+            return;
+        }
+
+        fetch(`/get_raw_materials_stock_report?destination_id=${destinationId}&destination_type=${destinationType}&category=${category}`)
+            .then(response => response.json())
+            .then(data => {
+                rawMaterialTableBody.innerHTML = '';
+                data.forEach((material, index) => {
+                    const row = `<tr>
+                                <td>${index + 1}</td>
+                                <td>${material.rawmaterial_name}</td>
+                                <td>${material.category}</td>
+                                <td>${material.opening_stock}</td>
+                                <td>${material.incoming_stock}</td>
+                                <td>${material.outgoing_stock}</td>
+                                <td>${material.currently_available}</td>
+                                <td>${material.minimum_required}</td>
+                                <td>${material.quantity_needed}</td>
+                                <td>${material.metric}</td>
+                            </tr>`;
+                    rawMaterialTableBody.insertAdjacentHTML('beforeend', row);
+                });
+                printButton.disabled = false;
+            })
+            .catch(error => console.error('Error fetching raw materials:', error));
+    }
+
+    function printStockReport() {
+        const printContent = `
+                <div style="text-align: center;">
+                    <h4>Stock Report</h4>
+                    <h2>{{ owner.name }}</h2>
+                    <p>Contact: {{ owner.phone_num }}</p>
+                    <p>Address: {{ owner.address }}</p>
+                </div>
+                <p><b>Storage Room:</b> ${destinationNameSelect.options[destinationNameSelect.selectedIndex].text}</p>
+                <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
+                    <thead>
+                        <tr>
+                            <th>S.No</th>
+                            <th>Raw Material</th>
+                            <th>Category</th>
+                            <th>Opening Quantity</th>
+                            <th>Incoming Quantity</th>
+                            <th>Outgoing Quantity</th>
+                            <th>Available Quantity</th>
+                            <th>Minimum Required Quantity</th>
+                            <th>Quantity Needed</th>
+                            <th>Metric</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rawMaterialTableBody.innerHTML}
+                    </tbody>
+                </table>
+                <br><br>
+                <div style="display: flex; justify-content: space-between;">
+                    <p>Authorized Signature: __________</p>
+                    <p>Receiver Signature: __________</p>
+                </div>`;
+
+        let iframe = document.createElement('iframe');
+        iframe.style.position = 'absolute';
+        iframe.style.width = '0px';
+        iframe.style.height = '0px';
+        iframe.style.border = 'none';
+        document.body.appendChild(iframe);
+        let doc = iframe.contentWindow.document;
+        doc.open();
+        doc.write('<html><head></head><body>' + printContent + '</body></html>');
+        doc.close();
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => document.body.removeChild(iframe), 1000);
+    }
+
+    fetchButton.addEventListener('click', fetchRawMaterials);
+    printButton.addEventListener('click', printStockReport);
+    updateDestinationNameOptions();
+    });
+</script>
+{% endblock %}

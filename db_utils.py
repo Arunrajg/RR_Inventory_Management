@@ -563,23 +563,49 @@ def get_payment_details_of_vendor(vendor_id):
     return payments
 
 
-def get_storageroom_stock():
+def get_storageroom_stock(destination_id=None, category=None):
     query = """
     SELECT
-        sr.id as storageroom_id,
         sr.storageroomname,
-        rm.id as rawmaterial_id,
-        rm.name as rawmaterial_name,
-        srm.quantity,
-        srm.metric
+        rm.name AS rawmaterial_name,
+        rm.category AS category,
+        srm.metric,
+        srm.opening_stock,
+        srm.incoming_stock,
+        srm.outgoing_stock,
+        srm.currently_available,
+        COALESCE(ms.min_quantity, 0) AS minimum_required,
+        GREATEST(0, COALESCE(ms.min_quantity, 0) - srm.currently_available) AS quantity_needed
     FROM
-        storageroom_stock AS srm
+        inventory_stock AS srm
     JOIN
-        storagerooms AS sr ON sr.id = srm.storageroom_id
+        storagerooms AS sr ON sr.id = srm.destination_id
+        AND srm.destination_type = 'storageroom'
     JOIN
-        raw_materials AS rm ON rm.id = srm.raw_material_id;
+        raw_materials AS rm ON rm.id = srm.raw_material_id
+    LEFT JOIN
+        minimum_stock AS ms ON ms.destination_id = srm.destination_id 
+        AND ms.raw_material_id = srm.raw_material_id
+        AND ms.type = 'storageroom'
     """
-    storage_stock = fetch_all(query)
+
+    params = []
+    filters = []
+
+    if destination_id:
+        filters.append("srm.destination_id = %s")
+        params.append(destination_id)
+
+    if category and category.lower() != "all":
+        filters.append("rm.category = %s")
+        params.append(category)
+
+    if filters:
+        query += " WHERE " + " AND ".join(filters)
+
+    query += " ORDER BY sr.storageroomname, rm.name;"
+
+    storage_stock = fetch_all(query, params)
     logger.debug(f"storage_stock -- {storage_stock}")
     return storage_stock
 
@@ -682,12 +708,22 @@ def get_prepared_dishes_transfer_history(transferred_date):
     return prepared_dishes_transfer
 
 
+# def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
+#     query = """
+#     SELECT
+#         storageroom_id, raw_material_id, quantity, metric
+#     FROM storageroom_stock
+#     WHERE storageroom_id=%s AND raw_material_id=%s"""
+#     data = fetch_all(query, (storageroom_id, rawmaterial_id))
+#     logger.debug(f"ddddaaata {data}")
+#     return data
+
 def get_storageroom_rawmaterial_quantity(storageroom_id, rawmaterial_id):
     query = """
     SELECT
-        storageroom_id, raw_material_id, quantity, metric
-    FROM storageroom_stock
-    WHERE storageroom_id=%s AND raw_material_id=%s"""
+        destination_id as storageroom_id, raw_material_id, currently_available as quantity, metric
+    FROM inventory_stock
+    WHERE destination_type='storageroom' AND destination_id=%s AND raw_material_id=%s"""
     data = fetch_all(query, (storageroom_id, rawmaterial_id))
     logger.debug(f"ddddaaata {data}")
     return data
@@ -739,19 +775,31 @@ def get_data(query, params=None):
 
 def get_kitchen_inventory_stock():
     query = """
-        SELECT
-            k.kitchenname,
-            rm.id,
-            rm.name as rawmaterial_name,
-            kis.quantity,
-            kis.metric
-        FROM
-            kitchen_inventory_stock AS kis
-        JOIN
-            kitchen AS k ON k.id = kis.kitchen_id
-        JOIN
-            raw_materials AS rm ON rm.id = kis.raw_material_id;
-        """
+    SELECT
+    k.kitchenname,
+    rm.name AS rawmaterial_name,
+    rm.category AS category,
+    srm.metric,
+    srm.opening_stock,
+    srm.incoming_stock,
+    srm.outgoing_stock,
+    srm.currently_available,
+    COALESCE(ms.min_quantity, 0) AS minimum_required,
+    GREATEST(0, COALESCE(ms.min_quantity, 0) - srm.currently_available) AS quantity_needed
+FROM
+    inventory_stock AS srm
+JOIN
+    kitchen AS k ON k.id = srm.destination_id
+    AND srm.destination_type = 'kitchen'  -- Ensure only kitchen stocks are fetched
+JOIN
+    raw_materials AS rm ON rm.id = srm.raw_material_id
+LEFT JOIN
+    minimum_stock AS ms ON ms.destination_id = srm.destination_id 
+    AND ms.raw_material_id = srm.raw_material_id
+    AND ms.type = 'kitchen'
+ORDER BY 
+    k.kitchenname, rm.name;
+"""
     kitchen_inventory_stock = fetch_all(query)
     logger.debug(f"kitchen_inventory_stock -- {kitchen_inventory_stock}")
     return kitchen_inventory_stock
@@ -759,18 +807,30 @@ def get_kitchen_inventory_stock():
 
 def get_restaurant_inventory_stock():
     query = """
-        SELECT r.id AS restaurant_id,
-            r.restaurantname AS restaurant_name,
-            rm.id AS raw_material_id,
-            rm.name AS raw_material_name,
-            ris.quantity,
-            ris.metric
-        FROM
-            restaurant_inventory_stock as ris
-        JOIN
-            restaurant r ON ris.restaurant_id = r.id
-        JOIN
-            raw_materials rm ON ris.raw_material_id = rm.id;
+        SELECT
+    r.restaurantname,
+    rm.name AS rawmaterial_name,
+    rm.category AS category,
+    srm.metric,
+    srm.opening_stock,
+    srm.incoming_stock,
+    srm.outgoing_stock,
+    srm.currently_available,
+    COALESCE(ms.min_quantity, 0) AS minimum_required,
+    GREATEST(0, COALESCE(ms.min_quantity, 0) - srm.currently_available) AS quantity_needed
+FROM
+    inventory_stock AS srm
+JOIN
+    restaurant AS r ON r.id = srm.destination_id
+    AND srm.destination_type = 'restaurant'  -- Ensure only restaurant stocks are fetched
+JOIN
+    raw_materials AS rm ON rm.id = srm.raw_material_id
+LEFT JOIN
+    minimum_stock AS ms ON ms.destination_id = srm.destination_id 
+    AND ms.raw_material_id = srm.raw_material_id
+    AND ms.type = 'restaurant'
+ORDER BY 
+    r.restaurantname, rm.name;
         """
     restaurant_inventory_stock = fetch_all(query)
     logger.debug(f"restaurant_inventory_stock -- {restaurant_inventory_stock}")
@@ -1263,20 +1323,25 @@ def update_minimum_stock(destination_type, destination_id, min_stock_data):
         existing_records = execute_query(existing_records_query, (destination_type, destination_id))
         logger.debug(f"existing_records {existing_records}")
         existing_records_dict = {row[0]: row[1] for row in existing_records} if existing_records else {}
-
+        logger.debug(f"existing_records_dict {existing_records_dict}")
         # Step 2: Prepare bulk UPDATE and INSERT data
         update_data = []
         insert_data = []
 
         for material_id, min_quantity in min_stock_data.items():
+            material_id = int(material_id)
+            logger.debug(f"material_id {material_id} {type(material_id)} min_quantity {min_quantity}")
             min_quantity = max(round(min_quantity, 5), 0)  # Ensure 5 decimal points & no negatives
-
+            logger.debug(material_id in existing_records_dict)
+            # logger.debug(existing_records_dict[material_id])
             if material_id in existing_records_dict:
                 # If exists, prepare for UPDATE
                 update_data.append((min_quantity, destination_type, destination_id, material_id))
             else:
                 # If new, prepare for INSERT
                 insert_data.append((destination_type, destination_id, material_id, min_quantity))
+        logger.debug(f"insert_data {insert_data}")
+        logger.debug(f"update_data {update_data}")
 
         # Step 3: Bulk UPDATE (if any)
         if update_data:
@@ -1287,6 +1352,11 @@ def update_minimum_stock(destination_type, destination_id, min_stock_data):
             """
             execute_query(update_query, update_data, bulk=True)
 
+            # Call `update_inventory_after_min_stock_change` for updated records
+            for data in update_data:
+                min_quantity, _, _, material_id = data  # Extract values
+                update_inventory_after_min_stock_change(destination_type, destination_id, material_id, min_quantity)
+
         # Step 4: Bulk INSERT (if any)
         if insert_data:
             insert_query = """
@@ -1294,6 +1364,11 @@ def update_minimum_stock(destination_type, destination_id, min_stock_data):
                 VALUES (%s, %s, %s, %s)
             """
             execute_query(insert_query, insert_data, bulk=True)
+
+            # Call `update_inventory_after_min_stock_change` for inserted records
+            for data in insert_data:
+                _, _, material_id, min_quantity = data  # Extract values
+                update_inventory_after_min_stock_change(destination_type, destination_id, material_id, min_quantity)
 
         return True  # Success
 
@@ -1311,3 +1386,43 @@ def get_raw_materials_min_stock(destination_type, destination_id):
     """
     result = execute_query(query, (destination_type, destination_id))
     return [{"id": row[0], "name": row[1], "category": row[2], "metric": row[3], "min_quantity": float(row[4])} for row in result]
+
+
+def get_raw_materials_stock_report(destination_type, destination_id, category):
+    if destination_type == "storageroom":
+        return get_storageroom_stock(destination_id, category)
+    # You can add similar logic for kitchen and restaurant if needed
+    return []
+
+
+def update_inventory_after_min_stock_change(destination_type, destination_id, raw_material_id, new_min_quantity):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Update the minimum_quantity
+    cursor.execute(
+        """
+        UPDATE inventory_stock 
+        SET minimum_quantity = %s,
+            quantity_needed = GREATEST(0, %s - currently_available)  -- Ensure non-negative quantity_needed
+        WHERE destination_type = %s
+          AND destination_id = %s
+          AND raw_material_id = %s;
+        """,
+        (new_min_quantity, new_min_quantity, destination_type, destination_id, raw_material_id)
+    )
+
+    connection.commit()
+    cursor.close()
+    connection.close()
+
+
+def get_rawmaterial_category():
+    conn = get_db_connection()
+    query = """select distinct(category) as category from raw_materials order by category"""
+    cursor = conn.cursor()
+    cursor.execute(query)
+    categories = cursor.fetchall()
+    cursor.close()
+    logger.debug(f"categories {categories}")
+    return categories

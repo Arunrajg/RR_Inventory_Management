@@ -121,7 +121,7 @@ def signup():
             password = encrypt_message(password, encryption_key)
             # Insert new user details
             insert_query = """
-                INSERT INTO users (username, email, password, role) 
+                INSERT INTO users (username, email, password, role)
                 VALUES (%s, %s, %s, %s)
             """
             if execute_query(insert_query, (username, email, password, "user")):
@@ -950,7 +950,6 @@ def add_purchase():
     if request.method == 'POST':
         app.logger.debug(f"request {request.form}")
 
-        # Retrieve form data
         vendor_name = request.form.get('vendor')
         storageroom_name = request.form.get('storage_room')
         raw_material_names = request.form.getlist('raw_material[]')
@@ -960,84 +959,120 @@ def add_purchase():
         purchase_date = request.form.get("purchase_date")
         invoice_number = request.form.get("invoice_number")
 
-        # Validate vendor
         vendor = next((v for v in vendors if v['vendor_name'] == vendor_name), None)
         if not vendor:
             flash('Vendor does not exist. Please add the vendor first.', 'danger')
             return redirect('/add_purchase')
 
-        # Validate storage room
         storageroom = next((s for s in storage_rooms if s['storageroomname'] == storageroom_name), None)
         if not storageroom:
             flash('Storage room does not exist. Please add the storage room first.', 'danger')
             return redirect('/add_purchase')
 
-        # Create a cursor for database operations
-        cursor = connection.cursor()
+        try:
+            cursor = connection.cursor()
 
-        # Process each raw material in the form
-        for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
-            # Check and add raw material if not exists
-            raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
-            app.logger.debug(f"raw raw {raw_material}")
-            if not raw_material:
+            for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
+                raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
+
+                if not raw_material:
+                    cursor.execute(
+                        "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
+                        (raw_material_name, metric)
+                    )
+                    connection.commit()
+                    raw_material_id = cursor.lastrowid
+                else:
+                    raw_material_id = raw_material['id']
+
+                quantity, metric = convert_metric(quantity, metric)
+                quantity = Decimal(quantity)
+
+                #  Insert or Update Purchase History
                 cursor.execute(
-                    "INSERT INTO raw_materials (name, metric) VALUES (%s, %s)",
-                    (raw_material_name, metric)
+                    """
+                    INSERT INTO purchase_history
+                    (vendor_id, invoice_number, raw_material_id, raw_material_name,
+                     quantity, metric, total_cost, purchase_date, storageroom_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        quantity = quantity + VALUES(quantity),
+                        total_cost = total_cost + VALUES(total_cost);
+                    """,
+                    (vendor["id"], invoice_number, raw_material_id, raw_material_name,
+                     quantity, metric, cost, purchase_date, storageroom['id'])
                 )
-                connection.commit()
-                raw_material_id = cursor.lastrowid
-            else:
-                raw_material_id = raw_material['id']
+                app.logger.debug(f"purchase_history_done")
 
-            # Perform metric conversion
-            quantity, metric = convert_metric(quantity, metric)
+                #  Update Vendor Payment Tracker
+                cursor.execute(
+                    """
+                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost)
+                    VALUES (%s, %s, %s)
+                    ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + VALUES(outstanding_cost);
+                    """,
+                    (vendor['id'], invoice_number, cost)
+                )
+                app.logger.debug(f"vendor_payment_tracker_done")
 
-            # Insert or update purchase history
-            cursor.execute(
-                """
-                INSERT INTO purchase_history
-                (vendor_id, invoice_number, raw_material_id, raw_material_name,
-                 quantity, metric, total_cost, purchase_date, storageroom_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    quantity = quantity + VALUES(quantity),
-                    total_cost = total_cost + VALUES(total_cost);
-                """,
-                (vendor["id"], invoice_number, raw_material_id, raw_material_name,
-                 quantity, metric, cost, purchase_date, storageroom['id'])
-            )
-            app.logger.debug(f"purchase_history_done")
+                # Fetch minimum_quantity first, ensuring it exists
+                cursor.execute(
+                    """
+                    SELECT COALESCE(min_quantity, 0)
+                    FROM minimum_stock
+                    WHERE type='storageroom' AND destination_id=%s AND raw_material_id=%s
+                    """,
+                    (storageroom['id'], raw_material_id),
+                )
+                min_quantity_row = cursor.fetchone()
+                min_quantity = min_quantity_row[0] if min_quantity_row else 0  # Ensure default 0 if no entry exists
 
-            # Update vendor payment tracker
-            cursor.execute(
-                """
-                INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost)
-                VALUES (%s, %s, %s)
-                ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + VALUES(outstanding_cost);
-                """,
-                (vendor['id'], invoice_number, cost)
-            )
-            app.logger.debug(f"vendor_payment_tracker_done")
-            # Update storage room stock
-            cursor.execute(
-                """
-                INSERT INTO storageroom_stock (storageroom_id, raw_material_id, quantity, metric)
-                VALUES (%s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE
-                    quantity = quantity + VALUES(quantity),
-                    metric = VALUES(metric);
-                """,
-                (storageroom['id'], raw_material_id, quantity, metric)
-            )
-            app.logger.debug(f"storageroom_stock_done")
+                # Fetch current stock (if exists)
+                cursor.execute(
+                    """
+                    SELECT currently_available
+                    FROM inventory_stock
+                    WHERE destination_type='storageroom' AND destination_id=%s AND raw_material_id=%s
+                    """,
+                    (storageroom['id'], raw_material_id),
+                )
+                stock_row = cursor.fetchone()
+                opening_stock = stock_row[0] if stock_row and stock_row[0] is not None else 0
 
-        # Commit all changes and close the cursor
-        connection.commit()
-        cursor.close()
-        connection.close()
+                # Compute quantity_needed (only if minimum_quantity > available stock)
+                new_currently_available = opening_stock + quantity
+                new_quantity_needed = max(0, min_quantity - new_currently_available)
 
-        flash('Purchases added successfully!', 'success')
+                # Insert or Update Stock (Avoiding Subqueries)
+                cursor.execute(
+                    """
+                    INSERT INTO inventory_stock
+                    (destination_type, destination_id, raw_material_id, metric,
+                    opening_stock, incoming_stock, currently_available, minimum_quantity, quantity_needed)
+                    VALUES ('storageroom', %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON DUPLICATE KEY UPDATE
+                        incoming_stock = incoming_stock + VALUES(incoming_stock),
+                        currently_available = currently_available + VALUES(incoming_stock),
+                        minimum_quantity = VALUES(minimum_quantity),
+                        quantity_needed = GREATEST(0, minimum_quantity - currently_available),
+                        updated_at = CURRENT_TIMESTAMP;
+                    """,
+                    (storageroom['id'], raw_material_id, metric, opening_stock, quantity,
+                     new_currently_available, min_quantity, new_quantity_needed)
+                )
+                app.logger.debug(
+                    f"storeroom_stock_done: min_quantity={min_quantity}, quantity_needed={new_quantity_needed}")
+
+            #  Commit all changes after successful operations
+            connection.commit()
+            cursor.close()
+            connection.close()
+            flash('Purchases added successfully!', 'success')
+        except Exception as e:
+            connection.rollback()  # Rollback if any issue occurs
+            app.logger.error(f"Error in add_purchase: {e}")
+            flash(f"An error occurred: {e}", 'danger')
+
         return redirect('/add_purchase')
 
     return render_template(
@@ -1297,8 +1332,8 @@ def process_payments():
             app.logger.debug(payment_detail)
             cursor.execute(
                 """
-                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid) 
-                    VALUES (%s, %s, %s) 
+                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid)
+                    VALUES (%s, %s, %s)
                     ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
                     """,
                 (vendor_id, payment_detail["invoice_number"],
@@ -1306,8 +1341,8 @@ def process_payments():
             )
             cursor.execute(
                 """
-                    INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on) 
-                    VALUES (%s, %s, %s, %s, %s) 
+                    INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on)
+                    VALUES (%s, %s, %s, %s, %s)
                     """,
                 (vendor_id, payment_detail["invoice_number"],
                     payment_detail["pay_amount"], payment_detail["mode_of_payment"], payment_detail["date_of_payment"])
@@ -1427,29 +1462,29 @@ def set_minimum_stock():
         return redirect("/login")
     if request.method == "POST":
         # app.logger.debug(f"min stock {request.json}")
-        try:
-            destination_type = request.form.get("destination_type")
-            destination_id = request.form.get("destination_id")
-            app.logger.debug(request.form)
-            min_stock_data = {}
-            for key, value in request.form.items():
-                app.logger.debug(f"{key}, {value}")
-                if key.startswith("min_quantity_"):
-                    app.logger.debug(f"yes {key}")
-                    material_id = key.replace("min_quantity_", "")
-                    app.logger.debug(material_id)
-                    min_stock_data[material_id] = float(value)
-                    # app.logger.debug(min_stock_data)
+        # try:
+        destination_type = request.form.get("destination_type")
+        destination_id = request.form.get("destination_id")
+        app.logger.debug(request.form)
+        min_stock_data = {}
+        for key, value in request.form.items():
+            # app.logger.debug(f"{key}, {value} {type(value)} {float(value)}")
+            if key.startswith("min_quantity_"):
+                app.logger.debug(f"yes {key}")
+                material_id = key.replace("min_quantity_", "")
+                app.logger.debug(material_id)
+                min_stock_data[material_id] = float(value)
+                # app.logger.debug(min_stock_data)
 
-            app.logger.debug(f"Destination Type: {destination_type}, Destination Id: {destination_id}")
-            app.logger.debug(f"Minimum Stock Data: {min_stock_data}")
-            result = update_minimum_stock(destination_type, destination_id, min_stock_data)
-            if result:
-                flash("Minimum stock updated successfully!", "success")
-            else:
-                flash("Error: Unable to add minimum stock details", "danger")
-        except Exception as e:
-            flash(f"Error: {str(e)}", "danger")
+        app.logger.debug(f"Destination Type: {destination_type}, Destination Id: {destination_id}")
+        app.logger.debug(f"Minimum Stock Data: {min_stock_data}")
+        result = update_minimum_stock(destination_type, destination_id, min_stock_data)
+        if result:
+            flash("Minimum stock updated successfully!", "success")
+        else:
+            flash("Error: Unable to add minimum stock details", "danger")
+        # except Exception as e:
+        #     flash(f"Error: {str(e)}", "danger")
         return redirect(url_for("set_minimum_stock"))
     return render_template(
         'set_minimum_stock.html',
@@ -1481,6 +1516,27 @@ def fetch_raw_materials_min_stock():
 
     return jsonify(rm)  # Return as JSON response
 
+
+@app.route("/get_raw_materials_stock_report")
+def fetch_raw_materials_stock_report():
+    if "user" not in session:
+        return redirect("/login")
+
+    # Fetch query parameters from request
+    destination_type = request.args.get("destination_type")
+    destination_id = request.args.get("destination_id")
+    category = request.args.get("category")
+
+    if not destination_type or not destination_id or not category:
+        return jsonify({"error": "Missing required parameters"}), 400
+
+    # Fetch raw materials with minimum stock details
+    rm = get_raw_materials_stock_report(destination_type, destination_id, category)
+
+    app.logger.debug(f"Fetched Raw Materials: {rm}")
+
+    return jsonify(rm)  # Return as JSON response
+
 # Utility function for converting metric units
 
 
@@ -1498,7 +1554,7 @@ def transfer_raw_material():
         return redirect("/login")
 
     if request.method == 'POST':
-        source_storageroom_id = request.form.get("storageroom")
+        source_storeroom_id = request.form.get("storageroom")
         destination_type = request.form.get("destination_type")
         destination_id = request.form.get("destination_name")
         transfer_date = request.form.get("transfer_date")
@@ -1523,51 +1579,59 @@ def transfer_raw_material():
             })
 
         try:
-            destination_table = {
-                'kitchen': 'kitchen_inventory_stock',
-                'restaurant': 'restaurant_inventory_stock'
-            }.get(destination_type)
-
-            if not destination_table:
-                flash('Invalid destination type', 'danger')
-                return redirect('/transfer_raw_material')
-
             for detail in transfer_details:
                 raw_material_id = detail["raw_material_id"]
                 quantity = detail["quantity"]
-                metric = detail["metric"]
 
-                # Deduct from source storeroom
+                # Deduct from storeroom inventory
                 execute_query(
-                    "UPDATE storageroom_stock SET quantity = quantity - %s WHERE storageroom_id = %s AND raw_material_id = %s",
-                    (quantity, source_storageroom_id, raw_material_id)
+                    """UPDATE inventory_stock
+                    SET outgoing_stock = outgoing_stock + %s,
+                        currently_available = currently_available - %s,
+                        quantity_needed = GREATEST(0, minimum_quantity - (currently_available - %s)),  -- Ensure non-negative
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type='storageroom'
+                        AND destination_id=%s
+                        AND raw_material_id=%s;""",
+                    (quantity, quantity, quantity, source_storeroom_id, raw_material_id),
                 )
 
-                # Update or insert into destination table
-                destination_stock = get_data(
-                    f"SELECT quantity FROM {destination_table} WHERE {destination_type}_id = %s AND raw_material_id = %s",
-                    (destination_id, raw_material_id)
+                # Add to kitchen/restaurant inventory
+                app.logger.debug(
+                    f"Executing query for kitchen update: {destination_type}, {destination_id}, {raw_material_id}, {quantity}")
+                execute_query(
+                    """INSERT INTO inventory_stock (destination_type, destination_id, raw_material_id, metric, opening_stock, incoming_stock, currently_available, minimum_quantity, quantity_needed)
+        VALUES (%s, %s, %s, %s,
+                IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0),
+                %s,
+                IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0) + %s,
+                IFNULL((SELECT min_quantity FROM minimum_stock WHERE type=%s AND destination_id=%s AND raw_material_id=%s), 0),
+                GREATEST(0, IFNULL((SELECT min_quantity FROM minimum_stock WHERE type=%s AND destination_id=%s AND raw_material_id=%s), 0) -
+                           (IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0) + %s))
                 )
-
-                if destination_stock:
-                    execute_query(
-                        f"UPDATE {destination_table} SET quantity = quantity + %s WHERE {destination_type}_id = %s AND raw_material_id = %s",
-                        (quantity, destination_id, raw_material_id)
-                    )
-                else:
-                    execute_query(
-                        f"INSERT INTO {destination_table} ({destination_type}_id, raw_material_id, quantity, metric) VALUES (%s, %s, %s, %s)",
-                        (destination_id, raw_material_id, quantity, metric)
-                    )
+        ON DUPLICATE KEY UPDATE
+            incoming_stock = incoming_stock + VALUES(incoming_stock),
+            currently_available = currently_available + VALUES(incoming_stock),
+            minimum_quantity = VALUES(minimum_quantity),
+            quantity_needed = GREATEST(0, VALUES(minimum_quantity) - VALUES(currently_available)),
+            updated_at = CURRENT_TIMESTAMP;""",
+                    (destination_type, destination_id, raw_material_id, metric,
+                     destination_type, destination_id, raw_material_id, quantity,
+                     destination_type, destination_id, raw_material_id, quantity,
+                     destination_type, destination_id, raw_material_id,
+                     destination_type, destination_id, raw_material_id,
+                     destination_type, destination_id, raw_material_id, quantity),
+                )
 
                 # Log the transfer
                 execute_query(
-                    """INSERT INTO raw_material_transfer_details 
-                        (source_storage_room_id, destination_type, destination_id, raw_material_id, quantity, metric, transferred_date)
+                    """INSERT INTO raw_material_transfer_details
+                        (source_storage_room_id, destination_type, destination_id,
+                         raw_material_id, quantity, metric, transferred_date)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)""",
-                    (source_storageroom_id, destination_type, destination_id,
-                     raw_material_id, quantity, metric, transfer_date)
+                    (source_storeroom_id, destination_type, destination_id,
+                     raw_material_id, quantity, detail["metric"], transfer_date)
                 )
 
             flash('Transfer successful', 'success')
@@ -1583,7 +1647,6 @@ def transfer_raw_material():
         storage_rooms=get_all_storagerooms(only_active=True),
         restaurants=get_all_restaurants(only_active=True),
         kitchens=get_all_kitchens(only_active=True),
-        storageroom_stock=get_storageroom_stock(),
         user=session["user"],
         today_date=get_current_date()
     )
@@ -2244,6 +2307,22 @@ def purchase_trend():
     #     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
     #     "purchase_amounts": [12000, 15000, 18000, 11000, 9000, 20000, 25000, 23000, 17000, 19000, 22000, 24000]
     # }
+
+
+@app.route('/stock_report', methods=["GET", "POST"])
+def stock_report():
+    if "user" not in session:
+        return redirect("/login")
+    # if request.method == "POST":
+    #     selected_date = request.form['transfer_date']
+    #     transfers = get_prepared_dishes_transfer_history(selected_date)
+    #     return render_template('stock_report.html', transfers=transfers, current_date=selected_date, user=session["user"])
+    rm_categories = get_rawmaterial_category()
+    rm_categories = [rmc[0] for rmc in rm_categories]
+    owner = {"name": "Dharani Groups", "phone_num": "123456789", "address": "No 123, Tirunelveli"}
+    return render_template('stock_report.html', user=session["user"], storage_rooms=get_all_storagerooms(only_active=True),
+                           restaurants=get_all_restaurants(only_active=True),
+                           kitchens=get_all_kitchens(only_active=True), rawmaterial_category=rm_categories, owner=owner)
 
 
 if __name__ == "__main__":
