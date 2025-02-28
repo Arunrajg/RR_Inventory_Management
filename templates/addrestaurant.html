@@ -52,6 +52,21 @@
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var restaurantInput = document.querySelector('input[name="restaurant_name"]');
+        var addressInput = document.querySelector('textarea[name="address"]');
 
+        restaurantInput.addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+        });
 
+        document.querySelector('form').addEventListener('submit', function (event) {
+            if (restaurantInput.value.trim() === '' || addressInput.value.trim() === '') {
+                alert('Restaurant Name and Address cannot be empty or just spaces.');
+                event.preventDefault(); // Prevent the form from being submitted
+            }
+        });
+    });
+</script>
 {% endblock %}

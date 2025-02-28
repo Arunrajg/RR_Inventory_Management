@@ -15,16 +15,18 @@
                 <div class="row align-items-center vendor-row mb-2">
                     <div class="col-md-4">
                         <label>Vendor Name</label>
-                        <input type="text" name="vendor_name[]" class="form-control" placeholder="Vendor Name" required>
+                        <input type="text" name="vendor_name[]" class="form-control vendor-name"
+                            placeholder="Vendor Name" required>
                     </div>
                     <div class="col-md-2">
                         <label>Phone Number</label>
-                        <input type="text" name="phone_number[]" class="form-control" placeholder="Phone Number"
-                            required>
+                        <input type="text" name="phone_number[]" class="form-control vendor-phone"
+                            placeholder="Phone Number" required>
                     </div>
                     <div class="col-md-4">
                         <label>Address</label>
-                        <input type="text" name="address[]" class="form-control" placeholder="Address" required>
+                        <input type="text" name="address[]" class="form-control vendor-address" placeholder="Address"
+                            required>
                     </div>
                     <div class="col-md-2 d-flex justify-content-start mt-2">
                         <button type="button" class="btn btn-success add-row-btn me-2">+</button>
@@ -78,19 +80,25 @@
         }
     });
 
+    vendorForm.addEventListener('input', function (event) {
+        if (event.target.classList.contains('vendor-name') || event.target.classList.contains('vendor-phone') || event.target.classList.contains('vendor-address')) {
+            convertToUpperAndValidate(event.target);
+        }
+    });
+
     // Function to add a new row
     function addNewRow() {
         const container = document.getElementById('vendor-details-container');
         const newRowHTML = `
             <div class="row align-items-center vendor-row mb-2">
                 <div class="col-md-4">
-                    <input type="text" name="vendor_name[]" class="form-control" placeholder="Vendor Name" required>
+                    <input type="text" name="vendor_name[]" class="form-control vendor-name" placeholder="Vendor Name" required>
                 </div>
                 <div class="col-md-2">
-                    <input type="text" name="phone_number[]" class="form-control" placeholder="Phone Number" required>
+                    <input type="text" name="phone_number[]" class="form-control vendor-phone" placeholder="Phone Number" required>
                 </div>
                 <div class="col-md-4">
-                    <input type="text" name="address[]" class="form-control" placeholder="Address" required>
+                    <input type="text" name="address[]" class="form-control vendor-address" placeholder="Address" required>
                 </div>
                 <div class="col-md-2 d-flex justify-content-start mt-2">
                     <button type="button" class="btn btn-success add-row-btn me-2">+</button>
@@ -117,6 +125,21 @@
                 const newInputs = Array.from(document.querySelectorAll('#vendor-details-container input'));
                 newInputs[newInputs.length - 3].focus(); // Focus the first field of the new row
             }
+        }
+    }
+
+    // Function to convert vendor name to upper case and validate input
+    function convertToUpperAndValidate(input) {
+        if (input.classList.contains('vendor-name')) {
+            // Convert to upper case
+            input.value = input.value.toUpperCase();
+        }
+
+        // Remove leading/trailing spaces and ensure input is not all spaces
+        if (input.value.trim() === '') {
+            input.setCustomValidity(input.placeholder + ' cannot be all spaces.');
+        } else {
+            input.setCustomValidity('');
         }
     }
 

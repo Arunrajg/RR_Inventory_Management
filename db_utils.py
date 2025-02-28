@@ -22,7 +22,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "db"),
     "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
-    "database": os.getenv("DB_DATABASE", "rrinventorymanagement"),  # Default to 'rrinventorymanagement' if not set
+    "database": os.getenv("DB_DATABASE", "dharaniinventorymanagement"),  # Default to 'rrinventorymanagement' if not set
     "init_command": "SET time_zone = 'Asia/Kolkata'"
 }
 
@@ -968,6 +968,7 @@ def get_raw_material_by_name(rawmaterial_name):
 def get_all_rawmaterials():
     query = 'SELECT * FROM raw_materials ORDER BY id ASC'
     raw_materials = fetch_all(query)
+    logger.debug(f"raw_materials {raw_materials}")
     return raw_materials
 
 

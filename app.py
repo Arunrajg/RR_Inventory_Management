@@ -28,7 +28,7 @@ app = Flask(__name__)
 app.secret_key = "your_secret_key"
 encryption_key = b'ES4FoQd6EwUUUY3v-_WwoyYsBEYkWUTOrQD1VEngBkI='
 
-app.logger.setLevel(logging.INFO)
+app.logger.setLevel(logging.DEBUG)
 # Mail configuration for Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -596,7 +596,7 @@ def addrawmaterials():
 
         # Fetch all existing raw materials in one query
         existing_materials = get_all_rawmaterials()
-        existing_set = {(row["name"].lower(), row["metric"].lower(), row["category"].lower())
+        existing_set = {(row["name"], row["category"])
                         for row in existing_materials}
 
         # Prepare data for bulk insert
@@ -605,17 +605,17 @@ def addrawmaterials():
         successes = []
 
         for raw_material, metric, category in zip(raw_materials, metrics, categories):
-            raw_material = raw_material.strip().lower()
-            metric = metric.strip().lower()
-            category = category.strip().lower()
+            raw_material = raw_material.strip()
+            metric = metric.strip()
+            category = category.strip()
 
             if not raw_material:
                 errors.append("Raw material name cannot be empty.")
                 continue
 
-            if (raw_material, metric, category) in existing_set:
+            if (raw_material, category) in existing_set:
                 errors.append(
-                    f"Raw material '{raw_material}' with metric '{metric}' under category '{category}' already exists.")
+                    f"Raw material '{raw_material}' under category '{category}' already exists.")
                 continue
 
             # Add to batch insert list
@@ -675,7 +675,7 @@ def add_dish_recipe():
 
                     # Fetch all existing raw materials in one query
                     cursor.execute("SELECT id, name, metric FROM raw_materials")
-                    existing_raw_materials = {row[1].lower(): (row[0], row[2])
+                    existing_raw_materials = {row[1]: (row[0], row[2])
                                               for row in cursor.fetchall()}
 
                     # Prepare data for batch inserts
@@ -683,7 +683,7 @@ def add_dish_recipe():
                     dish_raw_materials = []
 
                     for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
-                        raw_material = raw_material.strip().lower()
+                        raw_material = raw_material.strip()
                         metric = metric.strip()
 
                         if raw_material in existing_raw_materials:
@@ -702,7 +702,7 @@ def add_dish_recipe():
                         cursor.execute("SELECT id, name, metric FROM raw_materials WHERE name IN %s",
                                        ([rm[0] for rm in new_raw_materials],))
                         for row in cursor.fetchall():
-                            existing_raw_materials[row['name'].lower()] = (row['id'], row['metric'])
+                            existing_raw_materials[row['name']] = (row['id'], row['metric'])
 
                     # Build dish_raw_materials mapping
                     for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
@@ -786,8 +786,8 @@ def submit_raw_materials():
     current_materials = get_dish_recipe_raw_materials(dish_id)
 
     # Map current materials for easy comparison
-    current_map = {mat[1].lower(): (mat[2], mat[3]) for mat in current_materials}  # {name: (quantity, metric)}
-    incoming_map = {mat["name"].lower(): (float(mat["quantity"]), mat["metric"]) for mat in incoming_materials}
+    current_map = {mat[1]: (mat[2], mat[3]) for mat in current_materials}  # {name: (quantity, metric)}
+    incoming_map = {mat["name"]: (float(mat["quantity"]), mat["metric"]) for mat in incoming_materials}
 
     to_update = []
     to_insert = []
@@ -882,26 +882,51 @@ def add_vendor():
         vendor_names = request.form.getlist("vendor_name[]")
         phone_numbers = request.form.getlist("phone_number[]")
         addresses = request.form.getlist("address[]")
+        skipped_vendors = []
+        added_vendors = []
+
         if vendor_names and phone_numbers and addresses:
             try:
                 db_connection = get_db_connection()
                 cursor = db_connection.cursor()
 
+                # Get existing vendors from the database
+                existing_vendors = get_all_vendors()
+                existing_vendor_names = [vendor['vendor_name'] for vendor in existing_vendors]
+
                 # Insert each vendor's data into the database
                 for name, phone, address in zip(vendor_names, phone_numbers, addresses):
-                    cursor.execute(
-                        "INSERT INTO vendor_list (vendor_name, phone, address) VALUES (%s, %s, %s)",
-                        (name, phone, address)
-                    )
+                    name = name.strip()
+                    phone = phone.strip()
+                    address = address.strip()
+                    if name not in existing_vendor_names:
+                        cursor.execute(
+                            "INSERT INTO vendor_list (vendor_name, phone, address) VALUES (%s, %s, %s)",
+                            (name, phone, address)
+                        )
+                        existing_vendor_names.append(name)
+                        added_vendors.append(name)
+                    else:
+                        skipped_vendors.append(name)
 
                 db_connection.commit()
                 cursor.close()
                 db_connection.close()
-                flash('Vendor added successfully!', 'success')
+
+                if added_vendors and skipped_vendors:
+                    flash(
+                        f'Added vendors: {", ".join(added_vendors)}. Skipped vendors: {", ".join(skipped_vendors)}', 'success')
+                elif added_vendors:
+                    flash(f'Vendor added successfully! Added vendors: {", ".join(added_vendors)}', 'success')
+                elif skipped_vendors:
+                    flash(
+                        f'Vendors already available. So skipped adding vendors: {", ".join(skipped_vendors)}', 'danger')
+
             except Exception as e:
                 app.logger.error(f"Error: {e}")
                 flash("An error occurred while adding vendor details.", 'danger')
             return redirect("/add_vendor")
+
     return render_template('add_vendor.html', user=session["user"])
 
 

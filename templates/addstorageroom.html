@@ -52,5 +52,21 @@
 <script src="../static/plugins/select2/js/select2.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
 <script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var storageRoomInput = document.querySelector('input[name="storageroom_name"]');
+        var addressInput = document.querySelector('textarea[name="address"]');
 
+        storageRoomInput.addEventListener('input', function () {
+            this.value = this.value.toUpperCase();
+        });
+
+        document.querySelector('form').addEventListener('submit', function (event) {
+            if (storageRoomInput.value.trim() === '' || addressInput.value.trim() === '') {
+                alert('Storage Room Name and Address cannot be empty or just spaces.');
+                event.preventDefault(); // Prevent the form from being submitted
+            }
+        });
+    });
+</script>
 {% endblock %}
