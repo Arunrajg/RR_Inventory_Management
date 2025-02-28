@@ -148,7 +148,7 @@
                                 <td>${index + 1}</td>
                                 <td>${transfer.raw_material_name}</td>
                                 <td>${transfer.category}</td>
-                                <td>${transfer.quantity}</td>
+                                <td>${parseFloat(transfer.quantity).toFixed(2)}</td>
                                 <td>${transfer.metric}</td>
                                 <td>${transfer.transferred_date}</td>
                                 <td>${transfer.transferred_from}</td>

@@ -43,7 +43,7 @@
                         <tr>
                             <td>{{ loop.index }}</td>
                             <td>{{ transfer['raw_material_name']}}</td>
-                            <td>{{ transfer['quantity']}}</td>
+                            <td>{{ "%.2f"|format(transfer['quantity']) }}</td>
                             <td>{{ transfer['metric'] }}</td>
                             <td>{{ transfer['transferred_from'] }}</td>
                             <td>{{ transfer['destination_type'] }}</td>

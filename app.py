@@ -25,15 +25,16 @@ if not os.path.exists(UPLOAD_FOLDER):
 # ALLOWED_EXTENSIONS = {'txt', 'csv', 'xlsx'}
 
 app = Flask(__name__)
-app.secret_key = "your_secret_key"
-encryption_key = b'ES4FoQd6EwUUUY3v-_WwoyYsBEYkWUTOrQD1VEngBkI='
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "default_fallback_secret")
+encryption_key = os.getenv("ENCRYPTION_KEY", "default_fallback_key").encode()
 
-app.logger.setLevel(logging.DEBUG)
+
+app.logger.setLevel(logging.INFO)
 # Mail configuration for Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'dharaniinventorysolution@gmail.com'  # Replace with your Gmail address
-app.config['MAIL_PASSWORD'] = 'einudsafiqrrqlos'  # Replace with your Gmail app password
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD")
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 
@@ -400,6 +401,17 @@ def get_invoices(vendor_id):
         invoices = cursor.fetchall()
     conn.close()
     return jsonify(invoices)
+
+
+@app.route('/get_invoice_dates/<vendor_id>/<invoice_number>')
+def get_invoice_dates(vendor_id, invoice_number):
+    conn = get_db_connection()
+    with conn.cursor() as cursor:
+        cursor.execute(
+            "SELECT DISTINCT DATE_FORMAT(purchase_date, '%Y-%m-%d') AS purchase_date FROM purchase_history WHERE vendor_id = %s AND invoice_number = %s", (vendor_id, invoice_number))
+        invoice_dates = cursor.fetchall()
+    conn.close()
+    return jsonify(invoice_dates)
 
 
 # @app.route('/get_purchases/<invoice_number>')
@@ -972,7 +984,23 @@ def add_purchase():
         try:
             cursor = connection.cursor()
 
+            # Check if the invoice number already exists for the same vendor and date
+            cursor.execute(
+                """
+                SELECT COUNT(*)
+                FROM purchase_history
+                WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
+                """,
+                (vendor["id"], invoice_number, purchase_date)
+            )
+            existing_invoice_count = cursor.fetchone()[0]
+
+            if existing_invoice_count > 0:
+                flash('This invoice number already exists for the same vendor on the same day.', 'danger')
+                return redirect('/add_purchase')
+
             for raw_material_name, quantity, metric, cost in zip(raw_material_names, quantities, metrics, total_costs):
+                raw_material_name = raw_material_name.strip()
                 raw_material = next((rm for rm in raw_materials if rm['name'] == raw_material_name), None)
 
                 if not raw_material:
@@ -1002,15 +1030,14 @@ def add_purchase():
                     (vendor["id"], invoice_number, raw_material_id, raw_material_name,
                      quantity, metric, cost, purchase_date, storageroom['id'])
                 )
-
                 #  Update Vendor Payment Tracker
                 cursor.execute(
                     """
-                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, outstanding_cost)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, purchase_date, outstanding_cost)
+                    VALUES (%s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE outstanding_cost = outstanding_cost + VALUES(outstanding_cost);
                     """,
-                    (vendor['id'], invoice_number, cost)
+                    (vendor['id'], invoice_number, purchase_date, cost)
                 )
 
                 # Fetch minimum_quantity first, ensuring it exists
@@ -1095,37 +1122,8 @@ def convert_metric(quantity, metric):
     return quantity, metric
 
 
-@app.route('/get_ledger_statement', methods=['POST'])
-def get_ledger_statement():
-    connection = get_db_connection()
-    cursor = connection.cursor()
-    vendor_id = request.json.get("vendorId")
-    from_date = request.json.get("fromDate")
-    to_date = request.json.get("toDate")
-    # cursor.execute("SELECT DISTINCT invoice_number FROM purchase_history WHERE vendor_id = %s", (vendor_id,))
-    # invoices = [{"invoice_number": row[0]} for row in cursor.fetchall()]
-    # cursor.close()
-    # connection.close()
-
-    invoices = [
-        {"date": "19-June-2024", "type": "Purchase Bill", "sr_no": 17,
-         "payment_mode": "-", "credit": 22819.93, "debit": 0.0, "balance": -22819.93},
-        {"date": "02-July-2024", "type": "Payment-out", "sr_no": 11,
-         "payment_mode": "Online", "credit": 22819.93, "debit": 0.0, "balance": 0.0},
-        {"date": "05-August-2024", "type": "Purchase Bill", "sr_no": 27,
-         "payment_mode": "-", "credit": 6465.66, "debit": 0.0, "balance": -6465.66},
-        {"date": "10-August-2024", "type": "Payment-out", "sr_no": 19,
-         "payment_mode": "Online", "credit": 6465.66, "debit": 0.0, "balance": 0.0},
-        {"date": "26-December-2024", "type": "Purchase Bill", "sr_no": 49,
-         "payment_mode": "Cash", "credit": 40853.37, "debit": 25000.0, "balance": -15853.37},
-        {"date": "09-January-2025", "type": "Payment-out", "sr_no": 37,
-         "payment_mode": "Bank", "credit": 15853.37, "debit": 0.0, "balance": 0.0}
-    ]
-    return jsonify(invoices)
-
-
-@app.route('/get_purchases/<invoice_number>', methods=['GET'])
-def get_purchases(invoice_number):
+@app.route('/get_purchases/<vendor_id>/<invoice_number>/<purchase_date>', methods=['GET'])
+def get_purchases(vendor_id, invoice_number, purchase_date):
     connection = get_db_connection()
     cursor = connection.cursor()
     cursor.execute("""
@@ -1134,8 +1132,8 @@ def get_purchases(invoice_number):
         FROM purchase_history ph
         JOIN vendor_list v ON ph.vendor_id = v.id
         JOIN storagerooms sr ON ph.storageroom_id = sr.id
-        WHERE ph.invoice_number = %s
-    """, (invoice_number,))
+        WHERE ph.vendor_id = %s AND ph.invoice_number = %s AND ph.purchase_date = %s
+    """, (vendor_id, invoice_number, purchase_date))
     purchases = [
         {
             "id": row[0],
@@ -1262,26 +1260,26 @@ def get_payment_transaction():
 def pay_vendor():
     if "user" not in session:
         return redirect("/login")
-    if request.method == "POST":
-        # Handle form submission
-        vendor_id = request.json.get("vendorId")
-        vendor_name = request.json.get("vendorName")
-        amount_paid = float(request.json.get("amountPaid"))
-        connection = get_db_connection()
-        cursor = connection.cursor()
-        cursor.execute(
-            """
-                INSERT INTO vendor_payment_tracker (vendor_id, total_paid)
-                VALUES (%s, %s)
-                ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
-                """,
-            (vendor_id, amount_paid, amount_paid)
-        )
-        connection.commit()
-        cursor.close()
-        connection.close()
-        flash('Payment done successfully!', "success")
-        return redirect(url_for("pending_payments"))
+    # if request.method == "POST":
+    #     # Handle form submission
+    #     vendor_id = request.json.get("vendorId")
+    #     vendor_name = request.json.get("vendorName")
+    #     amount_paid = float(request.json.get("amountPaid"))
+    #     connection = get_db_connection()
+    #     cursor = connection.cursor()
+    #     cursor.execute(
+    #         """
+    #             INSERT INTO vendor_payment_tracker (vendor_id, total_paid)
+    #             VALUES (%s, %s)
+    #             ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
+    #             """,
+    #         (vendor_id, amount_paid, amount_paid)
+    #     )
+    #     connection.commit()
+    #     cursor.close()
+    #     connection.close()
+    #     flash('Payment done successfully!', "success")
+    #     return redirect(url_for("pending_payments"))
     pending_payments_vendor_cumulative = get_all_pending_payments_vendor_cumulative()
     return render_template("pay_vendor.html", user=session["user"], pending_payments_vendor_cumulative=pending_payments_vendor_cumulative, todays_date=get_current_date())
 
@@ -1309,22 +1307,21 @@ def process_payments():
         connection = get_db_connection()
         cursor = connection.cursor()
         for payment_detail in paid_values:
-
             cursor.execute(
                 """
-                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, total_paid)
-                    VALUES (%s, %s, %s)
+                    INSERT INTO vendor_payment_tracker (vendor_id, invoice_number, purchase_date, total_paid)
+                    VALUES (%s, %s, %s, %s)
                     ON DUPLICATE KEY UPDATE total_paid = total_paid + %s
                     """,
-                (vendor_id, payment_detail["invoice_number"],
-                    payment_detail["pay_amount"], payment_detail["pay_amount"])
+                (vendor_id, payment_detail["invoice_number"], payment_detail["purchase_date"],
+                 payment_detail["pay_amount"], payment_detail["pay_amount"])
             )
             cursor.execute(
                 """
-                    INSERT INTO payment_records (vendor_id, invoice_number, amount_paid, mode_of_payment, paid_on)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO payment_records (vendor_id, invoice_number, purchase_date, amount_paid, mode_of_payment, paid_on)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
-                (vendor_id, payment_detail["invoice_number"],
+                (vendor_id, payment_detail["invoice_number"], payment_detail["purchase_date"],
                     payment_detail["pay_amount"], payment_detail["mode_of_payment"], payment_detail["date_of_payment"])
             )
         connection.commit()
@@ -1375,6 +1372,7 @@ def get_vendor_payments():
         return {
             'paid_on': payment['paid_on'].strftime('%Y-%m-%d'),
             'invoice_number': payment['invoice_number'],
+            'purchase_date': payment['purchase_date'],
             'mode_of_payment': payment['mode_of_payment'],
             'amount_paid': float(payment['amount_paid'])
         }
@@ -1395,8 +1393,7 @@ def get_payment_details(vendor_id):
             'purchase_date': payment['purchase_date'],
             'outstanding_cost': float(payment['outstanding_cost']),
             'total_paid': float(payment['total_paid']),
-            'total_due': float(payment['total_due']),
-            'last_updated': payment['last_updated'].strftime('%Y-%m-%d %H:%M:%S')
+            'total_due': float(payment['total_due'])
         }
 
     return jsonify([serialize(p) for p in payments_per_vendor])
@@ -1406,10 +1403,10 @@ def get_payment_details(vendor_id):
 def payment_receipt():
     if "user" not in session:
         return redirect("/login")
-    inv_payment_details = get_invoice_payment_details()
+    # inv_payment_details = get_invoice_payment_details()
     vendors = get_all_vendors(only_active=True)
     contact_details = get_contact_details()
-    return render_template('payment_receipt.html', vendors=vendors, contact_details=contact_details, inv_payment_details=inv_payment_details, user=session["user"])
+    return render_template('payment_receipt.html', vendors=vendors, contact_details=contact_details, user=session["user"])
 
 
 @app.route("/payment_record")

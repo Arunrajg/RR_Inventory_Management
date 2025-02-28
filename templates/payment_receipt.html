@@ -45,8 +45,9 @@
                     <table class="table table-bordered">
                         <thead class="table">
                             <tr>
-                                <th>Date</th>
+                                <th>Amount Paid On</th>
                                 <th>Invoice Number</th>
+                                <th>Invoice Purchase Date</th>
                                 <th>Payment Mode</th>
                                 <th>Amount Paid (Rs)</th>
                             </tr>
@@ -114,14 +115,15 @@
                             <tr>
                                 <td>${payment.paid_on}</td>
                                 <td>${payment.invoice_number}</td>
+                                <td>${payment.purchase_date}</td>
                                 <td>${payment.mode_of_payment}</td>
-                                <td>${payment.amount_paid}</td>
+                                <td>${parseFloat(payment.amount_paid).toLocaleString('en-IN')}</td>
                             </tr>
                         `;
                             paymentTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        totalPaidField.textContent = `Total Paid: Rs. ${totalPaid.toFixed(2)}`;
+                        totalPaidField.textContent = `Total Paid: Rs. ${totalPaid.toLocaleString('en-IN')}`;
                         printButton.disabled = false; // Enable print button when data is available
                     } else {
                         resetTable();
@@ -146,8 +148,9 @@
             <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
                 <thead>
                     <tr>
-                        <th>Date</th>
+                        <th>Amount Paid On</th>
                         <th>Invoice Number</th>
+                        <th>Invoice Purchase Date</th>
                         <th>Payment Mode</th>
                         <th>Amount Paid(Rs)</th>
                     </tr>

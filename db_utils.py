@@ -493,6 +493,7 @@ def get_payment_details_of_vendor_between_dates(vendor_id, from_date, to_date):
         vl.id AS vendor_id,
         vl.vendor_name,
         pr.invoice_number,
+        DATE_FORMAT(pr.purchase_date, '%Y-%m-%d') AS purchase_date,
         pr.mode_of_payment,
         pr.amount_paid,
         pr.paid_on
@@ -520,18 +521,15 @@ def get_payment_details_of_vendor(vendor_id):
         vpt.outstanding_cost,
         vpt.total_paid,
         vpt.total_due,
-        DATE_FORMAT(ph.purchase_date, '%Y-%m-%d') AS purchase_date,  -- Fetching latest purchase date
-        vpt.last_updated
+        DATE_FORMAT(vpt.purchase_date, '%Y-%m-%d') AS purchase_date
     FROM
         vendor_payment_tracker AS vpt
     JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
-    JOIN
-        (SELECT invoice_number, MAX(purchase_date) AS purchase_date FROM purchase_history GROUP BY invoice_number) AS ph
-        ON vpt.invoice_number = ph.invoice_number
     WHERE
         vpt.total_due != 0 
-        AND vpt.vendor_id = %s;
+        AND vpt.vendor_id = %s
+    ORDER BY purchase_date;
     """
     payments = fetch_all(query, (vendor_id,))
     return payments
@@ -968,7 +966,6 @@ def get_raw_material_by_name(rawmaterial_name):
 def get_all_rawmaterials():
     query = 'SELECT * FROM raw_materials ORDER BY id ASC'
     raw_materials = fetch_all(query)
-    logger.debug(f"raw_materials {raw_materials}")
     return raw_materials
 
 
@@ -1102,6 +1099,7 @@ def get_payment_records(vendor_id, from_date, to_date):
     payment_query = """
     SELECT
         ph.invoice_number,
+        DATE_FORMAT(ph.purchase_date, '%Y-%m-%d') AS purchase_date,
         v.vendor_name,
         SUM(ph.amount_paid) AS amount_paid,
         DATE_FORMAT(ph.paid_on, '%Y-%m-%d') as paid_on
@@ -1113,7 +1111,7 @@ def get_payment_records(vendor_id, from_date, to_date):
         ph.paid_on BETWEEN %s AND %s
         {vendor_filter}
     GROUP BY
-        ph.invoice_number, v.vendor_name, ph.paid_on
+        ph.invoice_number, ph.purchase_date, v.vendor_name, ph.paid_on
     ORDER BY
         ph.paid_on ASC;
     """
@@ -1164,14 +1162,11 @@ def get_pending_payments_record(vendor_id):
         vpt.outstanding_cost,
         vpt.total_paid,
         vpt.total_due,
-        DATE_FORMAT(ph.purchase_date, '%Y-%m-%d') AS purchase_date
+        DATE_FORMAT(vpt.purchase_date, '%Y-%m-%d') AS purchase_date
     FROM
         vendor_payment_tracker AS vpt
     JOIN
         vendor_list AS vl ON vpt.vendor_id = vl.id
-    JOIN
-        (SELECT invoice_number, MAX(purchase_date) AS purchase_date FROM purchase_history GROUP BY invoice_number) AS ph
-        ON vpt.invoice_number = ph.invoice_number
     WHERE
         vpt.total_due != 0 
         {vendor_filter}

@@ -91,12 +91,12 @@
                                     <!-- Currently Available Quantity -->
                                     <div class="col-lg-2">
                                         <label>Available Quantity</label>
-                                        <input type="number" name="available_quantity" class="form-control"
-                                            step="0.00001" value="" required readonly>
+                                        <input type="number" name="available_quantity" class="form-control" step="0.01"
+                                            value="" required readonly>
                                     </div>
                                     <div class="col-lg-2">
                                         <label>Transfer Quantity</label>
-                                        <input type="number" name="quantity[]" class="form-control" step="0.00001"
+                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
                                             placeholder="Enter Quantity" required>
                                     </div>
                                     <div class="col-lg-2">
@@ -282,7 +282,7 @@
             const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
 
             const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
-            availableQuantityInput.value = availableQuantity.toFixed(5);
+            availableQuantityInput.value = availableQuantity.toFixed(2);
 
             // Update max attribute for transfer quantity
             transferQuantityInput.setAttribute('max', availableQuantity);
@@ -295,7 +295,7 @@
             newTransferQuantityInput.addEventListener('input', function () {
                 if (parseFloat(this.value) > availableQuantity) {
                     alert('Transfer Quantity cannot exceed Available Quantity.');
-                    this.value = availableQuantity.toFixed(5);
+                    this.value = availableQuantity.toFixed(2);
                 }
             });
         }

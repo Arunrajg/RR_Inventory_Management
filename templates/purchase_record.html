@@ -117,14 +117,14 @@
                                 <td>${purchase.vendor_name}</td>
                                 <td>${purchase.invoice_number}</td>
                                 <td>${purchase.item_count}</td>
-                                <td>${purchase.total_cost}</td>
+                                <td>${parseFloat(purchase.total_cost).toLocaleString('en-IN')}</td>
                                 <td>${purchase.storageroom_name}</td>
                             </tr>
                         `;
                             purchaseTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toFixed(2)}`;
+                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toLocaleString('en-IN')}`;
                         printButton.disabled = false;
                     } else {
                         resetTable();
@@ -152,7 +152,7 @@
                         ${vendorTotals.map(vendor => `
                             <tr>
                                 <td>${vendor.vendor_name}</td>
-                                <td>${vendor.total_cost}</td>
+                                <td>${parseFloat(vendor.total_cost).toLocaleString('en-IN')}</td>
                             </tr>
                         `).join('')}
                     </tbody>

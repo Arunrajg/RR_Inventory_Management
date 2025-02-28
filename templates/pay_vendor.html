@@ -4,8 +4,7 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>PENDING PAYMENTS CUMULATIVE</h4>
-                <h6>Manage your paymentss</h6>
+                <h4>Add Vendor Payments</h4>
             </div>
         </div>
 
@@ -28,9 +27,12 @@
                             <tr>
                                 <td>{{ loop.index }}</td>
                                 <td>{{ payment['vendor_name'] }}</td>
-                                <td>{{ payment['total_outstanding_cost'] }}</td>
-                                <td>{{ payment['total_paid'] }}</td>
-                                <td>{{ payment['total_due'] }}</td>
+                                <td class="currency" data-value="{{ payment['total_outstanding_cost'] }}">{{
+                                    payment['total_outstanding_cost'] }}</td>
+                                <td class="currency" data-value="{{ payment['total_paid'] }}">{{ payment['total_paid']
+                                    }}</td>
+                                <td class="currency" data-value="{{ payment['total_due'] }}">{{ payment['total_due'] }}
+                                </td>
                                 <td>
                                     <button class="btn btn-primary btn-pay" data-vendor="{{ payment['vendor_name'] }}"
                                         data-vendor-id="{{ payment['vendor_id'] }}" data-toggle="modal"
@@ -107,6 +109,10 @@
         const payForm = document.getElementById('payForm');
         const payModal = $('#payModal'); // jQuery modal reference
 
+        function formatIndianCurrency(amount) {
+            return new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+        }
+
         // Attach event listeners to "Pay" buttons
         payButtons.forEach(button => {
             button.addEventListener('click', async function () {
@@ -116,7 +122,6 @@
                 // Populate modal fields
                 vendorNameSpan.textContent = vendorName;
                 vendorIdInput.value = vendorId;
-                // alert(vendorId)
 
                 // Clear previous table rows
                 paymentDetailsTable.innerHTML = '';
@@ -124,24 +129,20 @@
                 try {
                     // Fetch payment details for the vendor
                     const response = await fetch(`/get_payment_details/${vendorId}`);
-                    // alert(response)
-                    // alert(response.json())
-                    // alert(response.ok)
                     if (!response.ok) throw new Error('Failed to fetch payment details.');
 
                     const data = await response.json();
 
                     // Populate table with payment details
                     data.forEach(payment => {
-                        // alert(payment)
                         const dueAmount = payment.total_due - (payment.pay_amount || 0);
-                        const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+                        const today = "{{ todays_date }}"
 
                         const row = document.createElement('tr');
                         row.innerHTML = `
                         <td>${payment.invoice_number}</td>
-                        <td>${payment.purchase_date}</td>
-                        <td>${payment.total_due.toFixed(2)}</td>
+                        <td class="purchase-date">${payment.purchase_date}</td>
+                        <td class="outstanding-cost">${formatIndianCurrency(payment.total_due)}</td>
                         <td>
                             <input type="number" class="form-control pay-amount" 
                                    data-payment-id="${payment.payment_id}"
@@ -149,10 +150,9 @@
                                    value="0" 
                                    min="0" 
                                    max="${payment.total_due.toFixed(2)}"
-                                   step="0.01"
-                                   >
+                                   step="0.01">
                         </td>
-                        <td class="due-amount">${dueAmount.toFixed(2)}</td>
+                        <td class="due-amount">${formatIndianCurrency(dueAmount)}</td>
                         <td>
                             <select class="form-control mode-of-payment">
                                 <option value="upi">UPI</option>
@@ -162,7 +162,7 @@
                             </select>
                         </td>
                         <td>
-                            <input type="date" class="form-control date-of-payment" value="${today}">
+                            <input type="date" class="form-control date-of-payment" value="${today}" readonly>
                         </td>
                     `;
                         paymentDetailsTable.appendChild(row);
@@ -173,16 +173,16 @@
                         input.addEventListener('input', function () {
                             const payAmount = parseFloat(input.value || 0);
                             const row = input.closest('tr');
-                            const outstandingCost = parseFloat(row.querySelector('td:nth-child(3)').textContent);
+                            const outstandingCost = parseFloat(row.querySelector('.outstanding-cost').textContent.replace(/,/g, ''));
 
                             // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
                             if (payAmount > outstandingCost) {
-                                input.value = outstandingCost.toFixed(2); // Set the input value to the max allowed
+                                input.value = outstandingCost.toFixed(2);
                             }
 
                             // Recalculate and update dueAmount
                             const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(2);
-                            row.querySelector('.due-amount').textContent = newDueAmount;
+                            row.querySelector('.due-amount').textContent = formatIndianCurrency(newDueAmount);
                         });
                     });
                 } catch (error) {
@@ -201,7 +201,8 @@
                 invoice_number: input.getAttribute('data-invoice-number'),
                 pay_amount: parseFloat(input.value || 0),
                 mode_of_payment: input.closest('tr').querySelector('.mode-of-payment').value,
-                date_of_payment: input.closest('tr').querySelector('.date-of-payment').value
+                date_of_payment: input.closest('tr').querySelector('.date-of-payment').value,
+                purchase_date: input.closest('tr').querySelector('.purchase-date').textContent  // Include purchase date
             }));
 
             try {
@@ -213,7 +214,7 @@
 
                 if (!response.ok) throw new Error('Failed to process payments.');
                 const responseData = await response.json();
-                // alert(responseData.message);
+
                 // Close modal and reload page
                 payModal.modal('hide');
                 location.reload();
@@ -226,7 +227,17 @@
 </script>
 
 
+
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        document.querySelectorAll(".currency").forEach(function (element) {
+            let amount = parseFloat(element.getAttribute("data-value"));
+            element.textContent = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        });
+    });
+</script>
 
 {% endblock %}

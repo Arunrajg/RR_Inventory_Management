@@ -13,7 +13,7 @@
             <div class="card-body">
                 <!-- Filter Row -->
                 <div class="row align-items-center mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="vendorDropdown" class="form-label">Vendor</label>
                         <input list="vendorList" id="vendorDropdown" class="form-control">
                         <datalist id="vendorList">
@@ -23,14 +23,18 @@
                         </datalist>
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="invoiceDropdown" class="form-label">Invoice</label>
                         <input list="invoiceList" id="invoiceDropdown" class="form-control" disabled>
-                        <datalist id="invoiceList">
-                            <!-- Invoices will be populated dynamically based on vendor selection -->
-                        </datalist>
+                        <datalist id="invoiceList"></datalist>
                     </div>
-                    <div class="col-md-4">
+
+                    <div class="col-md-3">
+                        <label for="purchaseDateDropdown" class="form-label">Purchase Date</label>
+                        <input list="purchaseDateList" id="purchaseDateDropdown" class="form-control" disabled>
+                        <datalist id="purchaseDateList"></datalist>
+                    </div>
+                    <div class="col-md-3">
                         <label for="totalAmount" class="form-label">Total Purchased Amount (Rs)</label>
                         <input id="totalAmount" type="text" class="form-control" readonly>
                     </div>
@@ -66,36 +70,40 @@
 {% endblock %}
 
 {% block scripts %}
-
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const vendorInput = document.getElementById('vendorDropdown');
         const invoiceInput = document.getElementById('invoiceDropdown');
+        const purchaseDateInput = document.getElementById('purchaseDateDropdown');
         const vendorList = document.getElementById('vendorList');
         const invoiceList = document.getElementById('invoiceList');
+        const purchaseDateList = document.getElementById('purchaseDateList');
         const totalAmountField = document.getElementById('totalAmount');
         const purchaseTableBody = document.getElementById('purchaseTableBody');
 
-        // Helper function to get vendor ID from selected vendor name
         function getVendorId(vendorName) {
             const option = Array.from(vendorList.options).find(opt => opt.value === vendorName);
             return option ? option.getAttribute('data-id') : null;
         }
 
-        // Reset invoice datalist and table
         function resetInvoiceList() {
             invoiceList.innerHTML = '';
             invoiceInput.value = '';
             invoiceInput.disabled = true;
+            resetPurchaseDateList();
+        }
+
+        function resetPurchaseDateList() {
+            purchaseDateList.innerHTML = '';
+            purchaseDateInput.value = '';
+            purchaseDateInput.disabled = true;
             totalAmountField.value = '';
             purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
         }
 
-        // Fetch invoices based on selected vendor
         vendorInput.addEventListener('input', function () {
             const vendorId = getVendorId(this.value);
             resetInvoiceList();
-
             if (vendorId) {
                 fetch(`/get_invoices/${vendorId}`)
                     .then(response => response.json())
@@ -112,46 +120,58 @@
             }
         });
 
-        // Fetch purchases based on selected invoice
         invoiceInput.addEventListener('input', function () {
+            const vendorId = getVendorId(vendorInput.value);
             const invoiceNumber = this.value;
-
-            if (invoiceNumber) {
-                fetch(`/get_purchases/${invoiceNumber}`)
+            resetPurchaseDateList();
+            if (vendorId && invoiceNumber) {
+                fetch(`/get_invoice_dates/${vendorId}/${invoiceNumber}`)
                     .then(response => response.json())
                     .then(data => {
-                        // Update total amount
-                        totalAmountField.value = data.total_amount || '0';
+                        if (data && data.length > 0) {
+                            purchaseDateInput.disabled = false;
+                            data.forEach(date => {
+                                const option = document.createElement('option');
+                                option.value = date;
+                                purchaseDateList.appendChild(option);
+                            });
+                        }
+                    });
+            }
+        });
 
-                        // Populate table
+        purchaseDateInput.addEventListener('input', function () {
+            const vendorId = getVendorId(vendorInput.value);
+            const invoiceNumber = invoiceInput.value;
+            const purchaseDate = this.value;
+            if (vendorId && invoiceNumber && purchaseDate) {
+                fetch(`/get_purchases/${vendorId}/${invoiceNumber}/${purchaseDate}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        totalAmountField.value = parseFloat(data.total_amount).toLocaleString('en-IN') || '0';
                         if (data.purchases && data.purchases.length > 0) {
                             purchaseTableBody.innerHTML = '';
                             data.purchases.forEach(purchase => {
                                 const row = `
-                                    <tr>
-                                        <td>${purchase.id}</td>
-                                        <td>${purchase.invoice_number}</td>
-                                        <td>${purchase.vendor_name}</td>
-                                        <td>${purchase.raw_material_name}</td>
-                                        <td>${purchase.quantity}</td>
-                                        <td>${purchase.metric}</td>
-                                        <td>${purchase.total_cost}</td>
-                                        <td>${purchase.purchase_date}</td>
-                                        <td>${purchase.storageroom_name}</td>
-                                    </tr>
-                                `;
+                                <tr>
+                                    <td>${purchase.id}</td>
+                                    <td>${purchase.invoice_number}</td>
+                                    <td>${purchase.vendor_name}</td>
+                                    <td>${purchase.raw_material_name}</td>
+                                    <td>${parseFloat(purchase.quantity).toFixed(2)}</td>
+                                    <td>${purchase.metric}</td>
+                                    <td>${parseFloat(purchase.total_cost).toLocaleString('en-IN')}</td>
+                                    <td>${purchase.purchase_date}</td>
+                                    <td>${purchase.storageroom_name}</td>
+                                </tr>`;
                                 purchaseTableBody.insertAdjacentHTML('beforeend', row);
                             });
                         } else {
                             purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
                         }
                     });
-            } else {
-                totalAmountField.value = '';
-                purchaseTableBody.innerHTML = '<tr><td colspan="9" class="text-center">No data found</td></tr>';
             }
         });
     });
 </script>
-
 {% endblock %}

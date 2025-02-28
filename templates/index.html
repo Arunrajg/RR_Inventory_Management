@@ -9,7 +9,8 @@
                         <span><img src="../static/img/icons/dash1.svg" alt="img"></span>
                     </div>
                     <div class="dash-widgetcontent">
-                        <h5>&#8377;<span class="counters">{{ cost_details.total_purchased_amount }}</span></h5>
+                        <h5>&#8377;<span class="counters" id="totalPurchasedAmount">{{
+                                cost_details.total_purchased_amount }}</span></h5>
                         <h6>Total Purchase Amount (Rs)</h6>
                     </div>
                 </div>
@@ -20,7 +21,7 @@
                         <span><img src="../static/img/icons/dash2.svg" alt="img"></span>
                     </div>
                     <div class="dash-widgetcontent">
-                        <h5>&#8377;<span class="counters">{{ cost_details.total_paid }}</span></h5>
+                        <h5>&#8377;<span class="counters" id="totalPaidAmount">{{ cost_details.total_paid }}</span></h5>
                         <h6>Total Amount Paid (Rs)</h6>
                     </div>
                 </div>
@@ -31,7 +32,7 @@
                         <span><img src="../static/img/icons/dash4.svg" alt="img"></span>
                     </div>
                     <div class="dash-widgetcontent">
-                        <h5>&#8377;<span class="counters">{{ cost_details.total_due }}</span></h5>
+                        <h5>&#8377;<span class="counters" id="totalDueAmount">{{ cost_details.total_due }}</span></h5>
                         <h6>Total Amount Due (Rs)</h6>
                     </div>
                 </div>
@@ -128,6 +129,23 @@
         });
 
         fetchYears(); // Load years dynamically on page load
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let amountElement = document.getElementById("totalPurchasedAmount");
+        let amount = parseFloat(amountElement.textContent);
+        amountElement.textContent = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    });
+    document.addEventListener("DOMContentLoaded", function () {
+        let amountElement = document.getElementById("totalPaidAmount");
+        let amount = parseFloat(amountElement.textContent);
+        amountElement.textContent = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    });
+    document.addEventListener("DOMContentLoaded", function () {
+        let amountElement = document.getElementById("totalDueAmount");
+        let amount = parseFloat(amountElement.textContent);
+        amountElement.textContent = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 </script>
 {% endblock %}

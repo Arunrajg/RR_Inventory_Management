@@ -41,9 +41,10 @@
                     <table class="table table-bordered">
                         <thead class="table">
                             <tr>
-                                <th>Date</th>
+                                <th>Amount Paid On</th>
                                 <th>Vendor</th>
                                 <th>Invoice Number</th>
+                                <th>Invoice Purchase Date</th>
                                 <th>Amount Paid(Rs)</th>
                             </tr>
                         </thead>
@@ -113,13 +114,14 @@
                                 <td>${payment.paid_on}</td>
                                 <td>${payment.vendor_name}</td>
                                 <td>${payment.invoice_number}</td>
-                                <td>${payment.amount_paid}</td>
+                                <td>${payment.purchase_date}</td>
+                                <td>${parseFloat(payment.amount_paid).toLocaleString('en-IN')}</td>
                             </tr>
                         `;
                             purchaseTableBody.insertAdjacentHTML('beforeend', row);
                         });
 
-                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toFixed(2)}`;
+                        totalCostField.textContent = `Grand Total: Rs. ${totalCost.toLocaleString('en-IN')}`;
                         printButton.disabled = false;
                     } else {
                         resetTable();
@@ -147,7 +149,7 @@
                         ${vendorTotals.map(vendor => `
                             <tr>
                                 <td>${vendor.vendor_name}</td>
-                                <td>${vendor.amount_paid}</td>
+                                <td>${parseFloat(vendor.amount_paid).toLocaleString('en-IN')}</td>
                             </tr>
                         `).join('')}
                     </tbody>

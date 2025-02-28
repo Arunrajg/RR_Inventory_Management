@@ -121,12 +121,14 @@
                                 <td>${index + 1}</td>
                                 <td>${material.rawmaterial_name}</td>
                                 <td>${material.category}</td>
-                                <td>${material.opening_stock}</td>
-                                <td>${material.incoming_stock}</td>
-                                <td>${material.outgoing_stock}</td>
-                                <td>${material.currently_available}</td>
-                                <td>${material.minimum_required}</td>
-                                <td>${material.quantity_needed}</td>
+                                <td>${parseFloat(material.opening_stock).toFixed(2)}</td>
+                                <td>${parseFloat(material.incoming_stock).toFixed(2)}</td>
+                                <td>${parseFloat(material.outgoing_stock).toFixed(2)}</td>
+                                <td>${parseFloat(material.currently_available).toFixed(2)}</td>
+                                <td>${parseFloat(material.minimum_required).toFixed(2)}</td>
+                                <td style="color: ${material.quantity_needed > 0 ? 'red' : 'black'};">
+                                    ${parseFloat(material.quantity_needed).toFixed(2)}
+                                </td>
                                 <td>${material.metric}</td>
                             </tr>`;
                     rawMaterialTableBody.insertAdjacentHTML('beforeend', row);

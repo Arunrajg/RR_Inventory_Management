@@ -46,13 +46,13 @@
                                 <td>{{ loop.index }}</td>
                                 <td>{{ stock['rawmaterial_name']}}</td>
                                 <td>{{ stock['category']}}</td>
-                                <td>{{ stock['opening_stock'] }}</td>
-                                <td>{{ stock['incoming_stock'] }}</td>
-                                <td>{{ stock['outgoing_stock'] }}</td>
-                                <td>{{ stock['currently_available'] }}</td>
-                                <td>{{ stock['minimum_required'] }}</td>
+                                <td>{{ "%.2f"|format(stock['opening_stock']) }}</td>
+                                <td>{{ "%.2f"|format(stock['incoming_stock']) }}</td>
+                                <td>{{ "%.2f"|format(stock['outgoing_stock']) }}</td>
+                                <td>{{ "%.2f"|format(stock['currently_available']) }}</td>
+                                <td>{{ "%.2f"|format(stock['minimum_required']) }}</td>
                                 <td style="color: {% if stock['quantity_needed'] > 0 %}red{% else %}black{% endif %};">
-                                    {{ stock['quantity_needed'] }}
+                                    {{ "%.2f"|format(stock['quantity_needed']) }}
                                 </td>
                                 <td>{{ stock['metric'] }}</td>
                                 <td>{{ stock['storageroomname']}}</td>
