@@ -12,7 +12,7 @@ COPY . /app
 
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV FLASK_ENV=development 
+ENV FLASK_ENV=development
 
 # Expose the application port
 EXPOSE 5000

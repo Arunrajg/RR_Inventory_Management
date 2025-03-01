@@ -575,7 +575,7 @@ def get_storageroom_stock(destination_id=None, category=None):
     if filters:
         query += " WHERE " + " AND ".join(filters)
 
-    query += " ORDER BY sr.storageroomname, rm.name;"
+    query += " ORDER BY category ASC;"
 
     storage_stock = fetch_all(query, params)
     return storage_stock
