@@ -22,7 +22,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "db"),
     "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
-    "database": os.getenv("DB_DATABASE", "dharaniinventorymanagement"),  # Default to 'rrinventorymanagement' if not set
+    "database": os.getenv("DB_DATABASE", "dharaniinvmgmt"),  # Default to 'rrinventorymanagement' if not set
     "init_command": "SET time_zone = 'Asia/Kolkata'"
 }
 
@@ -559,6 +559,7 @@ def get_storageroom_stock(destination_id=None, category=None):
         minimum_stock AS ms ON ms.destination_id = srm.destination_id 
         AND ms.raw_material_id = srm.raw_material_id
         AND ms.type = 'storageroom'
+    WHERE rm.is_deleted=FALSE;
     """
 
     params = []
@@ -963,8 +964,10 @@ def get_raw_material_by_name(rawmaterial_name):
     return material
 
 
-def get_all_rawmaterials():
+def get_all_rawmaterials(only_not_deleted=True):
     query = 'SELECT * FROM raw_materials ORDER BY id ASC'
+    if only_not_deleted:
+        query = 'SELECT * FROM raw_materials WHERE is_deleted = FALSE ORDER BY id ASC'
     raw_materials = fetch_all(query)
     return raw_materials
 
@@ -1296,6 +1299,7 @@ def get_raw_materials_min_stock(destination_type, destination_id):
         FROM raw_materials rm
         LEFT JOIN minimum_stock ms 
         ON rm.id = ms.raw_material_id AND ms.type = %s AND ms.destination_id = %s
+        WHERE rm.is_deleted = FALSE
     """
     result = execute_query(query, (destination_type, destination_id))
     return [{"id": row[0], "name": row[1], "category": row[2], "metric": row[3], "min_quantity": float(row[4])} for row in result]
@@ -1383,3 +1387,13 @@ def get_contact_details():
     cursor.close()
     conn.close()
     return contact_details
+
+
+def delete_user_from_db(user_id):
+    query = 'DELETE FROM users where id=%s'
+    return execute_query(query, (user_id,))
+
+
+def delete_rawmaterial_from_db(rawmaterial_id):
+    query = 'UPDATE raw_materials SET is_deleted = TRUE WHERE id = %s'
+    return execute_query(query, (rawmaterial_id,))

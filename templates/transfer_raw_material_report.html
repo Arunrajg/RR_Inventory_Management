@@ -76,10 +76,6 @@
                             <th>Category</th>
                             <th>Quantity</th>
                             <th>Metric</th>
-                            <th>Transfer Date</th>
-                            <th>Transfer From</th>
-                            <th>Destination Type</th>
-                            <th>Destination Name</th>
                         </tr>
                     </thead>
                     <tbody id="transferTableBody"></tbody>
@@ -96,6 +92,7 @@
         const transferTableBody = document.getElementById('transferTableBody');
         const destinationTypeSelect = document.getElementById('destination_type');
         const destinationNameSelect = document.getElementById('destination_name');
+        const transferDateSelect = document.getElementById('transfer_date');
         const kitchens = {{ kitchens | tojson
     }};
     const restaurants = {{ restaurants | tojson }};
@@ -150,10 +147,6 @@
                                 <td>${transfer.category}</td>
                                 <td>${parseFloat(transfer.quantity).toFixed(2)}</td>
                                 <td>${transfer.metric}</td>
-                                <td>${transfer.transferred_date}</td>
-                                <td>${transfer.transferred_from}</td>
-                                <td>${transfer.destination_type}</td>
-                                <td>${transfer.transferred_to}</td>
                             </tr>`;
                     transferTableBody.insertAdjacentHTML('beforeend', row);
                 });
@@ -163,15 +156,17 @@
     }
 
     function printTransferReport() {
+        const transferDate = document.querySelector('input[name="transfer_date"]').value;
         const printContent = `
         <div style="text-align: left;">
             <h4 style="text-align: center;">Raw Material Transfer Report</h4>
             <h2 style="text-align: center;">{{ contact_details.name }}</h2>
             <p style="text-align: center;">Contact: {{ contact_details.contact_number }}</p>
             <p style="text-align: center;">Address: {{ contact_details.address }}</p>
-            <p><strong>Storage Room:</strong> ${document.querySelector('select[name="storageroom"] option:checked').text}</p>
-            <p><strong>Destination Type:</strong> ${destinationTypeSelect.options[destinationTypeSelect.selectedIndex].text}</p>
-            <p><strong>Destination Name:</strong> ${destinationNameSelect.options[destinationNameSelect.selectedIndex].text}</p>
+            <p><strong>Transferred From Storage Room:</strong> ${document.querySelector('select[name="storageroom"] option:checked').text}</p>
+            <p><strong>Transferred To Destination Type:</strong> ${destinationTypeSelect.options[destinationTypeSelect.selectedIndex].text}</p>
+            <p><strong>Transferred To Destination Name:</strong> ${destinationNameSelect.options[destinationNameSelect.selectedIndex].text}</p>
+            <p><strong>Transfer Date:</strong> ${transferDate}</p>
         </div>
         <table border="1" width="100%" style="border-collapse: collapse; text-align: center;">
             <thead>
@@ -181,10 +176,6 @@
                     <th>Category</th>
                     <th>Quantity</th>
                     <th>Metric</th>
-                    <th>Transfer Date</th>
-                    <th>Transfer From</th>
-                    <th>Destination Type</th>
-                    <th>Destination Name</th>
                 </tr>
             </thead>
             <tbody>

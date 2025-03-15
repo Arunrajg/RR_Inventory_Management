@@ -63,6 +63,10 @@
                                         data-category="{{ material.category }}" data-metric="{{ material.metric }}">
                                         <img src="../static/img/icons/edit.svg" alt="img">
                                     </button>
+                                    <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                        data-id="{{ material.id }}">
+                                        <img src="../static/img/icons/delete.svg" alt="img">
+                                    </button>
                                 </td>
                                 {% endif %}
                             </tr>
@@ -91,6 +95,10 @@
                         <input type="text" class="form-control" id="editRawmaterialCategory" name="category" required>
                     </div>
                     <div class="mb-3">
+                        <label for="editRawmaterialName" class="form-label">Name</label>
+                        <input type="text" class="form-control" id="editRawmaterialName" name="name" required>
+                    </div>
+                    <div class="mb-3">
                         <label for="editRawmaterialMetric" class="form-label">Metric</label>
                         <select class="form-control" id="editRawmaterialMetric" name="metric" required>
                             <option value="kg">kilograms(kg)</option>
@@ -109,6 +117,25 @@
         </div>
     </div>
 </div>
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this Raw Material?</p>
+                <input type="hidden" id="deleteRawmaterialId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 
@@ -123,15 +150,70 @@
             button.addEventListener('click', function () {
                 var materialId = button.getAttribute('data-id');
                 var materialCategory = button.getAttribute('data-category');
+                var materialName = button.getAttribute('data-name');
                 var materialMetric = button.getAttribute('data-metric');
 
                 document.getElementById('editRawmaterialId').value = materialId;
                 document.getElementById('editRawmaterialCategory').value = materialCategory;
+                document.getElementById('editRawmaterialName').value = materialName;
 
                 var metricDropdown = document.getElementById('editRawmaterialMetric');
                 metricDropdown.value = materialMetric;
             });
         });
     });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let deleteRawmaterialId;
+
+        document.querySelectorAll(".btn-edit[data-bs-target='#deleteModal']").forEach(button => {
+            button.addEventListener("click", function () {
+                deleteRawmaterialId = this.getAttribute("data-id");
+                document.getElementById("deleteRawmaterialId").value = deleteRawmaterialId;
+            });
+        });
+
+        document.getElementById("confirmDelete").addEventListener("click", function () {
+            fetch(`/deleterawmaterial/${deleteRawmaterialId}`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = window.location.pathname; // Redirect to reload the page
+                    } else {
+                        window.location.href = window.location.pathname;
+                        // alert("Error: " + data.message);
+                    }
+                })
+                .catch(error => console.error("Error:", error));
+        });
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.querySelector('form');
+
+        // Convert inputs to uppercase as the user types
+        form.addEventListener('input', function (e) {
+            if (e.target.id === 'editRawmaterialCategory' || e.target.id === 'editRawmaterialName') {
+                e.target.value = e.target.value.toUpperCase();
+            }
+        });
+
+        // Validate form on submission
+        form.addEventListener('submit', function (e) {
+            const categoryInput = document.getElementById('editRawmaterialCategory');
+            const nameInput = document.getElementById('editRawmaterialName');
+            const metricInput = document.getElementById('editRawmaterialMetric');
+
+            // Check for whitespace-only input
+            if (!categoryInput.value.trim() || !nameInput.value.trim() || !metricInput.value.trim()) {
+                e.preventDefault(); // Prevent form submission
+                alert('Please enter valid values. Fields cannot contain only spaces.');
+            }
+        });
+    });
+
 </script>
 {% endblock %}

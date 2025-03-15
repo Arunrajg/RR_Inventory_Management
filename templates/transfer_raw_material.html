@@ -97,7 +97,7 @@
                                     <div class="col-lg-2">
                                         <label>Transfer Quantity</label>
                                         <input type="number" name="quantity[]" class="form-control" step="0.01"
-                                            placeholder="Enter Quantity" required>
+                                            placeholder="Enter Quantity" min="0.01" required>
                                     </div>
                                     <div class="col-lg-2">
                                         <label>Metric</label>
@@ -109,6 +109,8 @@
                                             <option value="unit">Unit</option>
                                         </select>
                                     </div>
+                                    <!-- Hidden input to store metric value for submission -->
+                                    <input type="hidden" class="hidden-metric-input" name="metric[]">
                                 </div>
                             </div>
                             <div class="col-lg-2 d-flex align-items-center">
@@ -139,7 +141,6 @@
     }};  // Passing kitchens data
     const restaurants = {{ restaurants | tojson }};  // Passing restaurants data
 
-    // Update the Destination Name options based on the selected Destination Type
     function updateDestinationNameOptions() {
         const selectedType = destinationTypeSelect.value;
         let options = [];
@@ -150,12 +151,13 @@
             options = restaurants;
         }
 
-        // Clear the dropdown and add new options dynamically
         destinationNameSelect.innerHTML = ''; // Clear existing options
+
         const defaultOption = document.createElement('option');
         defaultOption.text = 'Select Destination';
         defaultOption.disabled = true;
         defaultOption.selected = true;
+        defaultOption.value = ""; // Ensure empty value to trigger required
         destinationNameSelect.appendChild(defaultOption);
 
         options.forEach(option => {
@@ -164,7 +166,11 @@
             newOption.textContent = option[`${selectedType}name`];  // kitchenname or restaurantname
             destinationNameSelect.appendChild(newOption);
         });
+
+        // Ensure `required` is properly set
+        destinationNameSelect.setAttribute('required', 'true');
     }
+
 
     // Event listener for Destination Type change
     destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
@@ -321,6 +327,63 @@
             }
         });
     });
-</script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('raw-material-container');
+        const form = document.querySelector('form'); // Assuming the form element exists
+        const rawMaterialsDataList = document.getElementById('raw_materials'); // The datalist element for raw materials
 
+        // Add a validation check before form submission
+        form.addEventListener('submit', function (e) {
+            const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
+            let isValid = true;
+
+            rawMaterialInputs.forEach(input => {
+                const rawMaterialName = input.value;
+                const isRawMaterialAvailable = Array.from(rawMaterialsDataList.options).some(
+                    option => option.value === rawMaterialName
+                );
+
+                if (!isRawMaterialAvailable) {
+                    isValid = false;
+                    alert(`Raw material "${rawMaterialName}" is not available.`);
+                    input.focus();
+                }
+            });
+
+            if (!isValid) {
+                e.preventDefault(); // Prevent form submission if validation fails
+            }
+        });
+
+        // Auto-select metric based on raw material and make the metric dropdown disabled
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('raw-material-input')) {
+                const selectedMaterial = e.target.value;
+                const dataList = document.getElementById('raw_materials');
+                const options = Array.from(dataList.options);
+                const matchingOption = options.find(option => option.value === selectedMaterial);
+
+                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+                const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
+
+                if (matchingOption) {
+                    const metric = matchingOption.dataset.metric;
+                    metricDropdown.value = metric;
+
+                    // Disable the dropdown
+                    metricDropdown.setAttribute('disabled', true);
+
+                    // Set the hidden input value for form submission
+                    hiddenMetricInput.value = metric;
+                } else {
+                    // Clear both the dropdown and hidden input if no valid raw material is selected
+                    metricDropdown.value = '';
+                    metricDropdown.removeAttribute('disabled');
+                    hiddenMetricInput.value = '';
+                }
+            }
+        });
+    });
+
+</script>
 {% endblock %}

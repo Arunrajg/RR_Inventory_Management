@@ -87,7 +87,7 @@
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Quantity</label>
                                 <input type="number" name="quantity[]" class="form-control quantity-input" step="0.01"
-                                    placeholder="Quantity" required>
+                                    min="0.01" placeholder="Quantity" required>
                             </div>
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Metric</label>
@@ -99,10 +99,11 @@
                                     <option value="unit">Unit</option>
                                 </select>
                             </div>
+                            <input type="hidden" class="hidden-metric-input" name="metric[]">
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Price per Unit(Rs)</label>
                                 <input type="number" name="price_per_metric[]" class="form-control price-input"
-                                    step="0.01" placeholder="Price per Metric" required>
+                                    step="0.01" min="0.01" placeholder="Price per Metric" required>
                             </div>
                             <div class="col-lg-2 col-sm-2 col-12">
                                 <label>Total Cost(Rs)</label>
@@ -263,6 +264,83 @@
                 }
             }
         });
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+        const container = document.getElementById('raw-material-container');
+        const form = document.querySelector('form'); // Assuming there's a form element
+        const rawMaterialsDataList = document.getElementById('raw_materials'); // The datalist element for raw materials
+
+        // Validation before form submission
+        form.addEventListener('submit', function (e) {
+            const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
+            let isValid = true;
+
+            rawMaterialInputs.forEach(input => {
+                const rawMaterialName = input.value;
+                const isRawMaterialAvailable = Array.from(rawMaterialsDataList.options).some(
+                    option => option.value === rawMaterialName
+                );
+
+                if (!isRawMaterialAvailable) {
+                    isValid = false;
+                    alert(`Raw material "${rawMaterialName}" is not available.`);
+                    input.focus();
+                }
+            });
+
+            if (!isValid) {
+                e.preventDefault(); // Prevent form submission if validation fails
+            }
+        });
+
+        // Auto-select metric based on raw material and make the metric field readonly
+        container.addEventListener('input', function (e) {
+            if (e.target.classList.contains('raw-material-input')) {
+                const selectedMaterial = e.target.value;
+                const dataList = document.getElementById('raw_materials');
+                const options = Array.from(dataList.options);
+                const matchingOption = options.find(option => option.value === selectedMaterial);
+
+                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+
+                if (matchingOption) {
+                    const metric = matchingOption.dataset.metric;
+                    metricDropdown.value = metric;
+
+                    // Disable the dropdown so it cannot be changed
+                    metricDropdown.setAttribute('disabled', true);
+
+                    // Ensure the disabled field's value is still submitted
+                    const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
+                    hiddenMetricInput.value = metric;
+                } else {
+                    metricDropdown.value = ''; // Clear the metric if no valid raw material is selected
+                    metricDropdown.removeAttribute('disabled'); // Allow editing temporarily for correction
+
+                    const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
+                    hiddenMetricInput.value = ''; // Clear hidden input as well
+                }
+            }
+        });
+
+    });
+    document.querySelector('form').addEventListener('submit', function (e) {
+        const quantityInputs = document.querySelectorAll('.quantity-input');
+        let isValid = true;
+
+        quantityInputs.forEach(input => {
+            const quantity = parseFloat(input.value) || 0;
+
+            if (quantity <= 0) {
+                isValid = false;
+                alert('All quantities must be positive. Please correct the values.');
+                input.focus();
+            }
+        });
+
+        if (!isValid) {
+            e.preventDefault(); // Stop the form submission
+        }
     });
 
 </script>
