@@ -122,7 +122,11 @@
                     <!-- Submit Buttons -->
                     <div class="row mt-3">
                         <div class="col-lg-12">
-                            <button type="submit" class="btn btn-submit me-2">Submit</button>
+                            <button type="submit" class="btn btn-submit me-2" id="submit-btn">
+                                Submit
+                            </button>
+                            <span id="loading-text"
+                                style="display: none; font-weight: bold; color: blue;">Processing...</span>
                             <a href="/" class="btn btn-cancel">Cancel</a>
                         </div>
                     </div>
@@ -329,10 +333,10 @@
     });
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.getElementById('raw-material-container');
-        const form = document.querySelector('form'); // Assuming the form element exists
-        const rawMaterialsDataList = document.getElementById('raw_materials'); // The datalist element for raw materials
+        const form = document.querySelector('form');
+        const rawMaterialsDataList = document.getElementById('raw_materials');
 
-        // Add a validation check before form submission
+        // Validation before form submission
         form.addEventListener('submit', function (e) {
             const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
             let isValid = true;
@@ -355,12 +359,11 @@
             }
         });
 
-        // Auto-select metric based on raw material and make the metric dropdown disabled
-        container.addEventListener('input', function (e) {
+        // Auto-select metric only AFTER the user selects a raw material from the suggestions
+        container.addEventListener('change', function (e) {
             if (e.target.classList.contains('raw-material-input')) {
                 const selectedMaterial = e.target.value;
-                const dataList = document.getElementById('raw_materials');
-                const options = Array.from(dataList.options);
+                const options = Array.from(rawMaterialsDataList.options);
                 const matchingOption = options.find(option => option.value === selectedMaterial);
 
                 const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
@@ -370,18 +373,36 @@
                     const metric = matchingOption.dataset.metric;
                     metricDropdown.value = metric;
 
-                    // Disable the dropdown
+                    // Disable the dropdown so the user cannot change it
                     metricDropdown.setAttribute('disabled', true);
 
                     // Set the hidden input value for form submission
                     hiddenMetricInput.value = metric;
                 } else {
-                    // Clear both the dropdown and hidden input if no valid raw material is selected
+                    // Allow the user to enter a new material and choose the metric manually
                     metricDropdown.value = '';
                     metricDropdown.removeAttribute('disabled');
                     hiddenMetricInput.value = '';
                 }
             }
+        });
+    });
+    document.addEventListener('DOMContentLoaded', function () {
+        const form = document.querySelector('form');
+        const submitButton = document.getElementById('submit-btn');
+        const loadingText = document.getElementById('loading-text');
+
+        form.addEventListener('submit', function (e) {
+            // Disable the button to prevent double-click
+            submitButton.disabled = true;
+            submitButton.textContent = "Submitting..."; // Change button text
+            loadingText.style.display = "inline"; // Show "Processing..." text
+
+            // Allow form submission to proceed
+            setTimeout(() => {
+                submitButton.disabled = false; // Re-enable if needed (for unexpected issues)
+                submitButton.textContent = "Submit"; // Reset button text
+            }, 60000); // Just in case form submission fails, re-enable after 60s
         });
     });
 

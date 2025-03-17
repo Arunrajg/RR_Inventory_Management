@@ -121,7 +121,11 @@
                     <!-- Submit Buttons -->
                     <div class="row mt-3">
                         <div class="col-lg-9">
-                            <button type="submit" class="btn btn-submit me-2">Submit</button>
+                            <button type="submit" class="btn btn-submit me-2" id="submit-btn">Submit</button>
+                            <span id="processing"
+                                style="display: none; font-weight: bold; color: blue; margin-left: 10px;">
+                                Processing...
+                            </span>
                             <a href="/index" class="btn btn-cancel">Cancel</a>
                         </div>
                         <div class="col-lg-3">
@@ -267,8 +271,8 @@
     });
     document.addEventListener('DOMContentLoaded', function () {
         const container = document.getElementById('raw-material-container');
-        const form = document.querySelector('form'); // Assuming there's a form element
-        const rawMaterialsDataList = document.getElementById('raw_materials'); // The datalist element for raw materials
+        const form = document.querySelector('form');
+        const rawMaterialsDataList = document.getElementById('raw_materials');
 
         // Validation before form submission
         form.addEventListener('submit', function (e) {
@@ -293,8 +297,8 @@
             }
         });
 
-        // Auto-select metric based on raw material and make the metric field readonly
-        container.addEventListener('input', function (e) {
+        // Auto-select metric AFTER a raw material is chosen from the suggestion list
+        container.addEventListener('change', function (e) {
             if (e.target.classList.contains('raw-material-input')) {
                 const selectedMaterial = e.target.value;
                 const dataList = document.getElementById('raw_materials');
@@ -302,6 +306,7 @@
                 const matchingOption = options.find(option => option.value === selectedMaterial);
 
                 const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+                const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
 
                 if (matchingOption) {
                     const metric = matchingOption.dataset.metric;
@@ -311,18 +316,14 @@
                     metricDropdown.setAttribute('disabled', true);
 
                     // Ensure the disabled field's value is still submitted
-                    const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
                     hiddenMetricInput.value = metric;
                 } else {
                     metricDropdown.value = ''; // Clear the metric if no valid raw material is selected
                     metricDropdown.removeAttribute('disabled'); // Allow editing temporarily for correction
-
-                    const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
                     hiddenMetricInput.value = ''; // Clear hidden input as well
                 }
             }
         });
-
     });
     document.querySelector('form').addEventListener('submit', function (e) {
         const quantityInputs = document.querySelectorAll('.quantity-input');
@@ -342,6 +343,16 @@
             e.preventDefault(); // Stop the form submission
         }
     });
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.querySelector("form");
+        const submitBtn = document.getElementById("submit-btn");
+        const processingText = document.getElementById("processing");
 
+        form.addEventListener("submit", function () {
+            // Disable the submit button and show "Processing..." text
+            submitBtn.disabled = true;
+            processingText.style.display = "inline";
+        });
+    });
 </script>
 {% endblock %}

@@ -559,7 +559,7 @@ def get_storageroom_stock(destination_id=None, category=None):
         minimum_stock AS ms ON ms.destination_id = srm.destination_id 
         AND ms.raw_material_id = srm.raw_material_id
         AND ms.type = 'storageroom'
-    WHERE rm.is_deleted=FALSE;
+    WHERE rm.is_deleted=FALSE
     """
 
     params = []
@@ -574,10 +574,9 @@ def get_storageroom_stock(destination_id=None, category=None):
         params.append(category)
 
     if filters:
-        query += " WHERE " + " AND ".join(filters)
+        query += " AND " + " AND ".join(filters)
 
     query += " ORDER BY category ASC;"
-
     storage_stock = fetch_all(query, params)
     return storage_stock
 
