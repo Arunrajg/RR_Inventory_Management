@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+    <div class="content">
+        <div class="page-header">
+            <div class="page-title">
+                <h4>Delete Today's Purchase</h4>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <div class="table-top">
+                    <div class="search-set">
+                        <div class="search-input">
+                            <a class="btn btn-searchset"><img src="../static/img/icons/search-white.svg" alt="img"></a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <label for="purchaseDate" class="form-label">Purchase Date</label>
+                    <input type="date" id="purchase_date" class="form-control" value="{{ today_date}}" readonly>
+                </div>
+                <div>
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                    <ul class="flash-messages">
+                        {% for category, message in messages %}
+                        <li class="{{ category }}"><b>**{{ message }}</b></li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
+                    {% endwith %}
+                </div>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>S.No</th>
+                                <th>Vendor Name</th>
+                                <th>Invoice Number</th>
+                                <th>Storage Room</th>
+                                <th>Purchase Amount</th>
+                                {% if user.role == 'admin' %}
+                                <th>Actions</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for purchase in todays_purchase %}
+                            <tr>
+                                <td style="width: 5%;">{{ loop.index }}</td>
+                                <td style="width: 25%;">{{ purchase.vendor_name }}</td>
+                                <td style="width: 30%;">{{ purchase.invoice_number }}</td>
+                                <td style="width: 20%;">{{ purchase.storageroom_name }}</td>
+                                <td style="width: 20%;">{{ purchase.total_purchase_amount }}</td>
+                                {% if user.role == 'admin' %}
+                                <td style="width: 10%;">
+                                    <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#deleteModal"
+                                        data-vendorid="{{ purchase.vendor_id }}"
+                                        data-invoicenumber="{{ purchase.invoice_number }}"
+                                        data-storageroomid="{{ purchase.storageroom_id }}"
+                                        data-purchasedate="{{ purchase.purchase_date}}">
+                                        <img src="../static/img/icons/delete.svg" alt="img">
+                                    </button>
+                                </td>
+                                {% endif %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deleteModalLabel">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this purchase record? This will adjust today's stock data.</p>
+                <input type="hidden" id="deleteVendorId">
+                <input type="hidden" id="deleteInvoiceNumber">
+                <input type="hidden" id="deleteStorageroomId">
+                <input type="hidden" id="deletePurchaseDate">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="../static/plugins/select2/js/select2.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>
+<script src="../static/plugins/sweetalert/sweetalerts.min.js"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let deleteVendorId, deleteInvoiceNumber, deleteStorageroomId, deletePurchaseDate;
+
+        // Capture delete button click and store values
+        document.querySelectorAll(".btn-edit[data-bs-target='#deleteModal']").forEach(button => {
+            button.addEventListener("click", function () {
+                deleteVendorId = this.getAttribute("data-vendorid");
+                deleteInvoiceNumber = this.getAttribute("data-invoicenumber");
+                deleteStorageroomId = this.getAttribute("data-storageroomid");
+                deletePurchaseDate = this.getAttribute("data-purchasedate");
+
+                // Store values in hidden inputs (if needed for debugging)
+                document.getElementById("deleteVendorId").value = deleteVendorId;
+                document.getElementById("deleteInvoiceNumber").value = deleteInvoiceNumber;
+                document.getElementById("deleteStorageroomId").value = deleteStorageroomId;
+                document.getElementById("deletePurchaseDate").value = deletePurchaseDate;
+            });
+        });
+
+        // Send delete request when "OK" is clicked
+        document.getElementById("confirmDelete").addEventListener("click", function () {
+            fetch("/delete_purchase_and_adjust_stock", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    vendor_id: deleteVendorId,
+                    invoice_number: deleteInvoiceNumber,
+                    storageroom_id: deleteStorageroomId,
+                    purchase_date: deletePurchaseDate
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.reload();  // Reload the page after successful deletion
+                    } else {
+                        window.location.href = window.location.pathname;
+                        // alert("Error: " + data.message);
+                    }
+                })
+                .catch(error => console.error("Error:", error));
+        });
+    });
+</script>
+
+{% endblock %}

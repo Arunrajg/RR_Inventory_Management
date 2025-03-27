@@ -1343,38 +1343,88 @@ def get_rawmaterial_category():
     return categories
 
 
-def get_transfer_raw_material_report(storageroom, destination_type, destination_id, transferred_date):
-    query = """
-    SELECT
-        rm.name AS raw_material_name,
-        rm.category,
-        rmt.quantity,
-        rmt.metric,
-        sr.storageroomname AS transferred_from,
-        rmt.destination_type,
-        CASE
-            WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
-            WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
-            ELSE 'Unknown'
-        END AS transferred_to,
-        DATE_FORMAT(rmt.transferred_date, '%Y-%m-%d') as transferred_date
-    FROM
-        raw_material_transfer_details rmt
-    JOIN
-        raw_materials rm ON rmt.raw_material_id = rm.id
-    JOIN
-        storagerooms sr ON rmt.source_storage_room_id = sr.id
-    LEFT JOIN
-        kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
-    LEFT JOIN
-        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
-    WHERE
-        sr.id = %s
-        AND rmt.destination_type = %s
-        AND rmt.destination_id = %s
-        AND DATE(rmt.transferred_date) = %s;
-    """
-    rawmaterial_transfer = fetch_all(query, (storageroom, destination_type, destination_id, transferred_date))
+def get_transfer_raw_material_report(storageroom, destination_type, destination_id, transferred_date, transfer_id):
+    if transfer_id == "total":
+        base_query = """
+            SELECT
+                rm.name AS raw_material_name,
+                rm.category,
+                SUM(rmt.quantity) AS total_quantity,
+                rmt.metric,
+                sr.storageroomname AS transferred_from,
+                rmt.destination_type,
+                CASE
+                    WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
+                    WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
+                    ELSE 'Unknown'
+                END AS transferred_to,
+                DATE_FORMAT(rmt.transferred_date, '%Y-%m-%d') AS transferred_date
+            FROM
+                raw_material_transfer_details rmt
+            JOIN
+                raw_materials rm ON rmt.raw_material_id = rm.id
+            JOIN
+                storagerooms sr ON rmt.source_storage_room_id = sr.id
+            LEFT JOIN
+                kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
+            LEFT JOIN
+                restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
+            WHERE
+                sr.id = %s
+                AND rmt.destination_type = %s
+                AND rmt.destination_id = %s
+                AND DATE(rmt.transferred_date) = %s
+            GROUP BY
+                rm.name, rm.category, rmt.metric, sr.storageroomname, rmt.destination_type, transferred_to, transferred_date;
+            """
+        params = [storageroom, destination_type, destination_id, transferred_date]
+    else:
+        base_query = """
+        SELECT
+            rm.name AS raw_material_name,
+            rm.category,
+            rmt.quantity,
+            rmt.metric,
+            sr.storageroomname AS transferred_from,
+            rmt.destination_type,
+            CASE
+                WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
+                WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
+                ELSE 'Unknown'
+            END AS transferred_to,
+            DATE_FORMAT(rmt.transferred_date, '%Y-%m-%d') AS transferred_date,
+            DATE_FORMAT(STR_TO_DATE(rmt.transfer_time, '%Y-%m-%d %H:%i:%S'), '%Y-%m-%d %I:%i:%S %p') AS transfer_time,
+            rmt.transfer_id AS transfer_id
+        FROM
+            raw_material_transfer_details rmt
+        JOIN
+            raw_materials rm ON rmt.raw_material_id = rm.id
+        JOIN
+            storagerooms sr ON rmt.source_storage_room_id = sr.id
+        LEFT JOIN
+            kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
+        LEFT JOIN
+            restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
+        WHERE
+            sr.id = %s
+            AND rmt.destination_type = %s
+            AND rmt.destination_id = %s
+            AND DATE(rmt.transferred_date) = %s
+        """
+
+        params = [storageroom, destination_type, destination_id, transferred_date]
+
+        if transfer_id == "all":
+            # No additional filtering for transfer_id
+            pass
+        else:
+            # Filter for a specific transfer_id
+            base_query += " AND rmt.transfer_id = %s"
+            params.append(transfer_id)
+
+    # Execute the query with dynamic parameters
+    rawmaterial_transfer = fetch_all(base_query, tuple(params))
+    logger.debug(f"rawmaterial_transfer {rawmaterial_transfer}")
     return rawmaterial_transfer
 
 
@@ -1396,3 +1446,31 @@ def delete_user_from_db(user_id):
 def delete_rawmaterial_from_db(rawmaterial_id):
     query = 'UPDATE raw_materials SET is_deleted = TRUE WHERE id = %s'
     return execute_query(query, (rawmaterial_id,))
+
+
+def get_cumulative_purchase_record_invoice_wise(date):
+    query = """
+    SELECT
+        ph.invoice_number,
+        ph.vendor_id,
+        v.vendor_name,
+        ph.storageroom_id,
+        sr.storageroomname AS storageroom_name,
+        SUM(ph.total_cost) AS total_purchase_amount,
+        ph.purchase_date as purchase_date
+    FROM
+        purchase_history ph
+    JOIN
+        vendor_list v ON ph.vendor_id = v.id
+    JOIN
+        storagerooms sr ON ph.storageroom_id = sr.id
+    WHERE
+        ph.purchase_date = %s
+    GROUP BY
+        ph.invoice_number, ph.vendor_id, ph.storageroom_id
+    ORDER BY
+        MIN(ph.created_at) ASC;
+    """
+
+    cumulative_purchases = fetch_all(query, (date,))
+    return cumulative_purchases

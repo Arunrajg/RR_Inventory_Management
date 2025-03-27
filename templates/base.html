@@ -217,6 +217,12 @@
                                     <li><a href="/purchase_record"
                                             class="{{ 'active' if request.path == '/purchase_record' else '' }}">Purchase
                                             Record</a></li>
+                                    {% if user.role == 'admin' %}
+                                    <li><a href="/delete_purchase_record"
+                                            class="{{ 'active' if request.path == '/delete_purchase_record' else '' }}">Delete
+                                            Purchase
+                                            Record</a></li>
+                                    {% endif %}
                                 </ul>
                             </li>
                             <li class="submenu">

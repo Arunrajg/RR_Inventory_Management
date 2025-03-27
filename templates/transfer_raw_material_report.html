@@ -55,6 +55,16 @@
                                 </select>
                             </div>
                         </div>
+
+                        <!-- Transfer ID -->
+                        <div class="col-lg-3 col-sm-6 col-12">
+                            <div class="form-group">
+                                <label>Transfer ID</label>
+                                <select name="transfer_id" class="form-control" id="transfer_id">
+                                    <option value="" disabled selected required>Select Transfer ID</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Buttons -->
@@ -72,10 +82,16 @@
                     <thead>
                         <tr>
                             <th>S.No</th>
+                            {% if transfer_id != "total" %}
+                            <th>Transfer ID</th>
+                            {% endif %}
                             <th>Raw Material Name</th>
                             <th>Category</th>
                             <th>Quantity</th>
                             <th>Metric</th>
+                            {% if transfer_id != "total" %}
+                            <th>Transfer Time</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody id="transferTableBody"></tbody>
@@ -93,6 +109,7 @@
         const destinationTypeSelect = document.getElementById('destination_type');
         const destinationNameSelect = document.getElementById('destination_name');
         const transferDateSelect = document.getElementById('transfer_date');
+        const transferIDSelect = document.getElementById('transfer_id');
         const kitchens = {{ kitchens | tojson
     }};
     const restaurants = {{ restaurants | tojson }};
@@ -127,29 +144,59 @@
 
     function fetchTransferDetails() {
         const storageroom = document.querySelector('select[name="storageroom"]').value;
-        const destinationType = destinationTypeSelect.value;
-        const destinationName = destinationNameSelect.value;
+        const destinationType = document.getElementById('destination_type').value;
+        const destinationName = document.getElementById('destination_name').value;
         const transferDate = document.querySelector('input[name="transfer_date"]').value;
+        const transferID = document.getElementById('transfer_id').value;
 
-        if (!storageroom || !destinationType || !destinationName) {
+        if (!storageroom || !destinationType || !destinationName || !transferID || !transferDate) {
             alert("Please fill in all fields.");
             return;
         }
 
-        fetch(`/get_transfer_details_report?storageroom=${storageroom}&destination_type=${destinationType}&destination_name=${destinationName}&transfer_date=${transferDate}`)
+        fetch(`/get_transfer_details_report?storageroom=${storageroom}&destination_type=${destinationType}&destination_name=${destinationName}&transfer_date=${transferDate}&transfer_id=${transferID}`)
             .then(response => response.json())
             .then(data => {
                 transferTableBody.innerHTML = '';
+
+                let isTotal = (transferID === "total");
+
+                let tableHeadHTML = `
+                <tr>
+                    <th>S.No</th>`;
+                if (!isTotal) {
+                    tableHeadHTML += `<th>Transfer ID</th>`;
+                }
+                tableHeadHTML += `
+                    <th>Raw Material Name</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th>Metric</th>`;
+                if (!isTotal) {
+                    tableHeadHTML += `<th>Transfer Time</th>`;
+                }
+                tableHeadHTML += `</tr>`;
+
+                document.querySelector("#transferTable thead").innerHTML = tableHeadHTML;
+
                 data.forEach((transfer, index) => {
-                    const row = `<tr>
-                                <td>${index + 1}</td>
-                                <td>${transfer.raw_material_name}</td>
-                                <td>${transfer.category}</td>
-                                <td>${parseFloat(transfer.quantity).toFixed(2)}</td>
-                                <td>${transfer.metric}</td>
-                            </tr>`;
+                    let row = `<tr>
+                        <td>${index + 1}</td>`;
+                    if (!isTotal) {
+                        row += `<td>${transfer.transfer_id}</td>`;
+                    }
+                    row += `<td>${transfer.raw_material_name}</td>
+                        <td>${transfer.category}</td>
+                        <td>${isNaN(parseFloat(transfer.total_quantity)) ? 0 : parseFloat(transfer.total_quantity).toFixed(2)}</td>
+                        <td>${transfer.metric}</td>`;
+                    if (!isTotal) {
+                        row += `<td>${transfer.transfer_time}</td>`;
+                    }
+                    row += `</tr>`;
+
                     transferTableBody.insertAdjacentHTML('beforeend', row);
                 });
+
                 printButton.disabled = false;
             })
             .catch(error => console.error('Error fetching transfer details:', error));
@@ -157,6 +204,9 @@
 
     function printTransferReport() {
         const transferDate = document.querySelector('input[name="transfer_date"]').value;
+        const transferID = document.getElementById('transfer_id').value;
+        let isTotal = (transferID === "total");
+
         const printContent = `
         <div style="text-align: left;">
             <h4 style="text-align: center;">Raw Material Transfer Report</h4>
@@ -172,10 +222,12 @@
             <thead>
                 <tr>
                     <th>S.No</th>
+                    ${!isTotal ? '<th>Transfer ID</th>' : ''}
                     <th>Raw Material Name</th>
                     <th>Category</th>
                     <th>Quantity</th>
                     <th>Metric</th>
+                    ${!isTotal ? '<th>Transfer Time</th>' : ''}
                 </tr>
             </thead>
             <tbody>
@@ -207,6 +259,64 @@
     fetchButton.addEventListener('click', fetchTransferDetails);
     printButton.addEventListener('click', printTransferReport);
     });
+    document.addEventListener('DOMContentLoaded', function () {
+        const fetchButton = document.getElementById('fetch_details');
+        const printButton = document.getElementById('printReport');
+        const transferTableBody = document.getElementById('transferTableBody');
+        const destinationTypeSelect = document.getElementById('destination_type');
+        const destinationNameSelect = document.getElementById('destination_name');
+        const transferDateInput = document.querySelector('input[name="transfer_date"]');
+        const storageRoomSelect = document.querySelector('select[name="storageroom"]');
+        const transferIdSelect = document.getElementById('transfer_id');
+
+        const kitchens = {{ kitchens | tojson
+    }};
+    const restaurants = {{ restaurants | tojson }};
+
+    function updateDestinationNameOptions() {
+        const selectedType = destinationTypeSelect.value;
+        let options = selectedType === 'kitchen' ? kitchens : restaurants;
+
+        destinationNameSelect.innerHTML = '<option value="" disabled selected>Select Destination</option>';
+        options.forEach(option => {
+            const newOption = document.createElement('option');
+            newOption.value = option.id;
+            newOption.textContent = option[`${selectedType}name`];
+            destinationNameSelect.appendChild(newOption);
+        });
+    }
+
+    function fetchTransferIds() {
+        const storageRoom = storageRoomSelect.value;
+        const destinationType = destinationTypeSelect.value;
+        const destinationName = destinationNameSelect.value;
+        const transferDate = transferDateInput.value;
+
+        if (!storageRoom || !destinationType || !destinationName || !transferDate) return;
+
+        fetch(`/get_transfer_ids?storageroom=${storageRoom}&destination_type=${destinationType}&destination_name=${destinationName}&transfer_date=${transferDate}`)
+            .then(response => response.json())
+            .then(data => {
+                transferIdSelect.innerHTML = '<option value="" disabled selected>Select Transfer ID</option>';
+                // transferIdSelect.innerHTML += `<option value="total">Total</option>`; // Add "Total" option
+
+
+                // Append fetched transfer IDs
+                data.forEach(transfer => {
+                    transferIdSelect.innerHTML += `<option value="${transfer.transfer_id}">${transfer.transfer_id}</option>`;
+                });
+            })
+            .catch(error => console.error('Error fetching transfer IDs:', error));
+    }
+
+    destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
+    storageRoomSelect.addEventListener('change', fetchTransferIds);
+    destinationNameSelect.addEventListener('change', fetchTransferIds);
+    transferDateInput.addEventListener('change', fetchTransferIds);
+
+    updateDestinationNameOptions();
+});
+
 </script>
 
 {% endblock %}

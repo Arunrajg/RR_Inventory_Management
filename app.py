@@ -28,7 +28,6 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "default_fallback_secret")
 encryption_key = bytes(os.getenv("ENCRYPTION_KEY", "b'default_fallback_key'")[2:-1], "utf-8")
 
-
 app.logger.setLevel(logging.INFO)
 # Mail configuration for Gmail
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
@@ -76,6 +75,19 @@ def get_current_date():
     # Format the date as "YYYY-MM-DD"
     formatted_date_ist = current_time_ist.strftime("%Y-%m-%d")
     return formatted_date_ist
+
+
+def get_current_datetime():
+
+    # Get the IST timezone
+    ist_timezone = pytz.timezone('Asia/Kolkata')
+
+    # Get current time in IST
+    current_time_ist = datetime.now(ist_timezone)
+
+    # Format the date as "YYYY-MM-DD"
+    formatted_datetime_ist = current_time_ist.strftime("%Y-%m-%d %H:%M:%S")
+    return formatted_datetime_ist
 
 
 @app.route("/")
@@ -1507,86 +1519,104 @@ def transfer_raw_material():
         raw_materials = request.form.getlist("raw_material_id[]")
         quantities = request.form.getlist("quantity[]")
         metrics = request.form.getlist("metric[]")
-        # Process Transfer
-        transfer_details = []
-        for raw_material, quantity, metric in zip(raw_materials, quantities, metrics):
-            raw_material_data = get_raw_material_by_id(raw_material)
-            if not raw_material_data:
-                flash(f"Raw material {raw_material} is not available. Please add it first.", "danger")
-                return redirect(url_for("transfer_raw_material"))
-
-            converted_quantity = convert_to_base_units(quantity, metric)
-            transfer_details.append({
-                "raw_material_id": raw_material,
-                "raw_material_name": raw_material_data["name"],
-                "quantity": converted_quantity,
-                "metric": metric,
-            })
-        #  Use a database transaction to prevent partial updates
+        transfer_datetime = get_current_datetime()
         connection = get_db_connection()
+
         try:
             with connection.cursor() as cursor:
-                for detail in transfer_details:
-                    raw_material_id = detail["raw_material_id"]
-                    quantity = detail["quantity"]
+                # Step 1: Get the latest transfer_id for today
+                cursor.execute("""
+                    SELECT IFNULL(MAX(transfer_id), 0) + 1
+                    FROM raw_material_transfer_details
+                    WHERE transferred_date = %s
+                    AND source_storage_room_id = %s
+                """, (transfer_date, source_storeroom_id))
+                next_transfer_id = cursor.fetchone()[0]  # Get next transfer ID
 
-                    # Deduct from storeroom inventory
-                    cursor.execute(
-                        """UPDATE inventory_stock
-                        SET outgoing_stock = outgoing_stock + %s,
-                            currently_available = currently_available - %s,
-                            quantity_needed = GREATEST(0, minimum_quantity - (currently_available - %s)),
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE destination_type='storageroom'
-                            AND destination_id=%s
-                            AND raw_material_id=%s;""",
-                        (quantity, quantity, quantity, source_storeroom_id, raw_material_id),
-                    )
+                # Step 2: Prepare Transfer Details
+                transfer_details = [
+                    (source_storeroom_id, destination_type, destination_id,
+                     raw_material, Decimal(convert_to_base_units(quantity, metric)),
+                     metric, transfer_date, transfer_datetime, next_transfer_id)
+                    for raw_material, quantity, metric in zip(raw_materials, quantities, metrics)
+                ]
 
-                    # Add to destination inventory
-                    cursor.execute(
-                        """INSERT INTO inventory_stock (destination_type, destination_id, raw_material_id, metric,
-                                                        opening_stock, incoming_stock, currently_available,
-                                                        minimum_quantity, quantity_needed)
-                                    VALUES (%s, %s, %s, %s,
-                            IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0),
-                            %s,
-                            IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0) + %s,
-                            IFNULL((SELECT min_quantity FROM minimum_stock WHERE type=%s AND destination_id=%s AND raw_material_id=%s), 0),
-                            GREATEST(0, IFNULL((SELECT min_quantity FROM minimum_stock WHERE type=%s AND destination_id=%s AND raw_material_id=%s), 0) -
-                                    (IFNULL((SELECT currently_available FROM (SELECT * FROM inventory_stock) AS temp WHERE destination_type=%s AND destination_id=%s AND raw_material_id=%s), 0) + %s))
-                            )
-                           ON DUPLICATE KEY UPDATE
-                               incoming_stock = incoming_stock + VALUES(incoming_stock),
-                               currently_available = currently_available + VALUES(incoming_stock),
-                               minimum_quantity = VALUES(minimum_quantity),
-                               quantity_needed = GREATEST(0, VALUES(minimum_quantity) - VALUES(currently_available)),
-                               updated_at = CURRENT_TIMESTAMP;""",
+                # Step 3: Bulk INSERT into `raw_material_transfer_details`
+                insert_transfer_sql = """
+                    INSERT INTO raw_material_transfer_details
+                        (source_storage_room_id, destination_type, destination_id,
+                        raw_material_id, quantity, metric, transferred_date, transfer_time, transfer_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.executemany(insert_transfer_sql, transfer_details)
+
+                # Step 4: Update inventory_stock
+                raw_material_ids = [item[3] for item in transfer_details]
+                raw_material_ids_str = ",".join(map(str, raw_material_ids))  # Convert to comma-separated string
+
+                case_statements_outgoing = " ".join([f"WHEN {item[3]} THEN {item[4]}" for item in transfer_details])
+                case_statements_available = case_statements_outgoing  # Same logic for both columns
+
+                update_inventory_sql = f"""
+                    UPDATE inventory_stock
+                    SET 
+                        outgoing_stock = outgoing_stock + CASE raw_material_id 
+                            {case_statements_outgoing} ELSE outgoing_stock END,
+                        currently_available = currently_available - CASE raw_material_id 
+                            {case_statements_available} ELSE 0 END,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type = 'storageroom' 
+                    AND destination_id = %s
+                    AND raw_material_id IN ({raw_material_ids_str})
+                """
+
+                cursor.execute(update_inventory_sql, (source_storeroom_id,))
+
+                # Step 5: Fetch current inventory details
+                fetch_inventory_sql = f"""
+                    SELECT raw_material_id, 
+                        IFNULL(currently_available, 0),
+                        IFNULL(minimum_quantity, 0), 
+                        IFNULL(quantity_needed, 0) 
+                    FROM inventory_stock 
+                    WHERE destination_type = %s 
+                    AND destination_id = %s 
+                    AND raw_material_id IN ({raw_material_ids_str})
+                """
+
+                cursor.execute(fetch_inventory_sql, (destination_type, destination_id))
+                existing_inventory = {row[0]: (Decimal(row[1]), Decimal(row[2]), Decimal(row[3]))
+                                      for row in cursor.fetchall()}  # Convert to Decimal
+
+                # Step 6: Bulk INSERT or UPDATE inventory_stock
+                insert_inventory_sql = """
+                    INSERT INTO inventory_stock
                         (destination_type, destination_id, raw_material_id, metric,
-                         destination_type, destination_id, raw_material_id, quantity,
-                         destination_type, destination_id, raw_material_id, quantity,
-                         destination_type, destination_id, raw_material_id,
-                         destination_type, destination_id, raw_material_id,
-                         destination_type, destination_id, raw_material_id, quantity),
-                    )
+                        incoming_stock, currently_available, minimum_quantity, quantity_needed, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    ON DUPLICATE KEY UPDATE
+                        incoming_stock = incoming_stock + VALUES(incoming_stock),
+                        currently_available = COALESCE(currently_available, 0) + VALUES(incoming_stock),
+                        updated_at = CURRENT_TIMESTAMP
+                """
 
-                    # Log the transfer in raw_material_transfer_details
-                    cursor.execute(
-                        """INSERT INTO raw_material_transfer_details
-                            (source_storage_room_id, destination_type, destination_id,
-                             raw_material_id, quantity, metric, transferred_date)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s)
-                            ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)""",
-                        (source_storeroom_id, destination_type, destination_id,
-                         raw_material_id, quantity, detail["metric"], transfer_date)
-                    )
+                inventory_values = [
+                    (item[1], item[2], item[3], item[5], Decimal(item[4]),  # Ensure quantity is Decimal
+                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                        0] + Decimal(item[4]),  # Compute currently_available
+                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                        1],  # Fetch minimum_quantity if exists, else 0
+                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[2])  # Fetch quantity_needed if exists, else 0
+                    for item in transfer_details
+                ]
 
-                #  If all queries succeed, commit the transaction
+                cursor.executemany(insert_inventory_sql, inventory_values)
+
                 connection.commit()
-                flash("Transfer successful", "success")
+                flash(f"Transfer successful (Transfer ID: {next_transfer_id})", "success")
 
         except Exception as e:
-            connection.rollback()  # Rollback if anything fails
+            connection.rollback()
             app.logger.error(f"Database Error: {e}")
             flash(f"An error occurred: {e}", "danger")
 
@@ -2272,12 +2302,13 @@ def get_transfer_details():
     destination_type = request.args.get("destination_type")
     destination_id = request.args.get("destination_name")
     transfer_date = request.args.get("transfer_date")
+    transfer_id = request.args.get("transfer_id")
 
-    if not destination_type or not destination_id or not storageroom_id or not transfer_date:
+    if not destination_type or not destination_id or not storageroom_id or not transfer_date or not transfer_id:
         return jsonify({"error": "Missing required parameters"}), 400
 
     # Fetch raw material transfer details
-    rm = get_transfer_raw_material_report(storageroom_id, destination_type, destination_id, transfer_date)
+    rm = get_transfer_raw_material_report(storageroom_id, destination_type, destination_id, transfer_date, transfer_id)
 
     return jsonify(rm)  # Return as JSON response
 
@@ -2326,6 +2357,126 @@ def delete_rawmaterial(rawmaterial_id):
     else:
         flash("Error: Unable to delete the rawmaterial!", "danger")
         return jsonify({"success": False, "message": "Unable to delete the rawmaterial"}), 404
+
+
+@app.route('/get_transfer_ids', methods=['GET'])
+def get_transfer_ids():
+    transfer_ids_list = []
+    storageroom_id = request.args.get('storageroom')
+    destination_type = request.args.get('destination_type')
+    destination_name = request.args.get('destination_name')
+    transfer_date = request.args.get('transfer_date')
+
+    if not storageroom_id or not destination_type or not destination_name or not transfer_date:
+        return jsonify([])  # Return an empty list if any field is missing
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        query = """
+        SELECT DISTINCT transfer_id FROM raw_material_transfer_details
+        WHERE source_storage_room_id = %s 
+        AND destination_type = %s 
+        AND destination_id = %s
+        AND DATE(transferred_date) = %s
+        ORDER BY transfer_id ASC
+        """
+        cursor.execute(query, (storageroom_id, destination_type, destination_name, transfer_date))
+        transfer_ids = cursor.fetchall()
+
+        conn.close()
+
+        # Add "All" and "Total" options
+        if transfer_ids:
+            transfer_ids_list = [{"transfer_id": "all"}, {"transfer_id": "total"}]
+            transfer_ids_list += [{"transfer_id": row[0]} for row in transfer_ids]
+
+        return jsonify(transfer_ids_list)
+
+    except Exception as e:
+        app.logger.error(f"Error fetching transfer IDs: {e}")
+        return jsonify({"error": "Internal Server Error"}), 500
+
+
+@app.route("/delete_purchase_record", methods=["GET", "POST"])
+def delete_purchase_record():
+    if "user" not in session:
+        return redirect("/login")
+    today_date = get_current_date()
+    # today_date = '2025-03-25'
+    todays_purchase = get_cumulative_purchase_record_invoice_wise(today_date)
+    return render_template("delete_purchase_record.html", user=session["user"], today_date=today_date, todays_purchase=todays_purchase)
+
+
+@app.route("/delete_purchase_and_adjust_stock", methods=["DELETE"])
+def delete_purchase_and_adjust_stock():
+    data = request.get_json()
+    vendor_id = data.get("vendor_id")
+    invoice_number = data.get("invoice_number")
+    storageroom_id = data.get("storageroom_id")
+    purchase_date = data.get("purchase_date")
+
+    if not all([vendor_id, invoice_number, storageroom_id, purchase_date]):
+        flash("Missing required parameters", "danger")
+        return jsonify({"success": False, "message": "Missing required parameters"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Fetch all raw materials associated with the purchase
+        cursor.execute("""
+            SELECT raw_material_id, quantity 
+            FROM purchase_history 
+            WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
+        """, (vendor_id, invoice_number, purchase_date))
+
+        purchase_records = cursor.fetchall()
+
+        if not purchase_records:
+            return jsonify({"success": False, "message": "No matching purchase records found"}), 404
+
+        # Adjust inventory_stock for each raw material
+        for record in purchase_records:
+            raw_material_id = record[0]
+            quantity = record[1]
+
+            cursor.execute("""
+                UPDATE inventory_stock 
+                SET incoming_stock = incoming_stock - %s, 
+                    currently_available = currently_available - %s 
+                WHERE raw_material_id = %s AND destination_type = 'storageroom' AND destination_id = %s
+            """, (quantity, quantity, raw_material_id, storageroom_id))
+        # Delete purchase records after stock adjustment
+        cursor.execute("""
+            DELETE FROM purchase_history 
+            WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
+        """, (vendor_id, invoice_number, purchase_date))
+
+        # Delete associated payment records
+        cursor.execute("""
+            DELETE FROM vendor_payment_tracker
+            WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
+        """, (vendor_id, invoice_number, purchase_date))
+
+        cursor.execute("""
+            DELETE FROM payment_records
+            WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
+        """, (vendor_id, invoice_number, purchase_date))
+        conn.commit()  # Commit the transaction only if everything is successful
+        flash("Purchase deleted and stock adjusted successfully!", "success")
+        return jsonify({"success": True, "message": "Purchase deleted and stock adjusted."})
+
+    except Exception as e:
+        conn.rollback()  # Rollback in case of an error
+        app.logger.error(f"Failed to delete purchase record {str(e)}")
+        flash("Failed to delete purchase record", "danger")
+        return jsonify({"success": False, "message": f"Error: {str(e)}"}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 
 if __name__ == "__main__":
