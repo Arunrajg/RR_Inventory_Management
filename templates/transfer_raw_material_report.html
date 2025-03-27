@@ -187,7 +187,7 @@
                     }
                     row += `<td>${transfer.raw_material_name}</td>
                         <td>${transfer.category}</td>
-                        <td>${isNaN(parseFloat(transfer.total_quantity)) ? 0 : parseFloat(transfer.total_quantity).toFixed(2)}</td>
+                        <td>${isNaN(parseFloat(transfer.quantity)) ? 0 : parseFloat(transfer.quantity).toFixed(2)}</td>
                         <td>${transfer.metric}</td>`;
                     if (!isTotal) {
                         row += `<td>${transfer.transfer_time}</td>`;

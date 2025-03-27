@@ -1349,7 +1349,7 @@ def get_transfer_raw_material_report(storageroom, destination_type, destination_
             SELECT
                 rm.name AS raw_material_name,
                 rm.category,
-                SUM(rmt.quantity) AS total_quantity,
+                SUM(rmt.quantity) as quantity,
                 rmt.metric,
                 sr.storageroomname AS transferred_from,
                 rmt.destination_type,
