@@ -93,7 +93,10 @@
                             </tbody>
                         </table>
                     </div>
-                    <button type="submit" class="btn btn-primary">Submit</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <span class="default-text">Submit</span>
+                        <span class="processing-text" style="display: none;">Processing...</span>
+                    </button>
                 </form>
             </div>
         </div>
@@ -196,13 +199,22 @@
         payForm.addEventListener('submit', async function (e) {
             e.preventDefault();
 
+            const submitBtn = document.getElementById('submitBtn');
+            const defaultText = submitBtn.querySelector('.default-text');
+            const processingText = submitBtn.querySelector('.processing-text');
+
+            // Disable button and show processing state
+            submitBtn.disabled = true;
+            defaultText.style.display = 'none';
+            processingText.style.display = 'inline';
+
             const vendorId = vendorIdInput.value;
             const paymentData = Array.from(document.querySelectorAll('.pay-amount')).map(input => ({
                 invoice_number: input.getAttribute('data-invoice-number'),
                 pay_amount: parseFloat(input.value || 0),
                 mode_of_payment: input.closest('tr').querySelector('.mode-of-payment').value,
                 date_of_payment: input.closest('tr').querySelector('.date-of-payment').value,
-                purchase_date: input.closest('tr').querySelector('.purchase-date').textContent  // Include purchase date
+                purchase_date: input.closest('tr').querySelector('.purchase-date').textContent
             }));
 
             try {
@@ -221,6 +233,11 @@
             } catch (error) {
                 console.error('Error processing payments:', error);
                 alert('Failed to update payments. Please try again.');
+
+                // Re-enable button if there's an error
+                submitBtn.disabled = false;
+                defaultText.style.display = 'inline';
+                processingText.style.display = 'none';
             }
         });
     });
