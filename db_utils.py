@@ -22,7 +22,7 @@ DB_CONFIG = {
     "host": os.getenv("DB_HOST", "db"),
     "user": os.getenv("DB_USER", "root"),  # Default to 'root' if not set
     "password": os.getenv("DB_PASSWORD", "password"),  # Default to 'password' if not set
-    "database": os.getenv("DB_DATABASE", "dharaniinvmgmt"),  # Default to 'rrinventorymanagement' if not set
+    "database": os.getenv("DB_DATABASE", "dharaniinvmgmt"),  # Default to 'dharaniinvmgmt' if not set
     "init_command": "SET time_zone = 'Asia/Kolkata'"
 }
 

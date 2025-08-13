@@ -26,7 +26,11 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "default_fallback_secret")
-encryption_key = bytes(os.getenv("ENCRYPTION_KEY", "b'default_fallback_key'")[2:-1], "utf-8")
+encryption_key = os.getenv("ENCRYPTION_KEY")
+if not encryption_key:
+    raise ValueError("ENCRYPTION_KEY not set in .env file")
+encryption_key = encryption_key.encode()
+
 
 app.logger.setLevel(logging.INFO)
 # Mail configuration for Gmail
@@ -135,7 +139,7 @@ def signup():
                 INSERT INTO users (username, email, password, role)
                 VALUES (%s, %s, %s, %s)
             """
-            if execute_query(insert_query, (username, email, password, "user")):
+            if execute_query(insert_query, (username, email, password, "admin")):
                 flash("Account created successfully! Click Sign In to login with your account.", "success")
             else:
                 flash("Error: Unable to create account. Please try again later.", "danger")
@@ -273,6 +277,144 @@ def edit_storage_room():
     # Redirect back to the storage rooms list
     return redirect(url_for('storageroomlist'))
 
+
+@app.route("/addmiscitem", methods=["GET", "POST"])
+def addmiscitem():
+    if "user" not in session:
+        return redirect("/login")
+
+    # Get active restaurants for the dropdown
+    restaurants = []
+    if request.method == "GET":
+        restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
+        restaurants = fetch_all(restaurant_query)
+
+    if request.method == "POST":
+        type_of_expense = request.form["type_of_expense"].strip()
+        sub_category = request.form.get("sub_category", "").strip()
+        restaurant_id = request.form.get("restaurant_id", "").strip()
+        branch_manager = request.form.get("branch_manager", "").strip()
+        cost = request.form["cost"].strip()
+        notes = request.form.get("notes", "").strip()
+
+        # Convert empty string to None for optional fields
+        restaurant_id = int(restaurant_id) if restaurant_id else None
+        sub_category = sub_category if sub_category else None
+        branch_manager = branch_manager if branch_manager else None
+        notes = notes if notes else None
+
+        insert_query = """
+        INSERT INTO miscellaneous_items 
+        (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        if execute_query(insert_query, (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes)):
+            flash("Miscellaneous item added successfully!", "success")
+        else:
+            flash("Error adding miscellaneous item. Please try again.", "danger")
+        return redirect("/addmiscitem")
+
+    return render_template("addmiscitem.html", user=session["user"], restaurants=restaurants)
+
+# Miscellaneous Item List
+def get_all_misc_items():
+    items_query = """
+    SELECT mi.id, mi.type_of_expense, mi.sub_category, mi.cost, mi.notes,
+           mi.restaurant_id, mi.branch_manager, r.restaurantname
+    FROM miscellaneous_items mi
+    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
+    ORDER BY mi.id DESC
+    """
+    total_query = "SELECT COALESCE(SUM(cost), 0) as total_cost FROM miscellaneous_items"
+
+    items = fetch_all(items_query)
+    total_result = fetch_one(total_query)
+
+    return {
+        'items': items,
+        'total_cost': total_result['total_cost'] if total_result else 0
+    }
+
+@app.route("/miscitemlist", methods=["GET"])
+def miscitemlist():
+    if "user" not in session:
+        return redirect("/login")
+
+    data = get_all_misc_items()
+    # Get restaurants for the edit modal dropdown
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status = 'active'")
+    
+    # Debug: Print restaurants to make sure they're being fetched
+    print("=== DEBUG: Available restaurants ===")
+    for restaurant in restaurants:
+        print(f"ID: {restaurant.get('id')}, Name: {restaurant.get('restaurantname')}")
+
+    return render_template(
+        "miscitemlist.html",
+        user=session["user"],
+        misc_items=data['items'],
+        total_cost=data['total_cost'],
+        restaurants=restaurants
+    )
+
+# Edit Miscellaneous Item
+@app.route("/editmiscitem", methods=["POST"])
+def edit_misc_item():
+    if "user" not in session:
+        return redirect("/login")
+
+    # Get all form data (removed status)
+    item_id = request.form.get('id')
+    type_of_expense = request.form.get('type_of_expense', '').strip()
+    sub_category = request.form.get('sub_category', '').strip()
+    restaurant_id = request.form.get('restaurant_id', '').strip()
+    branch_manager = request.form.get('branch_manager', '').strip()
+    cost = request.form.get('cost', '').strip()
+    notes = request.form.get('notes', '').strip()
+
+    # Validate required fields
+    if not item_id or not type_of_expense:
+        flash("Type of expense is required.", "error")
+        return redirect(url_for('miscitemlist'))
+
+    # Convert empty strings to None for optional fields
+    sub_category = sub_category if sub_category else None
+    restaurant_id = int(restaurant_id) if restaurant_id else None
+    branch_manager = branch_manager if branch_manager else None
+    notes = notes if notes else None
+
+    # Build the update query (removed status)
+    query = """
+    UPDATE miscellaneous_items
+    SET
+        type_of_expense = %s,
+        sub_category = %s,
+        restaurant_id = %s,
+        branch_manager = %s,
+        cost = %s,
+        notes = %s,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = %s
+    """
+    params = (
+        type_of_expense,
+        sub_category,
+        restaurant_id,
+        branch_manager,
+        cost,
+        notes,
+        item_id
+    )
+
+    # Execute the query
+    success = execute_query(query, params)
+
+    if success:
+        flash("Miscellaneous item updated successfully.", "success")
+    else:
+        flash("Failed to update miscellaneous item.", "danger")
+
+    return redirect(url_for('miscitemlist'))
 
 @app.route('/editkitchen', methods=['POST'])
 def edit_kitchen():

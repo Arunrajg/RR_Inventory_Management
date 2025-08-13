@@ -1,0 +1,305 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header">
+      <div class="page-title">
+        <h4>Miscellaneous Item List</h4>
+      </div>
+      {% if user.role == 'admin' %}
+      <div class="page-btn">
+        <a href="/addmiscitem" class="btn btn-added">
+          <img src="../static/img/icons/plus.svg" class="me-1" alt="img">Add Miscellaneous Item
+        </a>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="table-top">
+          <div class="search-set">
+            <div class="search-input">
+              <a class="btn btn-searchset">
+                <img src="../static/img/icons/search-white.svg" alt="img">
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+          <ul class="flash-messages">
+            {% for category, message in messages %}
+            <li class="{{ category }}"><b>{{ message }}</b></li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+          {% endwith %}
+        </div>
+
+        <div class="table-responsive">
+          <table class="table datanew">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Main Category</th>
+                <th>Sub Category</th>
+                <th>Restaurant</th>
+                <th>Branch Manager</th>
+                <th>Notes</th>
+                <th>Cost</th>
+                {% if user.role == 'admin' %}
+                <th>Actions</th>
+                {% endif %}
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for item in misc_items %}
+              <tr>
+                <td style="width: 4%;">{{ item.id }}</td>
+                <td style="width: 10%;">{{ item.type_of_expense }}</td>
+                <td style="width: 10%;">{{ item.sub_category or '-' }}</td>
+                <td style="width: 10%;">{{ item.restaurantname if item.restaurantname else '-' }}</td>
+                <td style="width: 16%;">{{ item.branch_manager if item.branch_manager else '-' }}</td>
+                <td style="width: 30%;">{{ item.notes }}</td>
+                <td style="width: 25%;">{{ item.cost }}</td>
+                {% if user.role == 'admin' %}
+                <td style="width: 10%;">
+                  <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#editModal"
+                    data-id="{{ item.id }}" data-type_of_expense="{{ item.type_of_expense }}"
+                    data-sub_category="{{ item.sub_category if item.sub_category else '' }}" data-cost="{{ item.cost }}"
+                    data-notes="{{ item.notes if item.notes else '' }}"
+                    data-restaurant_id="{{ item.restaurant_id if item.restaurant_id is not none and item.restaurant_id != '' else '' }}"
+                    data-branch_manager="{{ item.branch_manager if item.branch_manager else '' }}">
+                    <img src="../static/img/icons/edit.svg" alt="img">
+                  </button>
+                </td>
+                {% endif %}
+              </tr>
+              {% endfor %}
+            </tbody>
+
+            <div class="total-summary mb-3">
+              <div class="d-flex justify-content-end">
+                <div class="total-cost-card bg-lightgreen p-3 rounded">
+                  <h5 class="mb-0">
+                    <i class="fas fa-calculator me-2"></i>
+                    Total Cost:
+                    <span class="fw-bold">₹{{ "%.2f"|format(total_cost) }}</span>
+                  </h5>
+                </div>
+              </div>
+            </div>
+
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editModalLabel">Edit Miscellaneous Item</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="/editmiscitem">
+        <div class="modal-body">
+          <input type="hidden" name="id" id="editItemId">
+
+          <!-- Main Category Dropdown -->
+          <div class="mb-3">
+            <label for="editMainCategory" class="form-label">Main Category</label>
+            <select class="form-control" id="editMainCategory" name="type_of_expense" required>
+              <option value="">Select Main Category</option>
+              <option value="Owner Advance">Owner Advance</option>
+              <option value="Labor Advance">Labor Advance</option>
+              <option value="Banana Leaves">Banana Leaves</option>
+              <option value="News Paper">News Paper</option>
+              <option value="Recharge">Recharge</option>
+              <option value="Parcel">Parcel</option>
+              <option value="Fuel">Fuel</option>
+              <option value="Salary Advance">Salary Advance</option>
+              <option value="Miscellaneous Item">Miscellaneous Item</option>
+              <option value="Maintenance Charge">Maintenance Charge</option>
+              <option value="Chit Fund">Chit Fund</option>
+              <option value="Firewood">Firewood</option>
+              <option value="Rent">Rent</option>
+              <option value="EB Bill">EB Bill</option>
+            </select>
+          </div>
+
+          <!-- Sub Category Dropdown -->
+          <div class="mb-3">
+            <label for="editSubCategory" class="form-label">Sub Category</label>
+            <select class="form-control" id="editSubCategory" name="sub_category" required>
+              <option value="">Select Sub Category</option>
+              <!-- Dynamically populated via JS if needed -->
+            </select>
+          </div>
+
+          <!-- Restaurant -->
+          <div class="mb-3">
+            <label for="editRestaurant" class="form-label">Restaurant</label>
+            <select class="form-control" id="editRestaurant" name="restaurant_id">
+              <option value="">Select Restaurant</option>
+              {% for restaurant in restaurants %}
+              <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <!-- Branch Manager -->
+          <div class="mb-3">
+            <label for="editBranchManager" class="form-label">Branch Manager</label>
+            <input type="text" class="form-control" id="editBranchManager" name="branch_manager">
+          </div>
+
+          <!-- Cost -->
+          <div class="mb-3">
+            <label for="editCost" class="form-label">Cost</label>
+            <input type="number" step="0.01" class="form-control" id="editCost" name="cost" required>
+          </div>
+
+          <!-- Notes -->
+          <div class="mb-3">
+            <label for="editNotes" class="form-label">Notes</label>
+            <textarea class="form-control" id="editNotes" name="notes" required></textarea>
+          </div>
+
+          <!-- Status field completely removed -->
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary">Save changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // Subcategory mapping with proper capitalization
+    const subcategories = {
+      "Owner Advance": [],
+      "Labor Advance": [],
+      "Banana Leaves": [],
+      "News Paper": [],
+      "Parcel": [],
+      "Fuel": ["Generator", "Petrol"],
+      "Salary Advance": [],
+      "Miscellaneous Item": [],
+      "Maintenance Charge": [],
+      "Chit Fund": [],
+      "Firewood": [],
+      "Rent": [],
+      "EB Bill": [],
+      "Recharge": ["Jio", "Airtel"]
+    };
+
+    function toggleSubcategory(mainValue, selectedSubValue) {
+      const subSelect = document.getElementById('editSubCategory');
+      const subWrapper = subSelect.closest('.mb-3');
+
+      subSelect.innerHTML = '<option value="">Select Sub Category</option>';
+
+      if (mainValue === "Fuel") {
+        subWrapper.style.display = 'block';
+        subSelect.required = true;
+        subcategories["Fuel"].forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.text = sub;
+          subSelect.appendChild(opt);
+        });
+
+        if (selectedSubValue) {
+          subSelect.value = selectedSubValue;
+        }
+      } else if (mainValue === "Recharge") {
+        subWrapper.style.display = 'block';
+        subSelect.required = true;
+        subcategories["Recharge"].forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub;
+          opt.text = sub;
+          subSelect.appendChild(opt);
+        });
+
+        if (selectedSubValue) {
+          subSelect.value = selectedSubValue;
+        }
+      } else {
+        subWrapper.style.display = 'none';
+        subSelect.required = false;
+        subSelect.value = '';
+      }
+    }
+
+    // Main category change handler
+    const mainSelect = document.getElementById('editMainCategory');
+    mainSelect.addEventListener('change', function () {
+      toggleSubcategory(this.value, '');
+    });
+
+    // Edit button click handler
+    document.querySelectorAll('.btn-edit').forEach(button => {
+      button.addEventListener('click', function () {
+        const data = this.dataset;
+
+        // Set basic fields (removed status)
+        document.getElementById('editItemId').value = data.id || '';
+        document.getElementById('editCost').value = data.cost || '';
+        document.getElementById('editNotes').value = data.notes || '';
+        document.getElementById('editBranchManager').value = data.branch_manager || '';
+
+        // Set main category
+        document.getElementById('editMainCategory').value = data.type_of_expense || '';
+
+        // Set restaurant dropdown
+        const restaurantSelect = document.getElementById('editRestaurant');
+
+        if (data.restaurant_id && data.restaurant_id !== '' && data.restaurant_id !== 'None' && data.restaurant_id !== 'null') {
+          restaurantSelect.value = data.restaurant_id;
+
+          // Verify if the value was set correctly
+          if (restaurantSelect.value !== data.restaurant_id) {
+            // Try with string conversion
+            restaurantSelect.value = String(data.restaurant_id);
+
+            if (restaurantSelect.value !== String(data.restaurant_id)) {
+              // Try manual option matching
+              Array.from(restaurantSelect.options).forEach(option => {
+                if (option.value == data.restaurant_id || option.value === String(data.restaurant_id)) {
+                  option.selected = true;
+                }
+              });
+            }
+          }
+        } else {
+          restaurantSelect.value = '';
+        }
+
+        // Handle subcategory (with slight delay to ensure main category is processed)
+        setTimeout(() => {
+          toggleSubcategory(data.type_of_expense, data.sub_category);
+        }, 10);
+      });
+    });
+  });
+
+</script>
+{% endblock %}
