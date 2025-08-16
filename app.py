@@ -139,7 +139,7 @@ def signup():
                 INSERT INTO users (username, email, password, role)
                 VALUES (%s, %s, %s, %s)
             """
-            if execute_query(insert_query, (username, email, password, "admin")):
+            if execute_query(insert_query, (username, email, password, "user")):
                 flash("Account created successfully! Click Sign In to login with your account.", "success")
             else:
                 flash("Error: Unable to create account. Please try again later.", "danger")
@@ -283,6 +283,14 @@ def addmiscitem():
     if "user" not in session:
         return redirect("/login")
 
+    user = session["user"]  # Assuming session["user"] is a dict
+    role = user.get("role")
+
+    # Default selected restaurant
+    selected_restaurant_id = None
+    if role == "branch_manager":
+        selected_restaurant_id = 1  # KTC NAGAR ID
+
     # Get active restaurants for the dropdown
     restaurants = []
     if request.method == "GET":
@@ -314,46 +322,63 @@ def addmiscitem():
             flash("Error adding miscellaneous item. Please try again.", "danger")
         return redirect("/addmiscitem")
 
-    return render_template("addmiscitem.html", user=session["user"], restaurants=restaurants)
+    return render_template(
+        "addmiscitem.html",
+        user=user,
+        restaurants=restaurants,
+        selected_restaurant_id=selected_restaurant_id
+    )
 
 # Miscellaneous Item List
-def get_all_misc_items():
-    items_query = """
-    SELECT mi.id, mi.type_of_expense, mi.sub_category, mi.cost, mi.notes,
-           mi.restaurant_id, mi.branch_manager, r.restaurantname
-    FROM miscellaneous_items mi
-    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
-    ORDER BY mi.id DESC
-    """
-    total_query = "SELECT COALESCE(SUM(cost), 0) as total_cost FROM miscellaneous_items"
-
-    items = fetch_all(items_query)
-    total_result = fetch_one(total_query)
-
-    return {
-        'items': items,
-        'total_cost': total_result['total_cost'] if total_result else 0
-    }
 
 @app.route("/miscitemlist", methods=["GET"])
 def miscitemlist():
     if "user" not in session:
         return redirect("/login")
 
-    data = get_all_misc_items()
-    # Get restaurants for the edit modal dropdown
-    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status = 'active'")
-    
-    # Debug: Print restaurants to make sure they're being fetched
-    print("=== DEBUG: Available restaurants ===")
-    for restaurant in restaurants:
-        print(f"ID: {restaurant.get('id')}, Name: {restaurant.get('restaurantname')}")
+    user = session["user"]
+    role = user["role"]
+
+    contact_details = get_contact_details()
+
+    # Modified query to include restaurant name
+    query = """
+    SELECT 
+        mi.id,
+        mi.type_of_expense,
+        mi.sub_category,
+        mi.cost,
+        mi.notes,
+        mi.restaurant_id,
+        r.restaurantname,  # Add this line
+        mi.branch_manager,
+        mi.created_at
+    FROM miscellaneous_items mi
+    LEFT JOIN restaurant r ON mi.restaurant_id = r.id  # Add this join
+    WHERE 1=1
+    """
+    params = []
+
+    # Only show today's records for admin & branch_manager
+    if role in ["admin", "branch_manager", "store_manager"]:
+        query += " AND DATE(mi.created_at) = CURDATE()"
+
+    query += " ORDER BY mi.id DESC"
+
+    # Fetch misc items
+    misc_items = fetch_all(query, params)
+
+    # Get restaurants for dropdown (unchanged)
+    restaurants = fetch_all(
+        "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
+    )
 
     return render_template(
         "miscitemlist.html",
-        user=session["user"],
-        misc_items=data['items'],
-        total_cost=data['total_cost'],
+        user=user,
+        contact_details=contact_details,
+        misc_items=misc_items,
+        total_cost=sum(float(item['cost']) for item in misc_items),
         restaurants=restaurants
     )
 
@@ -415,6 +440,62 @@ def edit_misc_item():
         flash("Failed to update miscellaneous item.", "danger")
 
     return redirect(url_for('miscitemlist'))
+
+@app.route("/misc_item_report", methods=["GET"])
+def misc_item_report():
+    if "user" not in session:
+        return redirect("/login")
+
+    user = session["user"]
+    
+    contact_details = get_contact_details()
+
+    # Get filter parameters
+    search = request.args.get("search", "").strip()
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+
+    # Base query
+    query = """
+    SELECT 
+        mi.*,
+        r.restaurantname as branch_name
+    FROM miscellaneous_items mi
+    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
+    WHERE 1=1
+    """
+    params = []
+
+    # Apply search filter
+    if search:
+        query += " AND (mi.type_of_expense LIKE %s OR mi.sub_category LIKE %s)"
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    # Apply date filters
+    if date_from:
+        query += " AND DATE(mi.created_at) >= %s"
+        params.append(date_from)
+    
+    if date_to:
+        query += " AND DATE(mi.created_at) <= %s"
+        params.append(date_to)
+
+    # For non-admin roles, only show today's records
+    if user["role"] not in ["admin", "branch_manager", "store_manager"]:
+        query += " AND DATE(mi.created_at) = CURDATE()"
+
+    query += " ORDER BY mi.created_at DESC"
+
+    # Fetch records
+    misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
+
+    return render_template(
+        "misc_item_report.html",
+        user=user,
+        misc_items=misc_items,
+        contact_details=contact_details,
+        total_cost=sum(float(item.get('cost', 0)) for item in misc_items)
+    )
 
 @app.route('/editkitchen', methods=['POST'])
 def edit_kitchen():

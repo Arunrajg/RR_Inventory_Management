@@ -122,12 +122,12 @@
                         </li>
                         <li class="submenu">
                             <a href="javascript:void(0);">
-                                <img src="../static/img/icons/places.svg" alt="img">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
                                 <span>Miscellaneous Item</span>
                                 <span class="menu-arrow"></span>
                             </a>
                             <ul>
-                                {% if user.role=='admin' %}
+                                {% if user.role in ['admin', 'branch_manager'] %}
                                 <li>
                                     <a href="/addmiscitem"
                                         class="{{ 'active' if request.path == '/addmiscitem' else '' }}">
@@ -141,6 +141,14 @@
                                         Miscellaneous Item List
                                     </a>
                                 </li>
+                                {% if user.role == 'admin' %}
+                                <li>
+                                    <a href="/misc_item_report"
+                                        class="{{ 'active' if request.path == '/misc_item_report' else '' }}">
+                                        Miscellaneous Item Report
+                                    </a>
+                                </li>
+                                {% endif %}
                             </ul>
 
                         </li>

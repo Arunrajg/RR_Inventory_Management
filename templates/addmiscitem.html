@@ -31,7 +31,7 @@
                   <option value="Recharge">Recharge</option>
                   <option value="Firewood">Firewood</option>
                   <option value="Rent">Rent</option>
-                  <option value="EB Bill">EB Bill</option>
+                  <option value="Electricity Bill">Electricity Bill</option>
                 </select>
               </div>
             </div>
@@ -53,7 +53,9 @@
                 <select name="restaurant_id" class="form-control">
                   <option value="">Select Branch</option>
                   {% for restaurant in restaurants %}
-                  <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }}</option>
+                  <option value="{{ restaurant.id }}" {% if restaurant.id==selected_restaurant_id %}selected{% endif %}>
+                    {{ restaurant.restaurantname }}
+                  </option>
                   {% endfor %}
                 </select>
               </div>
