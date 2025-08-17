@@ -59,11 +59,11 @@
           <tr>
             <td>{{ loop.index }}</td>
             <td>{{ item.type_of_expense or '-' }}</td>
-            <td>{{ item.sub_category or 'NA' }}</td>
+            <td>{{ item.sub_category or '-' }}</td>
             <td>{{ item.branch_name or item.restaurant_id or '-' }}</td>
             <td>{{ item.branch_manager or '-' }}</td>
             <td>{{ item.notes or '-' }}</td>
-            <td>₹ {{ item.cost or '-' }}</td>
+            <td>{{ item.cost or '-' }}</td>
             <td>{{ item.created_at.strftime('%d-%m-%Y') if item.created_at else '-' }}</td>
           </tr>
           {% endfor %}
@@ -127,14 +127,14 @@
       allRows.each(function (rowData, index) {
         rowsHtml += `
     <tr>
-        <td style="padding: 10px;">${index + 1}</td>
-        <td style="padding: 10px;">${rowData[1] || '-'}</td>
-        <td style="padding: 10px;">${rowData[2] || 'NA'}</td>
-        <td style="padding: 10px;">${rowData[3] || '-'}</td>
-        <td style="padding: 10px;">${rowData[4] || '-'}</td>
-        <td style="padding: 10px;">${rowData[5] || '-'}</td>
-        <td style="padding: 10px;">${rowData[6] || '-'}</td>
-        <td style="padding: 10px;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${index + 1}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[1] || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[2] || 'NA'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[3] || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[4] || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[5] || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[6] || '-'}</td>
+        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
     </tr>
 `;
       });
@@ -147,8 +147,8 @@
     <style>
         @page {
             margin: 1cm;
-            @top-left {
-                content: "${new Date().toLocaleDateString('en-GB')}, ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}";
+            @top-right {
+                content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}";
                 font-size: 10pt;
             }
             @top-center {
@@ -184,8 +184,13 @@
             margin-bottom: 20px;
         }
         th, td {
-            padding: 8px;
+            padding: 6px;
             border: 1px solid #000;
+            word-wrap: break-word;
+            word-break: break-word;
+            font-size: 10px;
+            vertical-align: top;
+            line-height: 1.2;
         }
         .total {
             text-align: right;
@@ -242,14 +247,14 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 4%;">#</th>
-                    <th style="width: 14%;">Type of Expense</th>
+                    <th style="width: 3%;">#</th>
+                    <th style="width: 12%;">Type of Expense</th>
                     <th style="width: 10%;">Sub Category</th>
-                    <th style="width: 18%;">Branch</th>
-                    <th style="width: 15%;">Branch Manager</th>
-                    <th style="width: 25%;">Notes</th>
-                    <th style="width: 13%;">Cost (₹)</th>
-                    <th style="width: 16%;">Date</th>
+                    <th style="width: 16%;">Branch</th>
+                    <th style="width: 12%;">Branch Manager</th>
+                    <th style="width: 30%;">Notes</th>
+                    <th style="width: 8%;">Cost (₹)</th>
+                    <th style="width: 9%;">Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -258,7 +263,7 @@
         </table>
 
         <div class="total">
-            <h3>Grand Total: ₹${totalCost}</h3>
+            <h3>Grand Total: ₹ ${totalCost}</h3>
         </div>
 
         <div class="signatures">
@@ -304,6 +309,5 @@
       }, 1000);
     });
   });
-
 </script>
 {% endblock %}
