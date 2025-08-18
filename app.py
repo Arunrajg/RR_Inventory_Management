@@ -26,11 +26,7 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "default_fallback_secret")
-encryption_key = os.getenv("ENCRYPTION_KEY")
-if not encryption_key:
-    raise ValueError("ENCRYPTION_KEY not set in .env file")
-encryption_key = encryption_key.encode()
-
+encryption_key = bytes(os.getenv("ENCRYPTION_KEY", "b'default_fallback_key'")[2:-1], "utf-8")
 
 app.logger.setLevel(logging.INFO)
 # Mail configuration for Gmail
