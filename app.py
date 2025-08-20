@@ -383,6 +383,9 @@ def miscitemlist():
     if role == "branch_manager":
         query += " AND mi.manual_date IS NULL"
 
+    if role == "store_manager":
+        query += " AND mi.manual_date IS NULL"
+
     # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
     if role in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(mi.created_at) = CURDATE()"
