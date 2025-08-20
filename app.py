@@ -279,15 +279,13 @@ def addmiscitem():
     if "user" not in session:
         return redirect("/login")
 
-    user = session["user"]  # Assuming session["user"] is a dict
+    user = session["user"]
     role = user.get("role")
 
-    # Default selected restaurant
     selected_restaurant_id = None
     if role == "branch_manager":
         selected_restaurant_id = 1  # KTC NAGAR ID
 
-    # Get active restaurants for the dropdown
     restaurants = []
     if request.method == "GET":
         restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
@@ -300,19 +298,44 @@ def addmiscitem():
         branch_manager = request.form.get("branch_manager", "").strip()
         cost = request.form["cost"].strip()
         notes = request.form.get("notes", "").strip()
+        manual_date_str = request.form.get("manual_date", "").strip()
 
-        # Convert empty string to None for optional fields
+        # Convert optional fields
         restaurant_id = int(restaurant_id) if restaurant_id else None
         sub_category = sub_category if sub_category else None
         branch_manager = branch_manager if branch_manager else None
         notes = notes if notes else None
 
+        # Get current datetime in IST
+        current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
+        
+        # Handle manual_date: use selected date with current IST time
+        manual_date = None
+        if manual_date_str:
+            # Parse the selected date and combine with current IST time
+            selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
+            current_time = current_datetime_ist.time()
+            manual_date = datetime.combine(selected_date, current_time)
+            # Localize to IST timezone
+            ist = pytz.timezone('Asia/Kolkata')
+            manual_date = ist.localize(manual_date)
+            manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            manual_date_str = None
+
+        # Use current IST datetime for created_at and updated_at
+        created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
+        updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
+
         insert_query = """
         INSERT INTO miscellaneous_items 
-        (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes, manual_date, created_at, updated_at)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        if execute_query(insert_query, (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes)):
+        if execute_query(insert_query, (
+            type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes, 
+            manual_date_str, created_at_str, updated_at_str
+        )):
             flash("Miscellaneous item added successfully!", "success")
         else:
             flash("Error adding miscellaneous item. Please try again.", "danger")
@@ -339,27 +362,33 @@ def miscitemlist():
 
     # Modified query to include restaurant name
     query = """
-    SELECT 
-        mi.id,
-        mi.type_of_expense,
-        mi.sub_category,
-        mi.cost,
-        mi.notes,
-        mi.restaurant_id,
-        r.restaurantname,  # Add this line
-        mi.branch_manager,
-        mi.created_at
-    FROM miscellaneous_items mi
-    LEFT JOIN restaurant r ON mi.restaurant_id = r.id  # Add this join
-    WHERE 1=1
+        SELECT 
+            mi.id,
+            mi.type_of_expense,
+            mi.sub_category,
+            mi.cost,
+            mi.notes,
+            mi.restaurant_id,
+            r.restaurantname,
+            mi.branch_manager,
+            mi.manual_date,
+            mi.created_at
+        FROM miscellaneous_items mi
+        LEFT JOIN restaurant r ON mi.restaurant_id = r.id
+        WHERE 1=1
     """
     params = []
 
-    # Only show today's records for admin & branch_manager
+    # Rule 1 → Branch Manager should not see manual_date records
+    if role == "branch_manager":
+        query += " AND mi.manual_date IS NULL"
+
+    # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
     if role in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(mi.created_at) = CURDATE()"
 
-    query += " ORDER BY mi.id DESC"
+    # Rule 3 → Order by latest first
+    query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC, mi.id DESC"
 
     # Fetch misc items
     misc_items = fetch_all(query, params)
@@ -443,19 +472,22 @@ def misc_item_report():
         return redirect("/login")
 
     user = session["user"]
-    
     contact_details = get_contact_details()
 
     # Get filter parameters
     search = request.args.get("search", "").strip()
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
+    
+    # DEBUG: Print filter parameters
+    print(f"Filter params - search: '{search}', date_from: '{date_from}', date_to: '{date_to}'")
 
     # Base query
     query = """
-    SELECT 
+    SELECT
         mi.*,
-        r.restaurantname as branch_name
+        r.restaurantname as branch_name,
+        COALESCE(mi.manual_date, mi.created_at) as effective_date
     FROM miscellaneous_items mi
     LEFT JOIN restaurant r ON mi.restaurant_id = r.id
     WHERE 1=1
@@ -467,24 +499,33 @@ def misc_item_report():
         query += " AND (mi.type_of_expense LIKE %s OR mi.sub_category LIKE %s)"
         params.extend([f"%{search}%", f"%{search}%"])
 
-    # Apply date filters
+    # Apply date filters - Use COALESCE to prefer manual_date, fall back to created_at
     if date_from:
-        query += " AND DATE(mi.created_at) >= %s"
+        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) >= %s"
         params.append(date_from)
     
     if date_to:
-        query += " AND DATE(mi.created_at) <= %s"
+        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) <= %s"
         params.append(date_to)
 
     # For non-admin roles, only show today's records
     if user["role"] not in ["admin", "branch_manager", "store_manager"]:
-        query += " AND DATE(mi.created_at) = CURDATE()"
+        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) = CURDATE()"
 
-    query += " ORDER BY mi.created_at DESC"
+    query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC"
+    
+    # DEBUG: Print the final query
+    print(f"Final query: {query}")
+    print(f"Query params: {params}")
 
     # Fetch records
     misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
-
+    
+    # DEBUG: Print the results with effective dates
+    for item in misc_items:
+        effective_date = item.get('manual_date') or item.get('created_at')
+        print(f"Item {item.get('id')}: {item.get('type_of_expense')} - Effective Date: {effective_date}")
+    
     return render_template(
         "misc_item_report.html",
         user=user,

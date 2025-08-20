@@ -62,9 +62,18 @@
             <td>{{ item.sub_category or '-' }}</td>
             <td>{{ item.branch_name or item.restaurant_id or '-' }}</td>
             <td>{{ item.branch_manager or '-' }}</td>
-            <td>{{ item.notes or '-' }}</td>
+            <td class="notes-col">{{ item.notes or '-' }}</td>
             <td>{{ item.cost or '-' }}</td>
-            <td>{{ item.created_at.strftime('%d-%m-%Y') if item.created_at else '-' }}</td>
+            <td style="width: 25%;">
+              {% if item.manual_date %}
+              {{ item.manual_date.strftime('%d-%m-%Y %H:%M:%S') }}
+              {% elif item.created_at %}
+              {{ item.created_at.strftime('%d-%m-%Y %H:%M:%S') }}
+              {% else %}
+              -
+              {% endif %}
+            </td>
+
           </tr>
           {% endfor %}
           {% else %}
@@ -104,10 +113,50 @@
     const printButton = document.getElementById('printButton');
     const totalCost = "{{ '%.2f' % total_cost }}";
 
+    function updateGrandTotal() {
+      let visibleTotal = 0;
+
+      const table = $('#miscTable').dataTable().api();
+      table.rows({ search: 'applied' }).every(function (rowIdx, tableLoop, rowLoop) {
+        const rowData = this.data();
+        const costValue = rowData[6]; // Cost is in column index 6
+
+        if (costValue && costValue !== '-') {
+          const numericCost = parseFloat(costValue.toString().replace(/[^\d.-]/g, ''));
+          if (!isNaN(numericCost)) {
+            visibleTotal += numericCost;
+          }
+        }
+      });
+
+      // Update the grand total display
+      const grandTotalSpan = document.querySelector('.total-cost-card .fw-bold');
+      if (grandTotalSpan) {
+        grandTotalSpan.textContent = '₹' + visibleTotal.toFixed(2);
+      }
+
+      return visibleTotal;
+    }
+
+    // Listen for search events on DataTable
+    $('#miscTable').on('search.dt', function () {
+      updateGrandTotal();
+    });
+
+    $('#miscTable').on('draw.dt', function () {
+      updateGrandTotal();
+    });
+
+    // Initial calculation for the default view
+    setTimeout(updateGrandTotal, 100);
+
     printButton.addEventListener('click', function () {
-      const table = $('#miscTable').DataTable();
+      const table = $('#miscTable').dataTable().api();
       let allRows = table.rows({ search: 'applied' }).data();
       const currentUrl = window.location.href.split('?')[0];
+
+
+      const printTotalCost = updateGrandTotal();
 
       // Add this helper function above your print code
       function formatDateDDMMYY(dateString) {
@@ -126,154 +175,154 @@
       let rowsHtml = '';
       allRows.each(function (rowData, index) {
         rowsHtml += `
-    <tr>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${index + 1}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[1] || '-'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[2] || 'NA'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[3] || '-'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[4] || '-'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[5] || '-'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[6] || '-'}</td>
-        <td style="padding: 6px; font-size: 10px; vertical-align: top;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
-    </tr>
-`;
+        <tr>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${index + 1}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[1] || '-'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[2] || 'NA'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[3] || '-'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[4] || '-'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[5] || '-'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[6] || '-'}</td>
+            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
+        </tr>
+    `;
       });
 
       const printContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Miscellaneous Item Report</title>
-    <style>
-        @page {
-            margin: 1cm;
-            @top-right {
-                content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}";
-                font-size: 10pt;
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Miscellaneous Item Report</title>
+        <style>
+            @page {
+                margin: 1cm;
+                @top-right {
+                    content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}";
+                    font-size: 10pt;
+                }
+                @top-center {
+                    content: "Dharani Inventory Solution";
+                    font-size: 12pt;
+                    font-weight: bold;
+                }
+                @bottom-left {
+                    content: "${currentUrl}";
+                    font-size: 8pt;
+                }
+                @bottom-right {
+                    content: "Page " counter(page) " of " counter(pages);
+                    font-size: 8pt;
+                }
             }
-            @top-center {
-                content: "Dharani Inventory Solution";
-                font-size: 12pt;
-                font-weight: bold;
+            body { 
+                margin: 0;
+                // font-family: Arial, sans-serif;
             }
-            @bottom-left {
-                content: "${currentUrl}";
-                font-size: 8pt;
+            .report-title {
+                text-align: start;
             }
-            @bottom-right {
-                content: "Page " counter(page) " of " counter(pages);
-                font-size: 8pt;
+            .company-info {
+                text-align: center;
+                margin-bottom: 20px;
             }
-        }
-        body { 
-            margin: 0;
-            // font-family: Arial, sans-serif;
-        }
-        .report-title {
-            text-align: start;
-        }
-        .company-info {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: center;
-            table-layout: fixed;
-            margin-bottom: 20px;
-        }
-        th, td {
-            padding: 6px;
-            border: 1px solid #000;
-            word-wrap: break-word;
-            word-break: break-word;
-            font-size: 10px;
-            vertical-align: top;
-            line-height: 1.2;
-        }
-        .total {
-            text-align: right;
-            margin-top: 20px;
-        }
-        .signatures {
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                text-align: center;
+                table-layout: fixed;
+                margin-bottom: 20px;
+            }
+            th, td {
+                padding: 6px;
+                border: 1px solid #000;
+                word-wrap: break-word;
+                word-break: break-word;
+                font-size: 10px;
+                vertical-align: top;
+                line-height: 1.2;
+            }
+            .total {
+                text-align: right;
+                margin-top: 20px;
+            }
+            .signatures {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 60px;
+            }
+            .main-content {
+                margin-top: 0px;
+            }
+                
+            .report-header {
             display: flex;
             justify-content: space-between;
-            margin-top: 60px;
+            align-items: flex-end;  /* Changed to align at bottom */
+            margin-bottom: 20px;
+            width: 100%;
         }
-        .main-content {
-            margin-top: 0px;
+        
+        .report-header h3 {
+            margin: 0;
+            font-size: 18px;
+            padding-bottom: 2px; /* Optional: Add small padding if text appears too low */
         }
-            
-        .report-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;  /* Changed to align at bottom */
-        margin-bottom: 20px;
-        width: 100%;
-    }
-    
-    .report-header h3 {
-        margin: 0;
-        font-size: 18px;
-        padding-bottom: 2px; /* Optional: Add small padding if text appears too low */
-    }
-    
-    .contact-info {
-        text-align: right;
-        font-size: 14px;
-        line-height: 1.4;
-    }
-    
-    .contact-info p {
-        margin: 0;
-    }
-    </style>
-</head>
-<body>
-    <div class="main-content">
-        <div class="company-info">
-            <h2>{{ contact_details.name }}</h2>
-        </div>
+        
+        .contact-info {
+            text-align: right;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .contact-info p {
+            margin: 0;
+        }
+        </style>
+    </head>
+    <body>
+        <div class="main-content">
+            <div class="company-info">
+                <h2>{{ contact_details.name }}</h2>
+            </div>
 
-        <div class="report-header">
-          <h3>Miscellaneous Item Report</h3>
-          <div class="contact-info">
-            <p><strong>Contact:</strong> {{ contact_details.contact_number }}</p>
-            <p><strong>Address:</strong> {{ contact_details.address }}</p>
-          </div>
-        </div>
+            <div class="report-header">
+              <h3>Miscellaneous Item Report</h3>
+              <div class="contact-info">
+                <p><strong>Contact:</strong> {{ contact_details.contact_number }}</p>
+                <p><strong>Address:</strong> {{ contact_details.address }}</p>
+              </div>
+            </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 3%;">#</th>
-                    <th style="width: 12%;">Type of Expense</th>
-                    <th style="width: 10%;">Sub Category</th>
-                    <th style="width: 16%;">Branch</th>
-                    <th style="width: 12%;">Branch Manager</th>
-                    <th style="width: 30%;">Notes</th>
-                    <th style="width: 8%;">Cost (₹)</th>
-                    <th style="width: 9%;">Date</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${rowsHtml}
-            </tbody>
-        </table>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 3%;">#</th>
+                        <th style="width: 12%;">Type of Expense</th>
+                        <th style="width: 10%;">Sub Category</th>
+                        <th style="width: 16%;">Branch</th>
+                        <th style="width: 12%;">Branch Manager</th>
+                        <th style="width: 30%;">Notes</th>
+                        <th style="width: 8%;">Cost (₹)</th>
+                        <th style="width: 9%;">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
 
-        <div class="total">
-            <h3>Grand Total: ₹ ${totalCost}</h3>
-        </div>
+            <div class="total">
+                <h3>Grand Total: ₹ ${printTotalCost.toFixed(2)}</h3>
+            </div>
 
-        <div class="signatures">
-            <p>Authorized Signature: __________</p>
-            <p>Receiver Signature: __________</p>
+            <div class="signatures">
+                <p>Authorized Signature: __________</p>
+                <p>Receiver Signature: __________</p>
+            </div>
         </div>
-    </div>
-</body>
-</html>
-`;
+    </body>
+    </html>
+    `;
 
       const iframe = document.createElement('iframe');
       iframe.style.position = 'absolute';

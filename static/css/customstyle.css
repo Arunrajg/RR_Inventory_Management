@@ -22,3 +22,8 @@
   padding: 12px 28px;
   font-size: 1.1rem;
 }
+td.notes-col {
+  white-space: normal !important;
+  word-wrap: break-word;
+  max-width: 250px; /* adjust as you like */
+}
