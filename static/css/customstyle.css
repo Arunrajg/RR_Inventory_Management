@@ -1,0 +1,29 @@
+.total-cost-card {
+  background-color: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.total-cost-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fa-calculator {
+  color: #2e7d32;
+}
+.search-with-price {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-bigger {
+  padding: 12px 28px;
+  font-size: 1.1rem;
+}
+td.notes-col {
+  white-space: normal !important;
+  word-wrap: break-word;
+  max-width: 250px; /* adjust as you like */
+}
