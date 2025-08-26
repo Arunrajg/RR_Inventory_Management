@@ -276,266 +276,725 @@ def edit_storage_room():
 
 @app.route("/addmiscitem", methods=["GET", "POST"])
 def addmiscitem():
-    if "user" not in session:
-        return redirect("/login")
+   if "user" not in session:
+       return redirect("/login")
 
-    user = session["user"]
-    role = user.get("role")
 
-    selected_restaurant_id = None
-    if role == "branch_manager":
-        selected_restaurant_id = 1  # KTC NAGAR ID
+   user = session["user"]
+   role = user.get("role")
 
-    restaurants = []
-    if request.method == "GET":
-        restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
-        restaurants = fetch_all(restaurant_query)
 
-    if request.method == "POST":
-        type_of_expense = request.form["type_of_expense"].strip()
-        sub_category = request.form.get("sub_category", "").strip()
-        restaurant_id = request.form.get("restaurant_id", "").strip()
-        branch_manager = request.form.get("branch_manager", "").strip()
-        cost = request.form["cost"].strip()
-        notes = request.form.get("notes", "").strip()
-        manual_date_str = request.form.get("manual_date", "").strip()
+   selected_restaurant_id = None
+   if role == "branch_manager":
+       selected_restaurant_id = 1  # KTC NAGAR ID
 
-        # Convert optional fields
-        restaurant_id = int(restaurant_id) if restaurant_id else None
-        sub_category = sub_category if sub_category else None
-        branch_manager = branch_manager if branch_manager else None
-        notes = notes if notes else None
 
-        # Get current datetime in IST
-        current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
-        
-        # Handle manual_date: use selected date with current IST time
-        manual_date = None
-        if manual_date_str:
-            # Parse the selected date and combine with current IST time
-            selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
-            current_time = current_datetime_ist.time()
-            manual_date = datetime.combine(selected_date, current_time)
-            # Localize to IST timezone
-            ist = pytz.timezone('Asia/Kolkata')
-            manual_date = ist.localize(manual_date)
-            manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            manual_date_str = None
+   restaurants = []
+   expense_types = []
+  
+   if request.method == "GET":
+       restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
+       restaurants = fetch_all(restaurant_query)
+      
+       # Fetch dynamic expense types with IDs
+       expense_types_query = "SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name"
+       expense_types = fetch_all(expense_types_query)
 
-        # Use current IST datetime for created_at and updated_at
-        created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
-        updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
 
-        insert_query = """
-        INSERT INTO miscellaneous_items 
-        (type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes, manual_date, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        if execute_query(insert_query, (
-            type_of_expense, sub_category, restaurant_id, branch_manager, cost, notes, 
-            manual_date_str, created_at_str, updated_at_str
-        )):
-            flash("Miscellaneous item added successfully!", "success")
-        else:
-            flash("Error adding miscellaneous item. Please try again.", "danger")
-        return redirect("/addmiscitem")
+   if request.method == "POST":
+       expense_type_id = request.form["expense_type_id"].strip()
+       expense_subcategory_id = request.form.get("expense_subcategory_id", "").strip()
+       restaurant_id = request.form.get("restaurant_id", "").strip()
+       branch_manager = request.form.get("branch_manager", "").strip()
+       cost = request.form["cost"].strip()
+       notes = request.form.get("notes", "").strip()
+       manual_date_str = request.form.get("manual_date", "").strip()
 
-    return render_template(
-        "addmiscitem.html",
-        user=user,
-        restaurants=restaurants,
-        selected_restaurant_id=selected_restaurant_id
-    )
+
+       # Convert optional fields
+       restaurant_id = int(restaurant_id) if restaurant_id else None
+       expense_subcategory_id = int(expense_subcategory_id) if expense_subcategory_id else None
+       branch_manager = branch_manager if branch_manager else None
+       notes = notes if notes else None
+
+
+       # Get current datetime in IST
+       current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
+      
+       # Handle manual_date: use selected date with current IST time
+       manual_date = None
+       if manual_date_str:
+           selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
+           current_time = current_datetime_ist.time()
+           manual_date = datetime.combine(selected_date, current_time)
+           ist = pytz.timezone('Asia/Kolkata')
+           manual_date = ist.localize(manual_date)
+           manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
+       else:
+           manual_date_str = None
+
+
+       # Use current IST datetime for created_at and updated_at
+       created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
+       updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
+
+
+       insert_query = """
+       INSERT INTO miscellaneous_items
+       (expense_type_id, expense_subcategory_id, restaurant_id, branch_manager, cost, notes, manual_date, created_at, updated_at)
+       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+       """
+       if execute_query(insert_query, (
+           expense_type_id, expense_subcategory_id, restaurant_id, branch_manager, cost, notes,
+           manual_date_str, created_at_str, updated_at_str
+       )):
+           flash("Miscellaneous item added successfully!", "success")
+       else:
+           flash("Error adding miscellaneous item. Please try again.", "danger")
+       return redirect("/addmiscitem")
+
+
+   return render_template(
+       "addmiscitem.html",
+       user=user,
+       restaurants=restaurants,
+       expense_types=expense_types,
+       selected_restaurant_id=selected_restaurant_id
+   )
+
+
+# AJAX endpoint to get subcategories for a specific expense type
+@app.route("/get-subcategories/<int:expense_type_id>")
+def get_subcategories(expense_type_id):
+   if "user" not in session:
+       return jsonify({"error": "Unauthorized"}), 401
+  
+   subcategories_query = """
+   SELECT id, subcategory_name
+   FROM expense_subcategories
+   WHERE expense_type_id = %s AND status = 'active'
+   ORDER BY subcategory_name
+   """
+   subcategories = fetch_all(subcategories_query, (expense_type_id,))
+  
+   return jsonify({
+       "subcategories": [{"id": sub["id"], "name": sub["subcategory_name"]} for sub in subcategories]
+   })
+
 
 # Miscellaneous Item List
 
+
 @app.route("/miscitemlist", methods=["GET"])
 def miscitemlist():
-    if "user" not in session:
-        return redirect("/login")
+   if "user" not in session:
+       return redirect("/login")
 
-    user = session["user"]
-    role = user["role"]
 
-    contact_details = get_contact_details()
+   user = session["user"]
+   role = user["role"]
 
-    # Modified query to include restaurant name
-    query = """
-        SELECT 
-            mi.id,
-            mi.type_of_expense,
-            mi.sub_category,
-            mi.cost,
-            mi.notes,
-            mi.restaurant_id,
-            r.restaurantname,
-            mi.branch_manager,
-            mi.manual_date,
-            mi.created_at
-        FROM miscellaneous_items mi
-        LEFT JOIN restaurant r ON mi.restaurant_id = r.id
-        WHERE 1=1
-    """
-    params = []
 
-    # Rule 1 → Branch Manager should not see manual_date records
-    if role == "branch_manager":
-        query += " AND mi.manual_date IS NULL"
+   contact_details = get_contact_details()
 
-    if role == "store_manager":
-        query += " AND mi.manual_date IS NULL"
 
-    # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
-    if role in ["admin", "branch_manager", "store_manager"]:
-        query += " AND DATE(mi.created_at) = CURDATE()"
+   # Modified query to show miscellaneous items with active expense types
+   # If subcategory is deleted, it will show as NULL (displayed as "-" in template)
+   # If expense type is deleted, hide the entire row
+   query = """
+   SELECT
+       mi.id,
+       et.type_name AS type_of_expense,
+       CASE
+           WHEN es.status = 'active' THEN es.subcategory_name
+           ELSE NULL
+       END AS sub_category,
+       mi.cost,
+       mi.notes,
+       mi.restaurant_id,
+       r.restaurantname,
+       mi.branch_manager,
+       mi.manual_date,
+       mi.created_at
+   FROM miscellaneous_items mi
+   LEFT JOIN expense_types et ON mi.expense_type_id = et.id
+   LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id
+   LEFT JOIN restaurant r ON mi.restaurant_id = r.id
+   WHERE 1=1
+   AND (mi.expense_type_id IS NULL OR (et.id IS NOT NULL AND et.status = 'active'))
+   """
+   params = []
 
-    # Rule 3 → Order by latest first
-    query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC, mi.id DESC"
 
-    # Fetch misc items
-    misc_items = fetch_all(query, params)
+   # Rule 1 → Branch Manager should not see manual_date records
+   if role == "branch_manager":
+       query += " AND mi.manual_date IS NULL"
 
-    # Get restaurants for dropdown (unchanged)
-    restaurants = fetch_all(
-        "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
-    )
 
-    return render_template(
-        "miscitemlist.html",
-        user=user,
-        contact_details=contact_details,
-        misc_items=misc_items,
-        total_cost=sum(float(item['cost']) for item in misc_items),
-        restaurants=restaurants
-    )
+   if role == "store_manager":
+       query += " AND mi.manual_date IS NULL"
+
+
+   # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
+   if role in ["admin", "branch_manager", "store_manager"]:
+       query += " AND DATE(mi.created_at) = CURDATE()"
+
+
+   # Rule 3 → Order by latest first
+   query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC, mi.id DESC"
+
+
+   # Fetch misc items
+   misc_items = fetch_all(query, params)
+
+
+   # Get restaurants for dropdown (unchanged)
+   restaurants = fetch_all(
+       "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
+   )
+
+
+   return render_template(
+       "miscitemlist.html",
+       user=user,
+       contact_details=contact_details,
+       misc_items=misc_items,
+       total_cost=sum(float(item['cost']) for item in misc_items),
+       restaurants=restaurants
+   )
+
 
 # Edit Miscellaneous Item
 @app.route("/editmiscitem", methods=["POST"])
 def edit_misc_item():
-    if "user" not in session:
-        return redirect("/login")
+   if "user" not in session:
+       return redirect("/login")
 
-    # Get all form data (removed status)
-    item_id = request.form.get('id')
-    type_of_expense = request.form.get('type_of_expense', '').strip()
-    sub_category = request.form.get('sub_category', '').strip()
-    restaurant_id = request.form.get('restaurant_id', '').strip()
-    branch_manager = request.form.get('branch_manager', '').strip()
-    cost = request.form.get('cost', '').strip()
-    notes = request.form.get('notes', '').strip()
 
-    # Validate required fields
-    if not item_id or not type_of_expense:
-        flash("Type of expense is required.", "error")
-        return redirect(url_for('miscitemlist'))
+   # Get all form data (removed status)
+   item_id = request.form.get('id')
+   type_of_expense = request.form.get('type_of_expense', '').strip()
+   sub_category = request.form.get('sub_category', '').strip()
+   restaurant_id = request.form.get('restaurant_id', '').strip()
+   branch_manager = request.form.get('branch_manager', '').strip()
+   cost = request.form.get('cost', '').strip()
+   notes = request.form.get('notes', '').strip()
 
-    # Convert empty strings to None for optional fields
-    sub_category = sub_category if sub_category else None
-    restaurant_id = int(restaurant_id) if restaurant_id else None
-    branch_manager = branch_manager if branch_manager else None
-    notes = notes if notes else None
 
-    # Build the update query (removed status)
-    query = """
-    UPDATE miscellaneous_items
-    SET
-        type_of_expense = %s,
-        sub_category = %s,
-        restaurant_id = %s,
-        branch_manager = %s,
-        cost = %s,
-        notes = %s,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = %s
-    """
-    params = (
-        type_of_expense,
-        sub_category,
-        restaurant_id,
-        branch_manager,
-        cost,
-        notes,
-        item_id
-    )
+   # Validate required fields
+   if not item_id or not type_of_expense:
+       flash("Type of expense is required.", "error")
+       return redirect(url_for('miscitemlist'))
 
-    # Execute the query
-    success = execute_query(query, params)
 
-    if success:
-        flash("Miscellaneous item updated successfully.", "success")
-    else:
-        flash("Failed to update miscellaneous item.", "danger")
+   # Convert empty strings to None for optional fields
+   sub_category = sub_category if sub_category else None
+   restaurant_id = int(restaurant_id) if restaurant_id else None
+   branch_manager = branch_manager if branch_manager else None
+   notes = notes if notes else None
 
-    return redirect(url_for('miscitemlist'))
+
+   # Build the update query (removed status)
+   query = """
+   UPDATE miscellaneous_items
+   SET
+       type_of_expense = %s,
+       sub_category = %s,
+       restaurant_id = %s,
+       branch_manager = %s,
+       cost = %s,
+       notes = %s,
+       updated_at = CURRENT_TIMESTAMP
+   WHERE id = %s
+   """
+   params = (
+       type_of_expense,
+       sub_category,
+       restaurant_id,
+       branch_manager,
+       cost,
+       notes,
+       item_id
+   )
+
+
+   # Execute the query
+   success = execute_query(query, params)
+
+
+   if success:
+       flash("Miscellaneous item updated successfully.", "success")
+   else:
+       flash("Failed to update miscellaneous item.", "danger")
+
+
+   return redirect(url_for('miscitemlist'))
+
 
 @app.route("/misc_item_report", methods=["GET"])
 def misc_item_report():
-    if "user" not in session:
-        return redirect("/login")
+   if "user" not in session:
+       return redirect("/login")
 
-    user = session["user"]
-    contact_details = get_contact_details()
 
-    # Get filter parameters
-    search = request.args.get("search", "").strip()
-    date_from = request.args.get("date_from")
-    date_to = request.args.get("date_to")
-    
-    # DEBUG: Print filter parameters
-    print(f"Filter params - search: '{search}', date_from: '{date_from}', date_to: '{date_to}'")
+   user = session["user"]
+   contact_details = get_contact_details()
 
-    # Base query
-    query = """
-    SELECT
-        mi.*,
-        r.restaurantname as branch_name,
-        COALESCE(mi.manual_date, mi.created_at) as effective_date
-    FROM miscellaneous_items mi
-    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
-    WHERE 1=1
-    """
-    params = []
 
-    # Apply search filter
-    if search:
-        query += " AND (mi.type_of_expense LIKE %s OR mi.sub_category LIKE %s)"
-        params.extend([f"%{search}%", f"%{search}%"])
+   # Get filter parameters
+   search = request.args.get("search", "").strip()
+   date_from = request.args.get("date_from")
+   date_to = request.args.get("date_to")
 
-    # Apply date filters - Use COALESCE to prefer manual_date, fall back to created_at
-    if date_from:
-        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) >= %s"
-        params.append(date_from)
-    
-    if date_to:
-        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) <= %s"
-        params.append(date_to)
 
-    # For non-admin roles, only show today's records
-    if user["role"] not in ["admin", "branch_manager", "store_manager"]:
-        query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) = CURDATE()"
+   # DEBUG: Print filter parameters
+   print(f"Filter params - search: '{search}', date_from: '{date_from}', date_to: '{date_to}'")
 
-    query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC"
-    
-    # DEBUG: Print the final query
-    print(f"Final query: {query}")
-    print(f"Query params: {params}")
 
-    # Fetch records
-    misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
-    
-    # DEBUG: Print the results with effective dates
-    for item in misc_items:
-        effective_date = item.get('manual_date') or item.get('created_at')
-        print(f"Item {item.get('id')}: {item.get('type_of_expense')} - Effective Date: {effective_date}")
-    
-    return render_template(
-        "misc_item_report.html",
-        user=user,
-        misc_items=misc_items,
-        contact_details=contact_details,
-        total_cost=sum(float(item.get('cost', 0)) for item in misc_items)
-    )
+   # Base query with dynamic joins
+   query = """
+   SELECT
+       mi.*,
+       et.type_name AS type_of_expense,
+       es.subcategory_name AS sub_category,
+       r.restaurantname AS branch_name,
+       COALESCE(mi.manual_date, mi.created_at) AS effective_date
+   FROM miscellaneous_items mi
+   LEFT JOIN expense_types et ON mi.expense_type_id = et.id
+   LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id
+   LEFT JOIN restaurant r ON mi.restaurant_id = r.id
+   WHERE 1=1
+   """
+   params = []
+
+
+   # Apply search filter
+   if search:
+       query += " AND (et.type_name LIKE %s OR es.subcategory_name LIKE %s)"
+       params.extend([f"%{search}%", f"%{search}%"])
+
+
+   # Apply date filters - Use COALESCE to prefer manual_date, fall back to created_at
+   if date_from:
+       query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) >= %s"
+       params.append(date_from)
+
+
+   if date_to:
+       query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) <= %s"
+       params.append(date_to)
+
+
+   # For non-admin roles, only show today's records
+   if user["role"] not in ["admin", "branch_manager", "store_manager"]:
+       query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) = CURDATE()"
+
+
+   query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC"
+
+
+   # DEBUG: Print the final query
+   print(f"Final query: {query}")
+   print(f"Query params: {params}")
+
+
+   # Fetch records
+   misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
+
+
+   # DEBUG: Print the results with effective dates
+   for item in misc_items:
+       effective_date = item.get('manual_date') or item.get('created_at')
+       print(f"Item {item.get('id')}: {item.get('type_of_expense')} - Effective Date: {effective_date}")
+
+
+   return render_template(
+       "misc_item_report.html",
+       user=user,
+       misc_items=misc_items,
+       contact_details=contact_details,
+       total_cost=sum(float(item.get('cost', 0)) for item in misc_items)
+   )
+
+
+@app.route("/manage-expense-types", methods=["GET", "POST"])
+def manage_expense_types():
+   if "user" not in session:
+       return redirect("/login")
+
+
+   user = session["user"]
+
+
+   # Only admin can manage expense types
+   if user.get("role") != "admin":
+       flash("Access denied. Only admin can manage expense types.", "danger")
+       return redirect("/")
+
+
+   if request.method == "POST":
+       action = request.form.get("action", "add")
+
+
+       if action == "add":
+           # Add new expense type
+           type_name = request.form["type_name"].strip()
+           has_subcategory = request.form.get("has_subcategory") == "on"
+           subcategories = request.form.getlist("subcategories[]")
+
+
+           # Remove empty subcategories
+           subcategories = [sub.strip() for sub in subcategories if sub.strip()]
+
+
+           if not type_name:
+               flash("Expense type name is required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Check if expense type already exists (including inactive ones)
+               check_query = "SELECT id, status FROM expense_types WHERE type_name = %s"
+               existing = fetch_one(check_query, (type_name,))
+
+
+               if existing:
+                   if existing['status'] == 'inactive':
+                       flash(f"Expense type '{type_name}' exists but is inactive. Please activate it instead.", "warning")
+                   else:
+                       flash(f"Expense type '{type_name}' already exists and is active!", "danger")
+                   return redirect("/manage-expense-types")
+
+
+               # Insert expense type
+               insert_type_query = """
+               INSERT INTO expense_types (type_name, has_subcategory, status, created_at, updated_at)
+               VALUES (%s, %s, 'active', NOW(), NOW())
+               """
+               if execute_query(insert_type_query, (type_name, has_subcategory)):
+                   # Get the inserted expense type ID
+                   type_id_query = "SELECT id FROM expense_types WHERE type_name = %s"
+                   expense_type = fetch_one(type_id_query, (type_name,))
+
+
+                   if expense_type and has_subcategory and subcategories:
+                       # Insert subcategories
+                       for subcategory in subcategories:
+                           insert_sub_query = """
+                           INSERT INTO expense_subcategories (expense_type_id, subcategory_name, status, created_at, updated_at)
+                           VALUES (%s, %s, 'active', NOW(), NOW())
+                           """
+                           execute_query(insert_sub_query, (expense_type['id'], subcategory))
+
+
+                   flash(f"Expense type '{type_name}' added successfully!", "success")
+               else:
+                   flash("Error adding expense type. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "add_subcategory":
+           # Add subcategory to existing expense type
+           expense_type_id = request.form["expense_type_id"].strip()
+           new_subcategory = request.form["new_subcategory"].strip()
+
+
+           if not expense_type_id or not new_subcategory:
+               flash("Both expense type and subcategory name are required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Check if subcategory already exists for this expense type
+               check_sub_query = """
+               SELECT id, status FROM expense_subcategories
+               WHERE expense_type_id = %s AND subcategory_name = %s
+               """
+               existing_sub = fetch_one(check_sub_query, (expense_type_id, new_subcategory))
+
+
+               if existing_sub:
+                   if existing_sub['status'] == 'inactive':
+                       flash(f"Subcategory '{new_subcategory}' exists but is inactive. Please activate it instead.", "warning")
+                   else:
+                       flash(f"Subcategory '{new_subcategory}' already exists for this expense type!", "danger")
+                   return redirect("/manage-expense-types")
+
+
+               # Update expense type to have subcategory if it doesn't
+               update_type_query = """
+               UPDATE expense_types SET has_subcategory = TRUE, updated_at = NOW()
+               WHERE id = %s
+               """
+               execute_query(update_type_query, (expense_type_id,))
+
+
+               # Insert new subcategory
+               insert_sub_query = """
+               INSERT INTO expense_subcategories (expense_type_id, subcategory_name, status, created_at, updated_at)
+               VALUES (%s, %s, 'active', NOW(), NOW())
+               """
+               if execute_query(insert_sub_query, (expense_type_id, new_subcategory)):
+                   flash(f"Subcategory '{new_subcategory}' added successfully!", "success")
+               else:
+                   flash("Error adding subcategory. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "edit_expense_type":
+           # Edit existing expense type
+           expense_type_id = request.form["expense_type_id"].strip()
+           new_type_name = request.form["new_type_name"].strip()
+
+
+           if not expense_type_id or not new_type_name:
+               flash("Expense type ID and new name are required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Check if the new name already exists (excluding the current record)
+               check_query = "SELECT id FROM expense_types WHERE type_name = %s AND id != %s"
+               existing = fetch_one(check_query, (new_type_name, expense_type_id))
+
+
+               if existing:
+                   flash(f"Expense type '{new_type_name}' already exists!", "danger")
+                   return redirect("/manage-expense-types")
+
+
+               # Update expense type
+               update_query = """
+               UPDATE expense_types SET type_name = %s, updated_at = NOW()
+               WHERE id = %s
+               """
+               if execute_query(update_query, (new_type_name, expense_type_id)):
+                   flash(f"Expense type updated to '{new_type_name}' successfully!", "success")
+               else:
+                   flash("Error updating expense type. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "delete_expense_type":
+           # Delete expense type (soft delete by setting status to 'inactive')
+           expense_type_id = request.form["expense_type_id"].strip()
+
+
+           if not expense_type_id:
+               flash("Expense type ID is required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Update status to 'inactive' for expense type and its subcategories
+               update_type_query = """
+               UPDATE expense_types SET status = 'inactive', updated_at = NOW()
+               WHERE id = %s
+               """
+               update_sub_query = """
+               UPDATE expense_subcategories SET status = 'inactive', updated_at = NOW()
+               WHERE expense_type_id = %s
+               """
+
+
+               if execute_query(update_type_query, (expense_type_id,)) and execute_query(update_sub_query, (expense_type_id,)):
+                   flash("Expense type deactivated successfully!", "success")
+               else:
+                   flash("Error deactivating expense type. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "activate_expense_type":
+           # Activate expense type (set status back to 'active')
+           expense_type_id = request.form["expense_type_id"].strip()
+
+
+           if not expense_type_id:
+               flash("Expense type ID is required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Update status to 'active' for expense type and its subcategories
+               update_type_query = """
+               UPDATE expense_types SET status = 'active', updated_at = NOW()
+               WHERE id = %s
+               """
+               update_sub_query = """
+               UPDATE expense_subcategories SET status = 'active', updated_at = NOW()
+               WHERE expense_type_id = %s
+               """
+
+
+               if execute_query(update_type_query, (expense_type_id,)) and execute_query(update_sub_query, (expense_type_id,)):
+                   flash("Expense type activated successfully!", "success")
+               else:
+                   flash("Error activating expense type. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "edit_subcategory":
+           # Edit existing subcategory
+           subcategory_id = request.form["subcategory_id"].strip()
+           new_subcategory_name = request.form["new_subcategory_name"].strip()
+
+
+           if not subcategory_id or not new_subcategory_name:
+               flash("Subcategory ID and new name are required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Check if the new name already exists for the same expense type
+               check_sub_query = """
+               SELECT id FROM expense_subcategories
+               WHERE subcategory_name = %s AND expense_type_id = (
+                   SELECT expense_type_id FROM expense_subcategories WHERE id = %s
+               ) AND id != %s
+               """
+               existing_sub = fetch_one(check_sub_query, (new_subcategory_name, subcategory_id, subcategory_id))
+
+
+               if existing_sub:
+                   flash(f"Subcategory '{new_subcategory_name}' already exists for this expense type!", "danger")
+                   return redirect("/manage-expense-types")
+
+
+               # Update subcategory
+               update_sub_query = """
+               UPDATE expense_subcategories SET subcategory_name = %s, updated_at = NOW()
+               WHERE id = %s
+               """
+               if execute_query(update_sub_query, (new_subcategory_name, subcategory_id)):
+                   flash(f"Subcategory updated to '{new_subcategory_name}' successfully!", "success")
+               else:
+                   flash("Error updating subcategory. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "delete_subcategory":
+           # Delete subcategory (soft delete by setting status to 'inactive')
+           subcategory_id = request.form["subcategory_id"].strip()
+
+
+           if not subcategory_id:
+               flash("Subcategory ID is required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Update status to 'inactive' for subcategory
+               update_sub_query = """
+               UPDATE expense_subcategories SET status = 'inactive', updated_at = NOW()
+               WHERE id = %s
+               """
+               if execute_query(update_sub_query, (subcategory_id,)):
+                   # Check if there are any active subcategories left
+                   check_sub_query = """
+                   SELECT COUNT(*) as count FROM expense_subcategories
+                   WHERE expense_type_id = (SELECT expense_type_id FROM expense_subcategories WHERE id = %s)
+                   AND status = 'active'
+                   """
+                   sub_count = fetch_one(check_sub_query, (subcategory_id,))['count']
+                   if sub_count == 0:
+                       # Update expense type to has_subcategory = FALSE if no active subcategories
+                       update_type_query = """
+                       UPDATE expense_types SET has_subcategory = FALSE, updated_at = NOW()
+                       WHERE id = (SELECT expense_type_id FROM expense_subcategories WHERE id = %s)
+                       """
+                       execute_query(update_type_query, (subcategory_id,))
+
+
+                   flash("Subcategory deactivated successfully!", "success")
+               else:
+                   flash("Error deactivating subcategory. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       elif action == "activate_subcategory":
+           # Activate subcategory (set status back to 'active')
+           subcategory_id = request.form["subcategory_id"].strip()
+
+
+           if not subcategory_id:
+               flash("Subcategory ID is required!", "danger")
+               return redirect("/manage-expense-types")
+
+
+           try:
+               # Update status to 'active' for subcategory
+               update_sub_query = """
+               UPDATE expense_subcategories SET status = 'active', updated_at = NOW()
+               WHERE id = %s
+               """
+               if execute_query(update_sub_query, (subcategory_id,)):
+                   # Update expense type to has_subcategory = TRUE since we have an active subcategory
+                   update_type_query = """
+                   UPDATE expense_types SET has_subcategory = TRUE, updated_at = NOW()
+                   WHERE id = (SELECT expense_type_id FROM expense_subcategories WHERE id = %s)
+                   """
+                   execute_query(update_type_query, (subcategory_id,))
+
+
+                   flash("Subcategory activated successfully!", "success")
+               else:
+                   flash("Error activating subcategory. Please try again.", "danger")
+
+
+           except Exception as e:
+               flash(f"Database error: {str(e)}", "danger")
+
+
+       return redirect("/manage-expense-types")
+
+
+   # GET request - show ALL expense types (both active and inactive)
+   expense_types_query = """
+SELECT et.id, et.type_name, et.has_subcategory, et.status
+FROM expense_types et
+ORDER BY et.status DESC, et.type_name
+"""
+
+
+   subcategories_query = """
+SELECT es.id, es.expense_type_id, es.subcategory_name, es.status, et.type_name
+FROM expense_subcategories es
+JOIN expense_types et ON es.expense_type_id = et.id
+ORDER BY et.type_name, es.subcategory_name
+"""
+
+
+   existing_types = fetch_all(expense_types_query)
+   existing_subcategories = fetch_all(subcategories_query)
+
+
+   return render_template(
+       "manage_expense_types.html",
+       user=user,
+       existing_types=existing_types,
+       existing_subcategories=existing_subcategories
+   )
 
 @app.route('/editkitchen', methods=['POST'])
 def edit_kitchen():
