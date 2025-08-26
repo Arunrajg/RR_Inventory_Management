@@ -143,6 +143,12 @@
                                 </li>
                                 {% if user.role == 'admin' %}
                                 <li>
+                                    <a href="/manage-expense-types"
+                                        class="{{ 'active' if request.path == '/manage-expense-types' else '' }}">
+                                        Manage Expense Types
+                                    </a>
+                                </li>
+                                <li>
                                     <a href="/misc_item_report"
                                         class="{{ 'active' if request.path == '/misc_item_report' else '' }}">
                                         Miscellaneous Item Report

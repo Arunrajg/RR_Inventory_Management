@@ -15,6 +15,7 @@
       {% endif %}
     </div>
 
+
     <div class="card">
       <div class="card-body">
         <div class="table-top">
@@ -27,6 +28,7 @@
           </div>
         </div>
 
+
         <div>
           {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -38,6 +40,7 @@
           {% endif %}
           {% endwith %}
         </div>
+
 
         <div class="table-responsive">
           <table class="table datanew" id="miscTable">
@@ -52,45 +55,35 @@
                 <th>Cost</th>
                 <th>Date</th>
                 <!-- {% if user.role == 'admin' %}
-                <th>Actions</th>
-                {% endif %} -->
+               <th>Actions</th>
+               {% endif %} -->
               </tr>
             </thead>
+
 
             <tbody>
               {% for item in misc_items %}
               <tr>
                 <td style="width: 4%;">{{ loop.index }}</td>
-                <td style="width: 10%;">{{ item.type_of_expense }}</td>
+                <td style="width: 10%;">{{ item.type_of_expense or '-' }}</td>
                 <td style="width: 10%;">{{ item.sub_category or '-' }}</td>
                 <td>{{ item.restaurantname if item.restaurantname else '-' }}</td>
-                <td style="width: 16%;">{{ item.branch_manager if item.branch_manager else '-' }}</td>
-                <td style="width: 30%;">{{ item.notes }}</td>
-                <td style="width: 25%;">₹ {{ item.cost }}</td>
-                <td style="width: 25%;">
+                <td style="width: 8%;">{{ item.branch_manager if item.branch_manager else '-' }}</td>
+                <td class="notes-col" style="width: 68%;">{{ item.notes }}</td>
+                <td style="width: 15%;">₹ {{ item.cost }}</td>
+                <td style="width: 10%; word-break: break-all;">
                   {% if item.manual_date %}
-                  {{ item.manual_date.strftime('%d-%m-%Y %H:%M:%S') }}
+                  {{ item.manual_date.strftime('%d-%m-%Y %I:%M:%S %p') }}
                   {% elif item.created_at %}
-                  {{ item.created_at.strftime('%d-%m-%Y %H:%M:%S') }}
+                  {{ item.created_at.strftime('%d-%m-%Y %I:%M:%S %p') }}
                   {% else %}
                   -
                   {% endif %}
                 </td>
-                <!-- {% if user.role == 'admin' %}
-                <td style="width: 10%;">
-                  <button class="btn btn-edit" data-bs-toggle="modal" data-bs-target="#editModal"
-                    data-id="{{ item.id }}" data-type_of_expense="{{ item.type_of_expense }}"
-                    data-sub_category="{{ item.sub_category if item.sub_category else '' }}" data-cost="{{ item.cost }}"
-                    data-notes="{{ item.notes if item.notes else '' }}"
-                    data-restaurant_id="{{ item.restaurant_id if item.restaurant_id is not none and item.restaurant_id != '' else '' }}"
-                    data-branch_manager="{{ item.branch_manager if item.branch_manager else '' }}">
-                    <img src="../static/img/icons/edit.svg" alt="img">
-                  </button>
-                </td>
-                {% endif %} -->
               </tr>
               {% endfor %}
             </tbody>
+
 
             <div class="total-summary mb-3 d-flex justify-content-between flex-row-reverse align-items-center">
               <div class="">
@@ -107,425 +100,338 @@
               </button>
             </div>
 
+
           </table>
         </div>
       </div>
     </div>
 
-  </div>
-</div>
 
-<!-- Edit Modal -->
-<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="editModalLabel">Edit Miscellaneous Item</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Edit Modal -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editModalLabel">Edit Miscellaneous Item</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="POST" action="/editmiscitem">
+            <div class="modal-body">
+              <input type="hidden" name="id" id="editItemId">
+
+
+              <!-- Main Category Dropdown -->
+              <div class="mb-3">
+                <label for="editMainCategory" class="form-label">Main Category</label>
+                <select class="form-control" id="editMainCategory" name="expense_type_id" required>
+                  <option value="">Select Main Category</option>
+                  {% for expense_type in expense_types %}
+                  <option value="{{ expense_type.id }}">{{ expense_type.type_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+
+              <!-- Sub Category Dropdown -->
+              <div class="mb-3" id="subcategory_div_edit" style="display:none;">
+                <label for="editSubCategory" class="form-label">Sub Category</label>
+                <select class="form-control" id="editSubCategory" name="expense_subcategory_id">
+                  <option value="">Select Sub Category</option>
+                </select>
+                <div id="subcategory_loading_edit" style="display:none;">
+                  <small class="text-muted">Loading subcategories...</small>
+                </div>
+              </div>
+
+
+              <!-- Restaurant -->
+              <div class="mb-3">
+                <label for="editRestaurant" class="form-label">Restaurant</label>
+                <select class="form-control" id="editRestaurant" name="restaurant_id">
+                  <option value="">Select Restaurant</option>
+                  {% for restaurant in restaurants %}
+                  <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+
+              <!-- Branch Manager -->
+              <div class="mb-3">
+                <label for="editBranchManager" class="form-label">Branch Manager</label>
+                <input type="text" class="form-control" id="editBranchManager" name="branch_manager">
+              </div>
+
+
+              <!-- Cost -->
+              <div class="mb-3">
+                <label for="editCost" class="form-label">Cost</label>
+                <input type="number" step="0.01" class="form-control" id="editCost" name="cost" required>
+              </div>
+
+
+              <!-- Notes -->
+              <div class="mb-3">
+                <label for="editNotes" class="form-label">Notes</label>
+                <textarea class="form-control" id="editNotes" name="notes" required></textarea>
+              </div>
+
+
+            </div>
+
+
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+          </form>
+        </div>
       </div>
-      <form method="POST" action="/editmiscitem">
-        <div class="modal-body">
-          <input type="hidden" name="id" id="editItemId">
-
-          <!-- Main Category Dropdown -->
-          <div class="mb-3">
-            <label for="editMainCategory" class="form-label">Main Category</label>
-            <select class="form-control" id="editMainCategory" name="type_of_expense" required>
-              <option value="">Select Main Category</option>
-              <option value="Owner Advance">Owner Advance</option>
-              <option value="Labor Advance">Labor Advance</option>
-              <option value="Banana Leaves">Banana Leaves</option>
-              <option value="News Paper">News Paper</option>
-              <option value="Recharge">Recharge</option>
-              <option value="Parcel">Parcel</option>
-              <option value="Fuel">Fuel</option>
-              <option value="Salary Advance">Salary Advance</option>
-              <option value="Maintenance Charge">Maintenance Charge</option>
-              <option value="Chit Fund">Chit Fund</option>
-              <option value="Firewood">Firewood</option>
-              <option value="Rent">Rent</option>
-              <option value="Electricity Bill">Electricity Bill</option>
-            </select>
-          </div>
-
-          <!-- Sub Category Dropdown -->
-          <div class="mb-3">
-            <label for="editSubCategory" class="form-label">Sub Category</label>
-            <select class="form-control" id="editSubCategory" name="sub_category" required>
-              <option value="">Select Sub Category</option>
-              <!-- Dynamically populated via JS if needed -->
-            </select>
-          </div>
-
-          <!-- Restaurant -->
-          <div class="mb-3">
-            <label for="editRestaurant" class="form-label">Restaurant</label>
-            <select class="form-control" id="editRestaurant" name="restaurant_id">
-              <option value="">Select Restaurant</option>
-              {% for restaurant in restaurants %}
-              <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }}</option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <!-- Branch Manager -->
-          <div class="mb-3">
-            <label for="editBranchManager" class="form-label">Branch Manager</label>
-            <input type="text" class="form-control" id="editBranchManager" name="branch_manager">
-          </div>
-
-          <!-- Cost -->
-          <div class="mb-3">
-            <label for="editCost" class="form-label">Cost</label>
-            <input type="number" step="0.01" class="form-control" id="editCost" name="cost" required>
-          </div>
-
-          <!-- Notes -->
-          <div class="mb-3">
-            <label for="editNotes" class="form-label">Notes</label>
-            <textarea class="form-control" id="editNotes" name="notes" required></textarea>
-          </div>
-
-          <!-- Status field completely removed -->
-
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="submit" class="btn btn-primary">Save changes</button>
-        </div>
-      </form>
     </div>
+
+
   </div>
 </div>
-
 {% endblock %}
+
 
 {% block scripts %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    // Subcategory mapping with proper capitalization
-    const subcategories = {
-      "Owner Advance": [],
-      "Labor Advance": [],
-      "Banana Leaves": [],
-      "News Paper": [],
-      "Parcel": [],
-      "Fuel": ["Generator", "Petrol"],
-      "Salary Advance": [],
-      "Maintenance Charge": [],
-      "Chit Fund": [],
-      "Firewood": [],
-      "Rent": [],
-      "Electricity Bill": [],
-      "Recharge": ["Jio", "Airtel"]
-    };
+    // AJAX to fetch subcategories for editing
+    function fetchSubcategories(expenseTypeId, selectedSubId) {
+      const subCatDiv = document.getElementById('subcategory_div_edit');
+      const subCatSelect = document.getElementById('editSubCategory');
+      const loadingDiv = document.getElementById('subcategory_loading_edit');
 
-    function toggleSubcategory(mainValue, selectedSubValue) {
-      const subSelect = document.getElementById('editSubCategory');
-      const subWrapper = subSelect.closest('.mb-3');
 
-      subSelect.innerHTML = '<option value="">Select Sub Category</option>';
+      subCatSelect.innerHTML = '<option value="">Select Sub Category</option>';
+      loadingDiv.style.display = 'block';
+      subCatDiv.style.display = 'block';
+      subCatSelect.disabled = true;
 
-      if (mainValue === "Fuel") {
-        subWrapper.style.display = 'block';
-        subSelect.required = true;
-        subcategories["Fuel"].forEach(sub => {
-          const opt = document.createElement('option');
-          opt.value = sub;
-          opt.text = sub;
-          subSelect.appendChild(opt);
+
+      fetch(`/get-subcategories/${expenseTypeId}`)
+        .then(response => {
+          if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
+          return response.json();
+        })
+        .then(data => {
+          loadingDiv.style.display = 'none';
+          subCatSelect.disabled = false;
+
+
+          if (data.subcategories && data.subcategories.length > 0) {
+            data.subcategories.forEach(function (subcategory) {
+              let opt = document.createElement('option');
+              opt.value = subcategory.id;
+              opt.textContent = subcategory.name;
+              if (selectedSubId && selectedSubId == subcategory.id) opt.selected = true;
+              subCatSelect.appendChild(opt);
+            });
+          } else {
+            subCatDiv.style.display = 'none';
+          }
+        })
+        .catch(error => {
+          console.error('Error fetching subcategories:', error);
+          loadingDiv.style.display = 'none';
+          subCatDiv.style.display = 'none';
         });
-
-        if (selectedSubValue) {
-          subSelect.value = selectedSubValue;
-        }
-      } else if (mainValue === "Recharge") {
-        subWrapper.style.display = 'block';
-        subSelect.required = true;
-        subcategories["Recharge"].forEach(sub => {
-          const opt = document.createElement('option');
-          opt.value = sub;
-          opt.text = sub;
-          subSelect.appendChild(opt);
-        });
-
-        if (selectedSubValue) {
-          subSelect.value = selectedSubValue;
-        }
-      } else {
-        subWrapper.style.display = 'none';
-        subSelect.required = false;
-        subSelect.value = '';
-      }
     }
 
-    // Main category change handler
+
+    // Main category change handler for edit modal
     const mainSelect = document.getElementById('editMainCategory');
     mainSelect.addEventListener('change', function () {
-      toggleSubcategory(this.value, '');
+      const expenseTypeId = this.value;
+      if (expenseTypeId) {
+        fetchSubcategories(expenseTypeId, '');
+      } else {
+        document.getElementById('subcategory_div_edit').style.display = 'none';
+      }
     });
+
 
     // Edit button click handler
     document.querySelectorAll('.btn-edit').forEach(button => {
       button.addEventListener('click', function () {
         const data = this.dataset;
 
-        // Set basic fields (removed status)
+
+        // Set basic fields
         document.getElementById('editItemId').value = data.id || '';
         document.getElementById('editCost').value = data.cost || '';
         document.getElementById('editNotes').value = data.notes || '';
         document.getElementById('editBranchManager').value = data.branch_manager || '';
 
+
         // Set main category
-        document.getElementById('editMainCategory').value = data.type_of_expense || '';
+        document.getElementById('editMainCategory').value = data.expense_type_id || '';
+
 
         // Set restaurant dropdown
         const restaurantSelect = document.getElementById('editRestaurant');
-
         if (data.restaurant_id && data.restaurant_id !== '' && data.restaurant_id !== 'None' && data.restaurant_id !== 'null') {
           restaurantSelect.value = data.restaurant_id;
-
-          // Verify if the value was set correctly
           if (restaurantSelect.value !== data.restaurant_id) {
-            // Try with string conversion
-            restaurantSelect.value = String(data.restaurant_id);
-
-            if (restaurantSelect.value !== String(data.restaurant_id)) {
-              // Try manual option matching
-              Array.from(restaurantSelect.options).forEach(option => {
-                if (option.value == data.restaurant_id || option.value === String(data.restaurant_id)) {
-                  option.selected = true;
-                }
-              });
-            }
+            Array.from(restaurantSelect.options).forEach(option => {
+              if (option.value == data.restaurant_id) option.selected = true;
+            });
           }
         } else {
           restaurantSelect.value = '';
         }
 
-        // Handle subcategory (with slight delay to ensure main category is processed)
-        setTimeout(() => {
-          toggleSubcategory(data.type_of_expense, data.sub_category);
-        }, 10);
+
+        // Fetch subcategories based on expense type
+        const expenseTypeId = data.expense_type_id || '';
+        if (expenseTypeId) {
+          fetchSubcategories(expenseTypeId, data.expense_subcategory_id);
+        } else {
+          document.getElementById('subcategory_div_edit').style.display = 'none';
+        }
       });
     });
   });
+
 
   document.addEventListener('DOMContentLoaded', function () {
     const printButton = document.getElementById('printButton');
     const totalCost = "{{ '%.2f' % total_cost }}";
 
+
     function updateGrandTotal() {
       let visibleTotal = 0;
-
-      // Get the existing DataTable API instance (no initialization)
       const table = $('#miscTable').dataTable().api();
-      table.rows({ search: 'applied' }).every(function (rowIdx, tableLoop, rowLoop) {
+      table.rows({ search: 'applied' }).every(function () {
         const rowData = this.data();
-        const costValue = rowData[6]; // Cost is in column index 6
-
+        const costValue = rowData[6];
         if (costValue && costValue !== '-') {
           const numericCost = parseFloat(costValue.toString().replace(/[^\d.-]/g, ''));
-          if (!isNaN(numericCost)) {
-            visibleTotal += numericCost;
-          }
+          if (!isNaN(numericCost)) visibleTotal += numericCost;
         }
       });
 
-      // Update the grand total display
-      const grandTotalSpan = document.querySelector('.total-cost-card .fw-bold');
-      if (grandTotalSpan) {
-        grandTotalSpan.textContent = '₹' + visibleTotal.toFixed(2);
-      }
 
+      const grandTotalSpan = document.querySelector('.total-cost-card .fw-bold');
+      if (grandTotalSpan) grandTotalSpan.textContent = '₹' + visibleTotal.toFixed(2);
       return visibleTotal;
     }
 
-    // Listen for search events on DataTable
+
     $('#miscTable').on('search.dt', function () {
       updateGrandTotal();
     });
+
 
     $('#miscTable').on('draw.dt', function () {
       updateGrandTotal();
     });
 
-    // Initial calculation for the default view
+
     setTimeout(updateGrandTotal, 100);
+
 
     printButton.addEventListener('click', function () {
       const table = $('#miscTable').dataTable().api();
       let allRows = table.rows({ search: 'applied' }).data();
       const currentUrl = window.location.href.split('?')[0];
 
+
       const printTotalCost = updateGrandTotal();
 
-      // Add this helper function above your print code
+
       function formatDateDDMMYY(dateString) {
         if (!dateString) return null;
-
         const date = new Date(dateString);
-        if (isNaN(date)) return dateString; // Return original if invalid date
-
+        if (isNaN(date)) return dateString;
         const day = String(date.getDate()).padStart(2, '0');
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const year = date.getFullYear();
-
         return `${day}-${month}-${year}`;
       }
+
 
       let rowsHtml = '';
       allRows.each(function (rowData, index) {
         rowsHtml += `
-        <tr>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${index + 1}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[1] || '-'}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[2] || 'NA'}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[3] || '-'}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[4] || '-'}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[5] || '-'}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${(rowData[6] || '-').toString().replace(/[₹$]/g, '')}</td>
-            <td style="padding: 6px; font-size: 10px; vertical-align: top;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
-        </tr>
-    `;
+         <tr>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${index + 1}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[1] || '-'}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[2] || 'NA'}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[3] || '-'}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[4] || '-'}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${rowData[5] || '-'}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${(rowData[6] || '-').toString().replace(/[₹$]/g, '')}</td>
+             <td style="padding: 6px; font-size: 10px; vertical-align: top;">${formatDateDDMMYY(rowData[7]) || '-'}</td>
+         </tr>
+       `;
       });
 
+
       const printContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Miscellaneous Item Report</title>
-        <style>
-            @page {
-                margin: 1cm;
-                @top-right {
-                    content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}";
-                    font-size: 10pt;
-                }
-                @top-center {
-                    content: "Dharani Inventory Solution";
-                    font-size: 12pt;
-                    font-weight: bold;
-                }
-                @bottom-left {
-                    content: "${currentUrl}";
-                    font-size: 8pt;
-                }
-                @bottom-right {
-                    content: "Page " counter(page) " of " counter(pages);
-                    font-size: 8pt;
-                }
-            }
-            body { 
-                margin: 0;
-                // font-family: Arial, sans-serif;
-            }
-            .report-title {
-                text-align: start;
-            }
-            .company-info {
-                text-align: center;
-                margin-bottom: 20px;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                text-align: center;
-                table-layout: fixed;
-                margin-bottom: 20px;
-            }
-            th, td {
-                padding: 6px;
-                border: 1px solid #000;
-                word-wrap: break-word;
-                word-break: break-word;
-                font-size: 10px;
-                vertical-align: top;
-                line-height: 1.2;
-            }
-            .total {
-                text-align: right;
-                margin-top: 20px;
-            }
-            .signatures {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 60px;
-            }
-            .main-content {
-                margin-top: 0px;
-            }
-                
-            .report-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;  /* Changed to align at bottom */
-            margin-bottom: 20px;
-            width: 100%;
-        }
-        
-        .report-header h3 {
-            margin: 0;
-            font-size: 18px;
-            padding-bottom: 2px; /* Optional: Add small padding if text appears too low */
-        }
-        
-        .contact-info {
-            text-align: right;
-            font-size: 14px;
-            line-height: 1.4;
-        }
-        
-        .contact-info p {
-            margin: 0;
-        }
-        </style>
-    </head>
-    <body>
-        <div class="main-content">
-            <div class="company-info">
-                <h2>{{ contact_details.name }}</h2>
-            </div>
+       <!DOCTYPE html>
+       <html>
+       <head>
+           <title>Miscellaneous Item Report</title>
+           <style>
+               @page { margin: 1cm; @top-right { content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"; font-size: 10pt; } @top-center { content: "Dharani Inventory Solution"; font-size: 12pt; font-weight: bold; } @bottom-left { content: "${currentUrl}"; font-size: 8pt; } @bottom-right { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; } }
+               body { margin: 0; }
+               .report-title { text-align: start; }
+               .company-info { text-align: center; margin-bottom: 20px; }
+               table { width: 100%; border-collapse: collapse; text-align: center; table-layout: fixed; margin-bottom: 20px; }
+               th, td { padding: 6px; border: 1px solid #000; word-wrap: break-word; word-break: break-word; font-size: 10px; vertical-align: top; line-height: 1.2; }
+               .total { text-align: right; margin-top: 20px; }
+               .signatures { display: flex; justify-content: space-between; margin-top: 60px; }
+               .main-content { margin-top: 0px; }
+               .report-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; width: 100%; }
+               .report-header h3 { margin: 0; font-size: 18px; padding-bottom: 2px; }
+               .contact-info { text-align: right; font-size: 14px; line-height: 1.4; }
+               .contact-info p { margin: 0; }
+           </style>
+       </head>
+       <body>
+           <div class="main-content">
+               <div class="company-info">
+                   <h2>{{ contact_details.name }}</h2>
+               </div>
+               <div class="report-header">
+                   <h3>Miscellaneous Item Report</h3>
+                   <div class="contact-info">
+                       <p><strong>Contact:</strong> {{ contact_details.contact_number }}</p>
+                       <p><strong>Address:</strong> {{ contact_details.address }}</p>
+                   </div>
+               </div>
+               <table>
+                   <thead>
+                       <tr>
+                           <th style="width: 3%;">#</th>
+                           <th style="width: 12%;">Type of Expense</th>
+                           <th style="width: 10%;">Sub Category</th>
+                           <th style="width: 16%;">Branch</th>
+                           <th style="width: 12%;">Branch Manager</th>
+                           <th style="width: 30%;">Notes</th>
+                           <th style="width: 8%;">Cost (₹)</th>
+                           <th style="width: 9%;">Date</th>
+                       </tr>
+                   </thead>
+                   <tbody>
+                       ${rowsHtml}
+                   </tbody>
+               </table>
+               <div class="total">
+                   <h3>Grand Total: ₹ ${printTotalCost.toFixed(2)}</h3>
+               </div>
+               <div class="signatures">
+                   <p>Authorized Signature: __________</p>
+                   <p>Receiver Signature: __________</p>
+               </div>
+           </div>
+       </body>
+       </html>
+     `;
 
-            <div class="report-header">
-              <h3>Miscellaneous Item Report</h3>
-              <div class="contact-info">
-                <p><strong>Contact:</strong> {{ contact_details.contact_number }}</p>
-                <p><strong>Address:</strong> {{ contact_details.address }}</p>
-              </div>
-            </div>
-
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 3%;">#</th>
-                        <th style="width: 12%;">Type of Expense</th>
-                        <th style="width: 10%;">Sub Category</th>
-                        <th style="width: 16%;">Branch</th>
-                        <th style="width: 12%;">Branch Manager</th>
-                        <th style="width: 30%;">Notes</th>
-                        <th style="width: 8%;">Cost (₹)</th>
-                        <th style="width: 9%;">Date</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rowsHtml}
-                </tbody>
-            </table>
-
-            <div class="total">
-                <h3>Grand Total: ₹ ${printTotalCost.toFixed(2)}</h3>
-            </div>
-
-            <div class="signatures">
-                <p>Authorized Signature: __________</p>
-                <p>Receiver Signature: __________</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    `;
 
       const iframe = document.createElement('iframe');
       iframe.style.position = 'absolute';
@@ -534,33 +440,29 @@
       iframe.style.border = 'none';
       document.body.appendChild(iframe);
 
+
       const doc = iframe.contentWindow.document;
       doc.open();
       doc.write(printContent);
       doc.close();
 
-      // Add this event listener before printing
+
       iframe.contentWindow.onbeforeprint = function () {
-        // This changes the print job name in most browsers
         document.title = "Miscellaneous Item Report";
       };
 
+
       iframe.contentWindow.focus();
-
-      // For Chrome specifically
-      // iframe.contentWindow.print();
-
-      // Fallback for other browsers
       setTimeout(function () {
         iframe.contentWindow.document.title = "Miscellaneous Item Report";
         iframe.contentWindow.print();
       }, 200);
+
 
       setTimeout(() => {
         document.body.removeChild(iframe);
       }, 1000);
     });
   });
-
 </script>
 {% endblock %}

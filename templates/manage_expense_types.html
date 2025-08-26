@@ -1,0 +1,708 @@
+{% extends 'base.html' %}
+{% block content %}
+
+
+<style>
+  /* Ensure table cells wrap content */
+  .table td,
+  .table th {
+    max-width: 150px;
+    /* Adjusted for compactness */
+    word-wrap: break-word;
+    white-space: normal;
+  }
+
+
+  /* Subcategories list with wrapping */
+  .subcategories-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+
+  /* Actions column buttons */
+  .table .actions-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+
+  /* Ensure badges and buttons don't overflow */
+  .badge,
+  .btn {
+    white-space: normal;
+    text-align: left;
+  }
+</style>
+
+
+<div class="page-wrapper">
+  <div class="content">
+
+
+    <!-- Add New Expense Type Form -->
+    <div class="card">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-lg-12">
+            <h5 class="card-title">Manage Expense Types</h5>
+          </div>
+        </div>
+
+
+        <form action="/manage-expense-types" method="POST" id="expenseTypeForm">
+          <input type="hidden" name="action" value="add">
+          <div class="row">
+            <!-- Expense Type Name -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Expense Type Name <span class="text-danger">*</span></label>
+                <input type="text" name="type_name" class="form-control" required placeholder="Enter expense type name">
+              </div>
+            </div>
+
+
+            <!-- Has Subcategory Checkbox -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>&nbsp;</label>
+                <div class="form-check" style="margin-top: 8px;">
+                  <input type="checkbox" id="has_subcategory" name="has_subcategory" class="form-check-input">
+                  <label class="form-check-label" for="has_subcategory">
+                    Want Subcategory?
+                  </label>
+                </div>
+              </div>
+            </div>
+
+
+            <!-- Subcategories Section (Hidden by default) -->
+            <div class="col-lg-12" id="subcategory_section" style="display: none;">
+              <div class="form-group">
+                <label>Subcategories</label>
+                <div id="subcategories_container">
+                  <div class="input-group mb-2 subcategory-input">
+                    <input type="text" name="subcategories[]" class="form-control" placeholder="Enter subcategory name">
+                    <div class="input-group-append">
+                      <button type="button" class="btn btn-outline-danger remove-subcategory"
+                        onclick="removeSubcategory(this)" disabled>
+                        <i class="fa fa-trash"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addSubcategory()">
+                  <i class="fa fa-plus"></i> Add Another Subcategory
+                </button>
+              </div>
+            </div>
+
+
+            <!-- Flash Messages -->
+            <div class="col-lg-12">
+              {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+              <div class="flash-messages">
+                {% for category, message in messages %}
+                <div
+                  class="alert alert-{{ 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'success' }} alert-dismissible fade show"
+                  role="alert">
+                  <strong>{{ message }}</strong>
+                  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% endwith %}
+            </div>
+
+
+            <!-- Submit Buttons -->
+            <div class="col-lg-12">
+              <button type="submit" class="btn btn-submit me-2">
+                <i class="fa fa-check"></i> Add Expense Type
+              </button>
+              <button type="button" class="btn btn-cancel" onclick="resetForm()">
+                <i class="fa fa-refresh"></i> Reset
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+
+    <!-- Existing Expense Types List -->
+    <div class="card">
+      <div class="card-body">
+        <div class="table-top">
+          <div class="search-path">
+            <h5 class="card-title">All Expense Types (Active & Inactive)</h5>
+          </div>
+        </div>
+
+
+        <div class="table-responsive">
+          <table class="table datanew">
+            <thead>
+              <tr>
+                <th style="width: 40px;">S.No</th>
+                <th style="min-width: 80px;">Expense Type</th>
+                <th style="width: 80px;">Has Subcategory</th>
+                <th style="min-width: 420px;">Subcategories</th>
+                <th style="width: 80px;">Status</th>
+                <th style="min-width: 150px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if existing_types %}
+              {% for expense_type in existing_types %}
+              <tr class="{{ 'table-secondary' if expense_type.status == 'inactive' else '' }}">
+                <td>{{ loop.index }}</td>
+                <td>
+                  <strong>{{ expense_type.type_name }}</strong>
+                  {% if expense_type.status == 'inactive' %}
+                  <small class="text-muted">(Inactive)</small>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if expense_type.has_subcategory %}
+                  <span class="badges bg-lightgreen">Yes</span>
+                  {% else %}
+                  <span class="badges bg-lightred">No</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% set subcats = existing_subcategories | selectattr('expense_type_id', 'equalto', expense_type.id) |
+                  list %}
+                  {% if subcats %}
+                  <div class="subcategories-list">
+                    {% for subcat in subcats %}
+                    <span class="badge {{ 'bg-secondary' if subcat.status == 'active' else 'bg-dark' }} me-1 mb-1">
+                      {{ subcat.subcategory_name }}
+                      {% if subcat.status == 'inactive' %}<small>(Inactive)</small>{% endif %}
+                      {% if expense_type.status == 'active' and subcat.status == 'active' %}
+                      <button type="button" class="btn btn-sm btn-link text-white p-0 ms-1 edit-subcategory-btn"
+                        data-id="{{ subcat.id }}" data-name="{{ subcat.subcategory_name }}" title="Edit subcategory">
+                        <i class="fa fa-edit" style="font-size: 10px;"></i>
+                      </button>
+                      <button type="button" class="btn btn-sm btn-link text-white p-0 ms-1 delete-subcategory-btn"
+                        data-id="{{ subcat.id }}" data-name="{{ subcat.subcategory_name }}"
+                        title="Deactivate subcategory">
+                        <i class="fa fa-times" style="font-size: 10px;"></i>
+                      </button>
+                      {% elif subcat.status == 'inactive' %}
+                      <button type="button" class="btn btn-sm btn-link text-white p-0 ms-1 activate-subcategory-btn"
+                        data-id="{{ subcat.id }}" data-name="{{ subcat.subcategory_name }}"
+                        title="Activate subcategory">
+                        <i class="fa fa-check" style="font-size: 10px;"></i>
+                      </button>
+                      {% endif %}
+                    </span>
+                    {% endfor %}
+                  </div>
+                  {% else %}
+                  <span class="text-muted">-</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if expense_type.status == 'active' %}
+                  <span class="badges bg-lightgreen">Active</span>
+                  {% else %}
+                  <span class="badges bg-lightred">Inactive</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <div class="actions-buttons">
+                    {% if expense_type.status == 'active' %}
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subcategory-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}">
+                      <i class="fa fa-plus"></i> Add Subcategory
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary edit-expense-type-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}">
+                      <i class="fa fa-edit"></i> Edit
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-expense-type-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}">
+                      <i class="fa fa-times"></i> Deactivate
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-sm btn-outline-primary add-subcategory-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}" disabled>
+                      <i class="fa fa-plus"></i> Add Subcategory
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-success activate-expense-type-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}">
+                      <i class="fa fa-check"></i> Activate
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-primary edit-expense-type-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}" disabled>
+                      <i class="fa fa-edit"></i> Edit
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-danger delete-expense-type-btn"
+                      data-id="{{ expense_type.id }}" data-name="{{ expense_type.type_name }}" disabled>
+                      <i class="fa fa-times"></i> Deactivate
+                    </button>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+              {% else %}
+              <tr>
+                <td class="text-center text-muted">-</td>
+                <td class="text-center text-muted">No expense types found</td>
+                <td class="text-center text-muted">-</td>
+                <td class="text-center text-muted">-</td>
+                <td class="text-center text-muted">-</td>
+                <td class="text-center text-muted">-</td>
+              </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Edit Expense Type Modal -->
+    <div class="modal fade" id="editExpenseTypeModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Expense Type</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form action="/manage-expense-types" method="POST">
+            <input type="hidden" name="action" value="edit_expense_type">
+            <input type="hidden" name="expense_type_id" id="edit_expense_type_id">
+            <div class="modal-body">
+              <div class="form-group">
+                <label>Expense Type Name <span class="text-danger">*</span></label>
+                <input type="text" name="new_type_name" id="edit_expense_type_name" class="form-control" required>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-submit">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Deactivate Expense Type Confirmation Modal -->
+    <div class="modal fade" id="deleteExpenseTypeModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Deactivate</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to deactivate the expense type "<span id="delete_expense_type_name"></span>"? This
+              will also deactivate all its subcategories.</p>
+            <p><small class="text-muted">Note: You can reactivate it later if needed.</small></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+            <form action="/manage-expense-types" method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="delete_expense_type">
+              <input type="hidden" name="expense_type_id" id="delete_expense_type_id">
+              <button type="submit" class="btn btn-warning">Deactivate</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Activate Expense Type Confirmation Modal -->
+    <div class="modal fade" id="activateExpenseTypeModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Activate</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to activate the expense type "<span id="activate_expense_type_name"></span>"? This
+              will also activate all its subcategories.</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+            <form action="/manage-expense-types" method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="activate_expense_type">
+              <input type="hidden" name="expense_type_id" id="activate_expense_type_id">
+              <button type="submit" class="btn btn-success">Activate</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Edit Subcategory Modal -->
+    <div class="modal fade" id="editSubcategoryModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Edit Subcategory</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form action="/manage-expense-types" method="POST">
+            <input type="hidden" name="action" value="edit_subcategory">
+            <input type="hidden" name="subcategory_id" id="edit_subcategory_id">
+            <div class="modal-body">
+              <div class="form-group">
+                <label>Subcategory Name <span class="text-danger">*</span></label>
+                <input type="text" name="new_subcategory_name" id="edit_subcategory_name" class="form-control" required>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-submit">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Deactivate Subcategory Confirmation Modal -->
+    <div class="modal fade" id="deleteSubcategoryModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Deactivate</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to deactivate the subcategory "<span id="delete_subcategory_name"></span>"?</p>
+            <p><small class="text-muted">Note: You can reactivate it later if needed.</small></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+            <form action="/manage-expense-types" method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="delete_subcategory">
+              <input type="hidden" name="subcategory_id" id="delete_subcategory_id">
+              <button type="submit" class="btn btn-warning">Deactivate</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Activate Subcategory Confirmation Modal -->
+    <div class="modal fade" id="activateSubcategoryModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Activate</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>Are you sure you want to activate the subcategory "<span id="activate_subcategory_name"></span>"?</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+            <form action="/manage-expense-types" method="POST" style="display: inline;">
+              <input type="hidden" name="action" value="activate_subcategory">
+              <input type="hidden" name="subcategory_id" id="activate_subcategory_id">
+              <button type="submit" class="btn btn-success">Activate</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Add Subcategory Modal -->
+    <div class="modal fade" id="addSubcategoryModal" tabindex="-1">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Add Subcategory</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <form action="/manage-expense-types" method="POST">
+            <input type="hidden" name="action" value="add_subcategory">
+            <input type="hidden" name="expense_type_id" id="modal_expense_type_id">
+            <div class="modal-body">
+              <div class="form-group">
+                <label>Expense Type</label>
+                <input type="text" id="modal_expense_type_name" class="form-control" disabled>
+              </div>
+              <div class="form-group">
+                <label>New Subcategory Name <span class="text-danger">*</span></label>
+                <input type="text" name="new_subcategory" class="form-control" required
+                  placeholder="Enter subcategory name">
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-submit">Add Subcategory</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+
+  </div>
+</div>
+
+
+<script>
+  // Toggle subcategory section
+  document.getElementById('has_subcategory').addEventListener('change', function () {
+    const subcategorySection = document.getElementById('subcategory_section');
+    if (this.checked) {
+      subcategorySection.style.display = 'block';
+      const firstInput = subcategorySection.querySelector('input[name="subcategories[]"]');
+      if (firstInput) firstInput.required = true;
+    } else {
+      subcategorySection.style.display = 'none';
+      const inputs = subcategorySection.querySelectorAll('input[name="subcategories[]"]');
+      inputs.forEach(input => input.required = false);
+    }
+  });
+
+
+  // Add new subcategory input
+  function addSubcategory() {
+    const container = document.getElementById('subcategories_container');
+    const newDiv = document.createElement('div');
+    newDiv.className = 'input-group mb-2 subcategory-input';
+    newDiv.innerHTML = `
+       <input type="text" name="subcategories[]" class="form-control" placeholder="Enter subcategory name">
+       <div class="input-group-append">
+           <button type="button" class="btn btn-outline-danger remove-subcategory" onclick="removeSubcategory(this)">
+               <i class="fa fa-trash"></i>
+           </button>
+       </div>
+   `;
+    container.appendChild(newDiv);
+    updateRemoveButtons();
+  }
+
+
+  // Remove subcategory input
+  function removeSubcategory(button) {
+    const inputGroup = button.closest('.subcategory-input');
+    inputGroup.remove();
+    updateRemoveButtons();
+  }
+
+
+  // Update remove button states
+  function updateRemoveButtons() {
+    const removeButtons = document.querySelectorAll('.remove-subcategory');
+    const hasSubcategory = document.getElementById('has_subcategory').checked;
+
+
+    if (removeButtons.length === 1 && hasSubcategory) {
+      removeButtons[0].disabled = true;
+    } else {
+      removeButtons.forEach(btn => btn.disabled = false);
+    }
+  }
+
+
+  // Reset form
+  function resetForm() {
+    document.getElementById('expenseTypeForm').reset();
+    document.getElementById('subcategory_section').style.display = 'none';
+
+
+    const container = document.getElementById('subcategories_container');
+    container.innerHTML = `
+       <div class="input-group mb-2 subcategory-input">
+           <input type="text" name="subcategories[]" class="form-control" placeholder="Enter subcategory name">
+           <div class="input-group-append">
+               <button type="button" class="btn btn-outline-danger remove-subcategory" onclick="removeSubcategory(this)" disabled>
+                   <i class="fa fa-trash"></i>
+               </button>
+           </div>
+       </div>
+   `;
+  }
+
+
+  // Form validation
+  document.getElementById('expenseTypeForm').addEventListener('submit', function (e) {
+    const hasSubcategory = document.getElementById('has_subcategory').checked;
+    const subcategoryInputs = document.querySelectorAll('input[name="subcategories[]"]');
+
+
+    if (hasSubcategory) {
+      let hasValidSubcategory = false;
+      subcategoryInputs.forEach(input => {
+        if (input.value.trim()) hasValidSubcategory = true;
+      });
+
+
+      if (!hasValidSubcategory) {
+        e.preventDefault();
+        alert('Please add at least one subcategory when "Want Subcategory" is checked.');
+        return false;
+      }
+    }
+  });
+
+
+  // Show edit expense type modal
+  function showEditExpenseTypeModal(expenseTypeId, expenseTypeName) {
+    document.getElementById('edit_expense_type_id').value = expenseTypeId;
+    document.getElementById('edit_expense_type_name').value = expenseTypeName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('editExpenseTypeModal'));
+    modal.show();
+  }
+
+
+  // Confirm delete expense type
+  function confirmDeleteExpenseType(expenseTypeId, expenseTypeName) {
+    document.getElementById('delete_expense_type_id').value = expenseTypeId;
+    document.getElementById('delete_expense_type_name').textContent = expenseTypeName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteExpenseTypeModal'));
+    modal.show();
+  }
+
+
+  // Confirm activate expense type
+  function confirmActivateExpenseType(expenseTypeId, expenseTypeName) {
+    document.getElementById('activate_expense_type_id').value = expenseTypeId;
+    document.getElementById('activate_expense_type_name').textContent = expenseTypeName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('activateExpenseTypeModal'));
+    modal.show();
+  }
+
+
+  // Show edit subcategory modal
+  function showEditSubcategoryModal(subcategoryId, subcategoryName) {
+    document.getElementById('edit_subcategory_id').value = subcategoryId;
+    document.getElementById('edit_subcategory_name').value = subcategoryName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('editSubcategoryModal'));
+    modal.show();
+  }
+
+
+  // Confirm delete subcategory
+  function confirmDeleteSubcategory(subcategoryId, subcategoryName) {
+    document.getElementById('delete_subcategory_id').value = subcategoryId;
+    document.getElementById('delete_subcategory_name').textContent = subcategoryName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('deleteSubcategoryModal'));
+    modal.show();
+  }
+
+
+  // Confirm activate subcategory
+  function confirmActivateSubcategory(subcategoryId, subcategoryName) {
+    document.getElementById('activate_subcategory_id').value = subcategoryId;
+    document.getElementById('activate_subcategory_name').textContent = subcategoryName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('activateSubcategoryModal'));
+    modal.show();
+  }
+
+
+  // Show add subcategory modal
+  function showAddSubcategoryModal(expenseTypeId, expenseTypeName) {
+    document.getElementById('modal_expense_type_id').value = expenseTypeId;
+    document.getElementById('modal_expense_type_name').value = expenseTypeName;
+
+
+    const modal = new bootstrap.Modal(document.getElementById('addSubcategoryModal'));
+    modal.show();
+  }
+
+
+  // Event listeners for button clicks using data attributes
+  document.addEventListener('DOMContentLoaded', function () {
+    // Edit expense type buttons
+    document.querySelectorAll('.edit-expense-type-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const expenseTypeId = this.getAttribute('data-id');
+        const expenseTypeName = this.getAttribute('data-name');
+        showEditExpenseTypeModal(expenseTypeId, expenseTypeName);
+      });
+    });
+
+
+    // Delete expense type buttons
+    document.querySelectorAll('.delete-expense-type-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const expenseTypeId = this.getAttribute('data-id');
+        const expenseTypeName = this.getAttribute('data-name');
+        confirmDeleteExpenseType(expenseTypeId, expenseTypeName);
+      });
+    });
+
+
+    // Activate expense type buttons
+    document.querySelectorAll('.activate-expense-type-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const expenseTypeId = this.getAttribute('data-id');
+        const expenseTypeName = this.getAttribute('data-name');
+        confirmActivateExpenseType(expenseTypeId, expenseTypeName);
+      });
+    });
+
+
+    // Add subcategory buttons
+    document.querySelectorAll('.add-subcategory-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const expenseTypeId = this.getAttribute('data-id');
+        const expenseTypeName = this.getAttribute('data-name');
+        showAddSubcategoryModal(expenseTypeId, expenseTypeName);
+      });
+    });
+
+
+    // Edit subcategory buttons
+    document.querySelectorAll('.edit-subcategory-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const subcategoryId = this.getAttribute('data-id');
+        const subcategoryName = this.getAttribute('data-name');
+        showEditSubcategoryModal(subcategoryId, subcategoryName);
+      });
+    });
+
+
+    // Delete subcategory buttons
+    document.querySelectorAll('.delete-subcategory-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const subcategoryId = this.getAttribute('data-id');
+        const subcategoryName = this.getAttribute('data-name');
+        confirmDeleteSubcategory(subcategoryId, subcategoryName);
+      });
+    });
+
+
+    // Activate subcategory buttons
+    document.querySelectorAll('.activate-subcategory-btn').forEach(button => {
+      button.addEventListener('click', function () {
+        const subcategoryId = this.getAttribute('data-id');
+        const subcategoryName = this.getAttribute('data-name');
+        confirmActivateSubcategory(subcategoryId, subcategoryName);
+      });
+    });
+  });
+</script>
+{% endblock %}

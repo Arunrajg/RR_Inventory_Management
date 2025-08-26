@@ -64,21 +64,28 @@
             <td>{{ item.branch_manager or '-' }}</td>
             <td class="notes-col">{{ item.notes or '-' }}</td>
             <td>{{ item.cost or '-' }}</td>
-            <td style="width: 25%;">
+            <td>
               {% if item.manual_date %}
-              {{ item.manual_date.strftime('%d-%m-%Y %H:%M:%S') }}
+              {{ item.manual_date.strftime('%d-%m-%Y %I:%M:%S %p') }}
               {% elif item.created_at %}
-              {{ item.created_at.strftime('%d-%m-%Y %H:%M:%S') }}
+              {{ item.created_at.strftime('%d-%m-%Y %I:%M:%S %p') }}
               {% else %}
               -
               {% endif %}
             </td>
-
           </tr>
           {% endfor %}
           {% else %}
+          <!-- FIXED: Individual <td> elements instead of colspan="7" -->
           <tr>
-            <td colspan="7" class="text-center">No records found</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">No records found</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
           </tr>
           {% endif %}
         </tbody>
