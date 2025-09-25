@@ -279,27 +279,24 @@ def addmiscitem():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     role = user.get("role")
-
+    email = user.get("email")
 
     selected_restaurant_id = None
-    if role == "branch_manager":
-        selected_restaurant_id = 1  # KTC NAGAR ID
+    disable_restaurant_dropdown = False
 
+    # Email → branch mapping
+    if email == "bmktcnagar@gmail.com":
+        selected_restaurant_id = 1   # KTC NAGAR
+        disable_restaurant_dropdown = True
+    elif email == "bmnewbs@gmail.com":
+        selected_restaurant_id = 2   # NEW BUS STAND
+        disable_restaurant_dropdown = True
 
-    restaurants = []
-    expense_types = []
-
-    if request.method == "GET":
-        restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
-        restaurants = fetch_all(restaurant_query)
-        
-        # Fetch dynamic expense types with IDs
-        expense_types_query = "SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name"
-        expense_types = fetch_all(expense_types_query)
-
+    # Fetch restaurants and expense types
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status = 'active'")
+    expense_types = fetch_all("SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name")
 
     if request.method == "POST":
         expense_type_id = request.form["expense_type_id"].strip()
@@ -310,34 +307,26 @@ def addmiscitem():
         notes = request.form.get("notes", "").strip()
         manual_date_str = request.form.get("manual_date", "").strip()
 
+        # Force restaurant_id if dropdown disabled (security)
+        if disable_restaurant_dropdown and selected_restaurant_id:
+            restaurant_id = selected_restaurant_id
 
-        # Convert optional fields
         restaurant_id = int(restaurant_id) if restaurant_id else None
         expense_subcategory_id = int(expense_subcategory_id) if expense_subcategory_id else None
-        branch_manager = branch_manager if branch_manager else None
-        notes = notes if notes else None
 
-
-        # Get current datetime in IST
+        # Get current IST datetime
         current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
-        
-        # Handle manual_date: use selected date with current IST time
-        manual_date = None
+
+        # Manual date handling
+        manual_date_str = None
         if manual_date_str:
             selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
-            current_time = current_datetime_ist.time()
-            manual_date = datetime.combine(selected_date, current_time)
-            ist = pytz.timezone('Asia/Kolkata')
-            manual_date = ist.localize(manual_date)
+            manual_date = datetime.combine(selected_date, current_datetime_ist.time())
+            manual_date = pytz.timezone('Asia/Kolkata').localize(manual_date)
             manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            manual_date_str = None
 
-
-        # Use current IST datetime for created_at and updated_at
         created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
         updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
-
 
         insert_query = """
         INSERT INTO miscellaneous_items
@@ -351,15 +340,16 @@ def addmiscitem():
             flash("Miscellaneous item added successfully!", "success")
         else:
             flash("Error adding miscellaneous item. Please try again.", "danger")
-        return redirect("/addmiscitem")
 
+        return redirect("/addmiscitem")
 
     return render_template(
         "addmiscitem.html",
         user=user,
         restaurants=restaurants,
         expense_types=expense_types,
-        selected_restaurant_id=selected_restaurant_id
+        selected_restaurant_id=selected_restaurant_id,
+        disable_restaurant_dropdown=disable_restaurant_dropdown
     )
 
 
@@ -389,16 +379,12 @@ def miscitemlist():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     role = user["role"]
-
+    email = user.get("email")
 
     contact_details = get_contact_details()
 
-    # Modified query to show miscellaneous items with active expense types
-    # If subcategory is deleted, it will show as NULL (displayed as "-" in template)
-    # If expense type is deleted, hide the entire row
     query = """
     SELECT
         mi.id,
@@ -423,28 +409,28 @@ def miscitemlist():
     """
     params = []
 
-    # Rule 1 → Branch Manager should not see manual_date records
-    if role == "branch_manager":
+    # Rule 1 → Branch Manager / Store Manager should only see their own branch
+    if role in ["branch_manager", "store_manager"]:
+        if email == "bmktcnagar@gmail.com":
+            query += " AND mi.restaurant_id = %s"
+            params.append(1)  # KTC NAGAR
+        elif email == "bmnewbs@gmail.com":
+            query += " AND mi.restaurant_id = %s"
+            params.append(2)  # NEW BUS STAND
+
+    # Rule 2 → Branch Manager and Store Manager should not see manual_date records
+    if role in ["branch_manager", "store_manager"]:
         query += " AND mi.manual_date IS NULL"
 
-
-    if role == "store_manager":
-        query += " AND mi.manual_date IS NULL"
-
-
-    # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
+    # Rule 3 → Admin, Branch Manager, Store Manager can only see today's records
     if role in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(mi.created_at) = CURDATE()"
 
-
-    # Rule 3 → Order by latest first
+    # Rule 4 → Order by latest first
     query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC, mi.id DESC"
 
-    # Fetch misc items
     misc_items = fetch_all(query, params)
 
-
-    # Get restaurants for dropdown (unchanged)
     restaurants = fetch_all(
         "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
     )
@@ -2948,39 +2934,72 @@ def kitchen_consumption():
 @app.route("/api/purchase_trend")
 def purchase_trend():
     year = request.args.get("year", type=int)
-    query = """
-        SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
-        FROM purchase_history
-        WHERE YEAR(purchase_date) = %s
-        GROUP BY MONTH(purchase_date)
-        ORDER BY MONTH(purchase_date);
-    """
+    month = request.args.get("month", type=int)
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
 
     connection = get_db_connection()
-    with connection.cursor() as cursor:
+    cursor = connection.cursor()
+
+    if year and not month: 
+        # ✅ Yearly aggregation
+        query = """
+            SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE YEAR(purchase_date) = %s
+            GROUP BY MONTH(purchase_date)
+            ORDER BY MONTH(purchase_date);
+        """
         cursor.execute(query, (year,))
         result = cursor.fetchall()
 
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        purchase_data = {row[0]: row[1] for row in result}
+        purchase_amounts = [purchase_data.get(i+1, 0) for i in range(12)]
+
+        response = {"type": "yearly", "year": year, "months": months, "purchase_amounts": purchase_amounts}
+
+    elif year and month: 
+        # ✅ Monthly aggregation (day wise)
+        query = """
+            SELECT DAY(purchase_date) AS day, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE YEAR(purchase_date) = %s AND MONTH(purchase_date) = %s
+            GROUP BY DAY(purchase_date)
+            ORDER BY DAY(purchase_date);
+        """
+        cursor.execute(query, (year, month))
+        result = cursor.fetchall()
+
+        days = [str(row[0]) for row in result]
+        amounts = [row[1] for row in result]
+
+        response = {"type": "monthly", "year": year, "month": month, "days": days, "purchase_amounts": amounts}
+
+    elif from_date and to_date: 
+        # ✅ Custom date range
+        query = """
+            SELECT DATE(purchase_date) AS date, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE purchase_date BETWEEN %s AND %s
+            GROUP BY DATE(purchase_date)
+            ORDER BY DATE(purchase_date);
+        """
+        cursor.execute(query, (from_date, to_date))
+        result = cursor.fetchall()
+
+        dates = [str(row[0]) for row in result]
+        amounts = [row[1] for row in result]
+
+        response = {"type": "custom", "from": from_date, "to": to_date, "dates": dates, "purchase_amounts": amounts}
+
+    else:
+        response = {"error": "Please provide either year, year+month, or from+to dates."}
+
+    cursor.close()
     connection.close()
-
-    # Mapping database results to required format
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    purchase_data = {row[0]: row[1] for row in result}
-
-    purchase_amounts = [purchase_data.get(i+1, 0) for i in range(12)]  # Fill missing months with 0
-
-    response = {
-        "year": year,
-        "months": months,
-        "purchase_amounts": purchase_amounts
-    }
-
     return jsonify(response)
-    # return {
-    #     "year": 2025,
-    #     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    #     "purchase_amounts": [12000, 15000, 18000, 11000, 9000, 20000, 25000, 23000, 17000, 19000, 22000, 24000]
-    # }
 
 
 @app.route('/stock_report', methods=["GET", "POST"])
