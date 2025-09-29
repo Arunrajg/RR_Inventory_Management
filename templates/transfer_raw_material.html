@@ -4,407 +4,468 @@
     <div class="content">
         <div class="page-header">
             <div class="page-title">
-                <h4>Transfer Raw Material</h4>
-                <h6>Transfer raw materials from Storage Room to Kitchen or Restaurant</h6>
+                <h4>Raw Material Transfer Requests</h4>
+                <h6>Approve or Reject raw material requests by batch</h6>
             </div>
         </div>
 
-        {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-        <div class="alert-container">
-            {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-            {% endfor %}
-        </div>
-        {% endif %}
-        {% endwith %}
-
-        <form method="POST" action="/transfer_raw_material">
-            <div class="card">
-                <div class="card-body">
-                    <!-- First Row -->
-                    <div class="row">
-                        <!-- Transfer Date -->
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Transfer Date</label>
-                                <input type="date" name="transfer_date" class="form-control" value="{{ today_date }}"
-                                    required>
+        <!-- Stock Value Header -->
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card bg-primary text-white">
+                    <div class="card-body py-3">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h5 class="mb-0">
+                                    <i class="fas fa-warehouse me-2"></i>
+                                    Current Storageroom Stock Value
+                                </h5>
                             </div>
-                        </div>
-                        <!-- Storage Room (Transfer From) -->
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Transfer From</label>
-                                <select name="storageroom" class="form-control" required>
-                                    <option value="" disabled selected>Select Storage Room</option>
-                                    {% for room in storage_rooms %}
-                                    <option value="{{ room.id }}">{{ room.storageroomname }}</option>
-                                    {% endfor %}
-                                </select>
+                            <div class="col-md-4 text-end">
+                                <h3 class="mb-0">₹{{ "%.2f"|format(current_total_value) }}</h3>
+                                <small>Total Inventory Value</small>
                             </div>
-                        </div>
-
-                        <!-- Destination -->
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Destination Type</label>
-                                <select name="destination_type" class="form-control" id="destination_type" required>
-                                    <option value="kitchen">Kitchen</option>
-                                    <option value="restaurant">Restaurant</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Destination Name based on selection -->
-                        <div class="col-lg-3 col-sm-6 col-12">
-                            <div class="form-group">
-                                <label>Destination Name</label>
-                                <select name="destination_name" class="form-control" id="destination_name" required>
-                                    <!-- Dynamic options will be added here -->
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-
-                    <!-- Raw Material Rows -->
-                    <div id="raw-material-container">
-                        <!-- First Row with Headings -->
-                        <div class="row align-items-center raw-material-row">
-                            <div class="col-lg-10 col-sm-12 col-12">
-                                <div class="form-group row">
-                                    <!-- Labels -->
-                                    <div class="col-lg-3">
-                                        <label>Raw Material</label>
-                                        <input list="raw_materials" name="raw_material[]"
-                                            class="form-control raw-material-input" placeholder="Select Raw Material"
-                                            required>
-                                        <datalist id="raw_materials">
-                                            {% for material in raw_materials %}
-                                            <option value="{{ material.name }}" data-id="{{ material.id }}"
-                                                data-metric="{{ material.metric }}">
-                                                {% endfor %}
-                                        </datalist>
-                                        <input type="hidden" class="raw-material-id" name="raw_material_id[]" />
-                                    </div>
-                                    <!-- Currently Available Quantity -->
-                                    <div class="col-lg-2">
-                                        <label>Available Quantity</label>
-                                        <input type="number" name="available_quantity" class="form-control" step="0.01"
-                                            value="" required readonly>
-                                    </div>
-                                    <div class="col-lg-2">
-                                        <label>Transfer Quantity</label>
-                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
-                                            placeholder="Enter Quantity" min="0.01" required>
-                                    </div>
-                                    <div class="col-lg-2">
-                                        <label>Metric</label>
-                                        <select name="metric[]" class="form-control metric-dropdown" readonly>
-                                            <option value="kg">Kilogram (kg)</option>
-                                            <option value="grams">Grams</option>
-                                            <option value="liter">Liter</option>
-                                            <option value="ml">Milliliter (ml)</option>
-                                            <option value="unit">Unit</option>
-                                        </select>
-                                    </div>
-                                    <!-- Hidden input to store metric value for submission -->
-                                    <input type="hidden" class="hidden-metric-input" name="metric[]">
-                                </div>
-                            </div>
-                            <div class="col-lg-2 d-flex align-items-center">
-                                <button type="button" class="btn btn-success btn-add-row">+</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Submit Buttons -->
-                    <div class="row mt-3">
-                        <div class="col-lg-12">
-                            <button type="submit" class="btn btn-submit me-2" id="submit-btn">
-                                Submit
-                            </button>
-                            <span id="loading-text"
-                                style="display: none; font-weight: bold; color: blue;">Processing...</span>
-                            <a href="/" class="btn btn-cancel">Cancel</a>
                         </div>
                     </div>
                 </div>
             </div>
-        </form>
+        </div>
+
+        <div class="d-flex justify-content-end mb-3">
+            <button type="button" id="printTransfers" class="btn btn-secondary px-5 py-2">
+                Print Transfers Report
+            </button>
+        </div>
+
+        <!-- Overall Summary -->
+        {% if transfers %}
+        {% set grouped_transfers = {} %}
+        {% for transfer in transfers %}
+        {% if transfer.no_of_time_requested not in grouped_transfers %}
+        {% set _ = grouped_transfers.update({transfer.no_of_time_requested: []}) %}
+        {% endif %}
+        {% set _ = grouped_transfers[transfer.no_of_time_requested].append(transfer) %}
+        {% endfor %}
+
+        {% set grand_total = namespace(value=0) %}
+        {% for transfer in transfers %}
+        {% if transfer.transfer_avg and transfer.quantity %}
+        {% set grand_total.value = grand_total.value + (transfer.transfer_avg|float * transfer.quantity|float) %}
+        {% endif %}
+        {% endfor %}
+
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="card bg-light">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted mb-3">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Transfer Requests Summary
+                        </h6>
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h4 class="text-primary mb-1">{{ grouped_transfers.keys()|list|length }}</h4>
+                                <small class="text-muted">Request Batches</small>
+                            </div>
+                            <div class="col-md-4">
+                                <h4 class="text-info mb-1">{{ transfers|length }}</h4>
+                                <small class="text-muted">Total Items</small>
+                            </div>
+                            <div class="col-md-4">
+                                <h4 class="text-success mb-1">₹{{ "%.2f"|format(grand_total.value) }}</h4>
+                                <small class="text-muted">Total Transfer Value</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Filter -->
+        <div class="mb-3">
+            <form method="GET" action="/raw_material_transfers" class="row g-3 align-items-center">
+                <div class="col-auto">
+                    <label for="statusFilter" class="form-label">Filter by Status:</label>
+                </div>
+                <div class="col-auto">
+                    <select id="statusFilter" name="transfer_status" class="form-control" style="width:200px;"
+                        onchange="this.form.submit()">
+                        <option value="PENDING" {% if transfer_status=='PENDING' %}selected{% endif %}>PENDING</option>
+                        <option value="APPROVED" {% if transfer_status=='APPROVED' %}selected{% endif %}>APPROVED
+                        </option>
+                        <option value="REJECTED" {% if transfer_status=='REJECTED' %}selected{% endif %}>REJECTED
+                        </option>
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <span class="badge bg-secondary">Total: {{ total }} records</span>
+                </div>
+            </form>
+        </div>
+
+        <!-- Grouped Transfers -->
+        {% if transfers %}
+        {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+        {% set first_transfer = batch_transfers[0] %}
+
+        <!-- Calculate total batch cost properly -->
+        {% set total_batch_cost = namespace(value=0) %}
+        {% for t in batch_transfers %}
+        {% if t.transfer_avg and t.quantity %}
+        {% set item_cost = t.transfer_avg|float * t.quantity|float %}
+        {% set total_batch_cost.value = total_batch_cost.value + item_cost %}
+        {% endif %}
+        {% endfor %}
+
+        <div class="card mb-4 shadow-sm">
+            <!-- Group Header -->
+            <div class="card-header bg-light">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <h5 class="mb-1">
+                            <i class="fas fa-box text-primary me-2"></i>
+                            Request Batch #{{ request_batch_id }}
+                            <span
+                                class="badge bg-{% if first_transfer.transfer_status == 'APPROVED' %}success{% elif first_transfer.transfer_status == 'REJECTED' %}danger{% else %}warning{% endif %} ms-2">
+                                {{ first_transfer.transfer_status }}
+                            </span>
+                        </h5>
+                        <div class="text-muted small">
+                            <i class="fas fa-user me-1"></i> {{ first_transfer.requested_user_email_id }}
+                            <i class="fas fa-clock me-1 ms-3"></i> {{
+                            first_transfer.requested_date_time.strftime('%Y-%m-%d %H:%M') if
+                            first_transfer.requested_date_time else '-' }}
+                            <i class="fas fa-map-marker-alt me-1 ms-3"></i> {{ first_transfer.storageroomname }} → {{
+                            first_transfer.destination_type|title }}
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <div class="text-muted small">
+                            <div><strong>{{ batch_transfers|length }}</strong> Items</div>
+                            <div class="text-primary"><strong>₹{{ "%.2f"|format(total_batch_cost.value) }}</strong>
+                                Total</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Group Content -->
+            <div class="card-body">
+                <!-- Raw Materials Table -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Transfer ID</th>
+                                <th>Raw Material</th>
+                                <th>Quantity</th>
+                                <th>Metric</th>
+                                <th>Avg Unit Cost</th>
+                                <th>Transfer Avg</th>
+                                <th>Total Cost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for transfer in batch_transfers %}
+                            {% set item_total_cost = transfer.transfer_avg|float * transfer.quantity|float if
+                            transfer.transfer_avg
+                            and transfer.quantity else 0 %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><code>{{ transfer.transfer_id }}</code></td>
+                                <td>
+                                    <strong>{{ transfer.raw_material_name }}</strong>
+                                    <small class="text-muted d-block">Available: {{ transfer.current_available_quantity
+                                        }}</small>
+                                </td>
+                                <td><strong>{{ transfer.quantity }}</strong></td>
+                                <td>{{ transfer.metric }}</td>
+                                <td>
+                                    {% if transfer.average_unit_cost %}
+                                    ₹{{ "%.2f"|format(transfer.average_unit_cost|float) }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if transfer.transfer_avg %}
+                                    ₹{{ "%.2f"|format(transfer.transfer_avg|float) }}
+                                    {% else %}
+                                    <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <strong class="text-success">₹{{ "%.2f"|format(item_total_cost) }}</strong>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                        <!-- Batch Total Row -->
+                        <tfoot class="table-active">
+                            <tr>
+                                <td colspan="7" class="text-end"><strong>Batch Total:</strong></td>
+                                <td><strong class="text-primary">₹{{ "%.2f"|format(total_batch_cost.value) }}</strong>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- Group Actions (only for PENDING status) -->
+                {% if transfer_status == 'PENDING' %}
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="d-flex gap-2 justify-content-end">
+                            <button class="btn btn-success approve-group-btn" data-batch-id="{{ request_batch_id }}">
+                                <i class="fas fa-check me-1"></i>
+                                Approve Batch ({{ batch_transfers|length }} items)
+                            </button>
+                            <button class="btn btn-danger reject-group-btn" data-batch-id="{{ request_batch_id }}">
+                                <i class="fas fa-times me-1"></i>
+                                Reject Batch ({{ batch_transfers|length }} items)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+
+        {% else %}
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">No transfer requests found</h5>
+                <p class="text-muted">Try changing the status filter or check back later.</p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Pagination -->
+        {% if total_pages > 1 %}
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link"
+                        href="/raw_material_transfers?transfer_status={{ transfer_status }}&page={{ p }}&per_page={{ per_page }}">{{
+                        p }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </nav>
+        {% endif %}
     </div>
 </div>
 
+<!-- JavaScript for Group Actions -->
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('raw-material-container');
-        const destinationTypeSelect = document.getElementById('destination_type');
-        const destinationNameSelect = document.getElementById('destination_name');
-        const kitchens = {{ kitchens | tojson
-    }};  // Passing kitchens data
-    const restaurants = {{ restaurants | tojson }};  // Passing restaurants data
+    document.addEventListener("DOMContentLoaded", function () {
+        console.log("🔄 DOM Content Loaded - Group script initialized");
 
-    function updateDestinationNameOptions() {
-        const selectedType = destinationTypeSelect.value;
-        let options = [];
+        // Group transfer data by batch ID
+        const transfersByBatch = {
+      {% if transfers %}
+        {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+        "{{ request_batch_id }}": [
+            {% for t in batch_transfers %}
+          {{ t.transfer_id }}{% if not loop.last %}, {% endif %}
+    {% endfor %}
+      ]{% if not loop.last %}, {% endif %}
+    {% endfor %}
+    {% endif %}
+    };
 
-        if (selectedType === 'kitchen') {
-            options = kitchens;
-        } else if (selectedType === 'restaurant') {
-            options = restaurants;
-        }
+    console.log("📦 Transfers by batch:", transfersByBatch);
 
-        destinationNameSelect.innerHTML = ''; // Clear existing options
+    // Handle group approve buttons
+    {% if transfers and transfer_status == 'PENDING' %}
+    document.querySelectorAll('.approve-group-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const batchId = this.getAttribute('data-batch-id');
+            const transferIds = transfersByBatch[batchId];
 
-        const defaultOption = document.createElement('option');
-        defaultOption.text = 'Select Destination';
-        defaultOption.disabled = true;
-        defaultOption.selected = true;
-        defaultOption.value = ""; // Ensure empty value to trigger required
-        destinationNameSelect.appendChild(defaultOption);
+            if (!transferIds || transferIds.length === 0) {
+                alert("No transfers found for this batch");
+                return;
+            }
 
-        options.forEach(option => {
-            const newOption = document.createElement('option');
-            newOption.value = option.id;
-            newOption.textContent = option[`${selectedType}name`];  // kitchenname or restaurantname
-            destinationNameSelect.appendChild(newOption);
+            console.log(`🟢 Approving batch ${batchId} with transfers:`, transferIds);
+
+            if (confirm(`Approve all ${transferIds.length} transfers in Request Batch #${batchId}?`)) {
+                performGroupAction('approve', transferIds, this);
+            }
+        });
+    });
+
+    // Handle group reject buttons
+    document.querySelectorAll('.reject-group-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const batchId = this.getAttribute('data-batch-id');
+            const transferIds = transfersByBatch[batchId];
+
+            if (!transferIds || transferIds.length === 0) {
+                alert("No transfers found for this batch");
+                return;
+            }
+
+            console.log(`🔴 Rejecting batch ${batchId} with transfers:`, transferIds);
+
+            if (confirm(`Reject all ${transferIds.length} transfers in Request Batch #${batchId}?`)) {
+                performGroupAction('reject', transferIds, this);
+            }
+        });
+    });
+    {% endif %}
+
+    function performGroupAction(action, transferIds, button) {
+        console.log(`🚀 Performing ${action} for transfer IDs:`, transferIds);
+
+        const url = action === "approve" ? "/approve_transfers" : "/reject";
+        const method = action === "approve" ? "PUT" : "POST";
+
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        button.disabled = true;
+
+        // Disable both buttons during processing
+        document.querySelectorAll('.approve-group-btn, .reject-group-btn').forEach(btn => {
+            btn.disabled = true;
         });
 
-        // Ensure `required` is properly set
-        destinationNameSelect.setAttribute('required', 'true');
+        fetch(url, {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ transfer_ids: transferIds })
+        })
+            .then(response => {
+                console.log(`📥 Response status: ${response.status}`);
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error || `HTTP error! status: ${response.status}`)
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log("✅ Response data:", data);
+                alert(data.message || `${action} successful for ${transferIds.length} transfers`);
+                window.location.reload();
+            })
+            .catch(error => {
+                console.error("❌ Error occurred:", error);
+                alert("Error: " + error.message);
+                // Re-enable buttons
+                button.innerHTML = originalText;
+                button.disabled = false;
+                document.querySelectorAll('.approve-group-btn, .reject-group-btn').forEach(btn => {
+                    if (btn !== button) btn.disabled = false;
+                });
+            });
     }
 
+    console.log("🎯 Group script setup complete");
+  });
 
-    // Event listener for Destination Type change
-    destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
+    document.addEventListener("DOMContentLoaded", function () {
+        const printButton = document.getElementById("printTransfers");
 
-    // Initial update of Destination Name options
-    updateDestinationNameOptions();
+        printButton.addEventListener("click", function () {
+            let printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Raw Material Transfers Report</title>
+        <style>
+          body { margin: 0; font-family: Arial, sans-serif; }
+          h2, h3 { margin: 0; padding: 4px 0; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #000; padding: 6px; font-size: 10px; text-align: center; }
+          th { background: #f4f4f4; }
+          .batch-header { text-align: left; margin: 15px 0 5px; font-size: 13px; font-weight: bold; }
+          .total { text-align: right; margin-top: 10px; font-size: 12px; font-weight: bold; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; }
+        </style>
+      </head>
+      <body>
+        <h2>Raw Material Transfer Report</h2>
+        <h3>Dharani Inventory Solution</h3>
+    `;
 
-    // Add new row
-    container.addEventListener('click', function (e) {
-        if (e.target.classList.contains('btn-add-row')) {
-            const newRow = e.target.closest('.raw-material-row').cloneNode(true);
-            newRow.querySelectorAll('input, select').forEach(input => input.value = ''); // Clear inputs
+            {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+            {% set total_batch_cost = namespace(value = 0) %}
+            {% for t in batch_transfers %}
+            {% set item_cost = (t.transfer_avg | float * t.quantity | float) if t.transfer_avg and t.quantity else 0 %}
+            {% set total_batch_cost.value = total_batch_cost.value + item_cost %}
+            {% endfor %}
 
-            // Remove any existing 'X' buttons before cloning
-            const existingRemoveBtn = newRow.querySelector('.btn-remove-row');
-            if (existingRemoveBtn) {
-                existingRemoveBtn.remove();
-            }
+            printContent += `
+        <div class="batch-header">Request Batch #{{ request_batch_id }} ({{ batch_transfers|length }} items)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Transfer ID</th>
+              <th>Raw Material</th>
+              <th>Available Stock</th>
+              <th>Quantity</th>
+              <th>Metric</th>
+              <th>Avg Unit Cost</th>
+              <th>Transfer Avg</th>
+              <th>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
 
-            // Ensure both + and X buttons for the new row
-            const addBtn = newRow.querySelector('.btn-add-row');
-            addBtn.textContent = '+';
-            addBtn.classList.replace('btn-remove-row', 'btn-add-row');
-            addBtn.classList.replace('btn-danger', 'btn-success');
+            {% for transfer in batch_transfers %}
+            {% set item_total_cost = (transfer.transfer_avg | float * transfer.quantity | float) if transfer.transfer_avg and transfer.quantity else 0 %}
+            printContent += `
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ transfer.transfer_id }}</td>
+            <td>{{ transfer.raw_material_name }}</td>
+            <td>{{ transfer.current_available_quantity }}</td>
+            <td>{{ transfer.quantity }}</td>
+            <td>{{ transfer.metric }}</td>
+            <td>{{ "%.2f"|format(transfer.average_unit_cost|float) if transfer.average_unit_cost else 'N/A' }}</td>
+            <td>{{ "%.2f"|format(transfer.transfer_avg|float) if transfer.transfer_avg else 'N/A' }}</td>
+            <td>{{ "%.2f"|format(item_total_cost) }}</td>
+          </tr>
+        `;
+            {% endfor %}
 
-            // Add an X button
-            const removeBtn = document.createElement('button');
-            removeBtn.type = 'button';
-            removeBtn.textContent = 'X';
-            removeBtn.classList.add('btn', 'btn-danger', 'btn-remove-row');
-            newRow.querySelector('.d-flex').appendChild(removeBtn);
+            printContent += `
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="8" class="text-end"><strong>Batch Total</strong></td>
+              <td><strong>₹{{ "%.2f"|format(total_batch_cost.value) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+            {% endfor %}
 
-            // Hide labels for subsequent rows
-            const labels = newRow.querySelectorAll('label');
-            labels.forEach(label => label.style.display = 'none');
+            printContent += `
+      <div class="signatures">
+        <p>Authorized Signature: __________</p>
+        <p>Receiver Signature: __________</p>
+      </div>
+      </body>
+      </html>
+    `;
 
-            // Append new row to the container
-            container.appendChild(newRow);
-
-            // Focus the raw material input field in the new row
-            const rawMaterialInput = newRow.querySelector('input[name="raw_material[]"]');
-            if (rawMaterialInput) {
-                rawMaterialInput.focus();
-            }
-
-            // Re-render the metric dropdown for the new row
-            const metricDropdown = newRow.querySelector('.metric-dropdown');
-            const rawMaterialInputField = newRow.querySelector('input[name="raw_material[]"]');
-
-            if (metricDropdown && rawMaterialInputField) {
-                metricDropdown.innerHTML = `
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="grams">Grams</option>
-                    <option value="liter">Liter</option>
-                    <option value="ml">Milliliter (ml)</option>
-                    <option value="unit">Unit</option>
-                `;
-            }
-        }
-    });
-
-    // Remove row
-    container.addEventListener('click', function (e) {
-        if (e.target.classList.contains('btn-remove-row')) {
-            e.target.closest('.raw-material-row').remove();
-        }
-    });
-    // Handle Enter Key
-    container.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
-            e.preventDefault(); // Prevent form submission
-            const addBtn = e.target.closest('.raw-material-row').querySelector('.btn-add-row');
-            if (addBtn) addBtn.click();
-        }
-    });
-    // Auto-select metric based on raw material
-    container.addEventListener('input', function (e) {
-        if (e.target.classList.contains('raw-material-input')) {
-            const selectedMaterial = e.target.value;
-            const dataList = document.getElementById('raw_materials');
-            const options = Array.from(dataList.options);
-            const matchingOption = options.find(option => option.value === selectedMaterial);
-
-            if (matchingOption) {
-                const metric = matchingOption.dataset.metric;
-                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
-                metricDropdown.value = metric;
-            }
-        }
-    });
-    });
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('raw-material-container');
-        const storageroomSelect = document.querySelector('select[name="storageroom"]');
-
-        // Fetch available quantity based on raw_material_id
-        async function fetchAvailableQuantity(storageroomId, rawMaterialId) {
-            try {
-                const response = await fetch(`/get_available_quantity?storageroom_id=${storageroomId}&raw_material_id=${rawMaterialId}`);
-
-                if (!response.ok) throw new Error('Failed to fetch available quantity');
-                const data = await response.json();
-                // alert(data)
-                // alert(data.available_quantity)
-                return data.available_quantity || 0;
-            } catch (error) {
-                console.error('Error fetching available quantity:', error);
-                return 0;
-            }
-        }
-
-        // Update available quantity and add validation for transfer quantity
-        async function updateAvailableQuantity(row, storageroomId, rawMaterialId) {
-            const availableQuantityInput = row.querySelector('input[name="available_quantity"]');
-            const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
-
-            const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
-            availableQuantityInput.value = availableQuantity.toFixed(2);
-
-            // Update max attribute for transfer quantity
-            transferQuantityInput.setAttribute('max', availableQuantity);
-
-            // Remove any previous event listeners to avoid conflicts
-            transferQuantityInput.replaceWith(transferQuantityInput.cloneNode(true));
-            const newTransferQuantityInput = row.querySelector('input[name="quantity[]"]');
-
-            // Add new event listener with updated max limit
-            newTransferQuantityInput.addEventListener('input', function () {
-                if (parseFloat(this.value) > availableQuantity) {
-                    alert('Transfer Quantity cannot exceed Available Quantity.');
-                    this.value = availableQuantity.toFixed(2);
-                }
-            });
-        }
-
-        container.addEventListener('input', function (e) {
-            if (e.target.classList.contains('raw-material-input')) {
-                const row = e.target.closest('.raw-material-row');
-                const storageroomId = storageroomSelect.value;
-                const rawMaterialName = e.target.value;
-
-                const datalist = document.getElementById('raw_materials');
-                const option = Array.from(datalist.options).find(opt => opt.value === rawMaterialName);
-
-                if (option) {
-                    const rawMaterialId = option.getAttribute('data-id');
-                    const hiddenInput = row.querySelector('.raw-material-id');
-                    hiddenInput.value = rawMaterialId;
-                    // alert(rawMaterialId)
-                    if (storageroomId && rawMaterialId) {
-                        updateAvailableQuantity(row, storageroomId, rawMaterialId);
-                    }
-                }
-            }
+            const printWindow = window.open("", "_blank");
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            setTimeout(() => { printWindow.close(); }, 500);
         });
     });
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('raw-material-container');
-        const form = document.querySelector('form');
-        const rawMaterialsDataList = document.getElementById('raw_materials');
-
-        // Validation before form submission
-        form.addEventListener('submit', function (e) {
-            const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
-            let isValid = true;
-
-            rawMaterialInputs.forEach(input => {
-                const rawMaterialName = input.value;
-                const isRawMaterialAvailable = Array.from(rawMaterialsDataList.options).some(
-                    option => option.value === rawMaterialName
-                );
-
-                if (!isRawMaterialAvailable) {
-                    isValid = false;
-                    alert(`Raw material "${rawMaterialName}" is not available.`);
-                    input.focus();
-                }
-            });
-
-            if (!isValid) {
-                e.preventDefault(); // Prevent form submission if validation fails
-            }
-        });
-
-        // Auto-select metric only AFTER the user selects a raw material from the suggestions
-        container.addEventListener('change', function (e) {
-            if (e.target.classList.contains('raw-material-input')) {
-                const selectedMaterial = e.target.value;
-                const options = Array.from(rawMaterialsDataList.options);
-                const matchingOption = options.find(option => option.value === selectedMaterial);
-
-                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
-                const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
-
-                if (matchingOption) {
-                    const metric = matchingOption.dataset.metric;
-                    metricDropdown.value = metric;
-
-                    // Disable the dropdown so the user cannot change it
-                    metricDropdown.setAttribute('disabled', true);
-
-                    // Set the hidden input value for form submission
-                    hiddenMetricInput.value = metric;
-                } else {
-                    // Allow the user to enter a new material and choose the metric manually
-                    metricDropdown.value = '';
-                    metricDropdown.removeAttribute('disabled');
-                    hiddenMetricInput.value = '';
-                }
-            }
-        });
-    });
-    document.addEventListener('DOMContentLoaded', function () {
-        const form = document.querySelector('form');
-        const submitButton = document.getElementById('submit-btn');
-        const loadingText = document.getElementById('loading-text');
-
-        form.addEventListener('submit', function (e) {
-            // Disable the button to prevent double-click
-            submitButton.disabled = true;
-            submitButton.textContent = "Submitting..."; // Change button text
-            loadingText.style.display = "inline"; // Show "Processing..." text
-
-            // Allow form submission to proceed
-            setTimeout(() => {
-                submitButton.disabled = false; // Re-enable if needed (for unexpected issues)
-                submitButton.textContent = "Submit"; // Reset button text
-            }, 60000); // Just in case form submission fails, re-enable after 60s
-        });
-    });
-
 </script>
 {% endblock %}

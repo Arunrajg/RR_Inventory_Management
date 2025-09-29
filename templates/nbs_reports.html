@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header">
+      <div class="page-title">
+        <h4>NBS Daily Reports</h4>
+      </div>
+      <div class="page-btn">
+        <a href="/add-nbs-report" class="btn btn-added">
+          <i class="fas fa-plus me-1"></i>Add New Report
+        </a>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Restaurant</th>
+                <th>Total Income</th>
+                <th>Net Counter</th>
+                <th>Net Sales</th>
+                <th>Difference</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for report in reports %}
+              <tr>
+                <td>{{ report.report_date.strftime('%d/%m/%y') }}</td>
+                <td>{{ report.restaurantname }}</td>
+                <td>{{ "%.2f"|format(report.total_income) }}</td>
+                <td>{{ "%.2f"|format(report.net_counter) }}</td>
+                <td>{{ "%.2f"|format(report.net_petpooja) }}</td>
+                <td>{{ "%.2f"|format(report.difference) }}</td>
+                <td>
+                  <a href="/view-nbs-report/{{ report.id }}" class="btn btn-sm btn-info">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  {% if user.role == 'admin' %}
+                  <a href="/edit-nbs-report/{{ report.id }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                  <a href="/delete-nbs-report/{{ report.id }}" class="btn btn-sm btn-danger"
+                    onclick="return confirm('Are you sure you want to delete this report?')">
+                    <i class="fas fa-trash"></i>
+                  </a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="7" class="text-center">No reports found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
