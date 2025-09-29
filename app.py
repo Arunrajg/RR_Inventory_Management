@@ -6,8 +6,9 @@ from markupsafe import Markup
 from flask_mail import Mail, Message
 from db_utils import *
 from encryption import encrypt_message, decrypt_message, generate_random_password
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
+from math import ceil
 import os
 import pytz
 from dotenv import load_dotenv
@@ -279,27 +280,27 @@ def addmiscitem():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     role = user.get("role")
-
+    email = user.get("email")
 
     selected_restaurant_id = None
-    if role == "branch_manager":
-        selected_restaurant_id = 1  # KTC NAGAR ID
+    disable_restaurant_dropdown = False
 
+    # Email → branch mapping
+    if email == "bmktcnagar@gmail.com":
+        selected_restaurant_id = 1   # KTC NAGAR
+        disable_restaurant_dropdown = True
+    elif email == "bmnewbs@gmail.com":
+        selected_restaurant_id = 2   # NEW BUS STAND
+        disable_restaurant_dropdown = True
+    elif email == "dharanistorekeeper@gmail.com":
+        selected_restaurant_id = 4   # NEW BUS STAND
+        disable_restaurant_dropdown = True
 
-    restaurants = []
-    expense_types = []
-
-    if request.method == "GET":
-        restaurant_query = "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
-        restaurants = fetch_all(restaurant_query)
-        
-        # Fetch dynamic expense types with IDs
-        expense_types_query = "SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name"
-        expense_types = fetch_all(expense_types_query)
-
+    # Fetch restaurants and expense types
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status = 'active'")
+    expense_types = fetch_all("SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name")
 
     if request.method == "POST":
         expense_type_id = request.form["expense_type_id"].strip()
@@ -310,34 +311,26 @@ def addmiscitem():
         notes = request.form.get("notes", "").strip()
         manual_date_str = request.form.get("manual_date", "").strip()
 
+        # Force restaurant_id if dropdown disabled (security)
+        if disable_restaurant_dropdown and selected_restaurant_id:
+            restaurant_id = selected_restaurant_id
 
-        # Convert optional fields
         restaurant_id = int(restaurant_id) if restaurant_id else None
         expense_subcategory_id = int(expense_subcategory_id) if expense_subcategory_id else None
-        branch_manager = branch_manager if branch_manager else None
-        notes = notes if notes else None
 
-
-        # Get current datetime in IST
+        # Get current IST datetime
         current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
-        
-        # Handle manual_date: use selected date with current IST time
-        manual_date = None
+
+        # Manual date handling
+        manual_date_str = None
         if manual_date_str:
             selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
-            current_time = current_datetime_ist.time()
-            manual_date = datetime.combine(selected_date, current_time)
-            ist = pytz.timezone('Asia/Kolkata')
-            manual_date = ist.localize(manual_date)
+            manual_date = datetime.combine(selected_date, current_datetime_ist.time())
+            manual_date = pytz.timezone('Asia/Kolkata').localize(manual_date)
             manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            manual_date_str = None
 
-
-        # Use current IST datetime for created_at and updated_at
         created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
         updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
-
 
         insert_query = """
         INSERT INTO miscellaneous_items
@@ -351,36 +344,35 @@ def addmiscitem():
             flash("Miscellaneous item added successfully!", "success")
         else:
             flash("Error adding miscellaneous item. Please try again.", "danger")
-        return redirect("/addmiscitem")
 
+        return redirect("/addmiscitem")
 
     return render_template(
         "addmiscitem.html",
         user=user,
         restaurants=restaurants,
         expense_types=expense_types,
-        selected_restaurant_id=selected_restaurant_id
+        selected_restaurant_id=selected_restaurant_id,
+        disable_restaurant_dropdown=disable_restaurant_dropdown
     )
 
-
-    # AJAX endpoint to get subcategories for a specific expense type
+# AJAX endpoint to get subcategories for a specific expense type
 @app.route("/get-subcategories/<int:expense_type_id>")
 def get_subcategories(expense_type_id):
     if "user" not in session:
         return jsonify({"error": "Unauthorized"}), 401
-
+    
     subcategories_query = """
-    SELECT id, subcategory_name
-    FROM expense_subcategories
-    WHERE expense_type_id = %s AND status = 'active'
+    SELECT id, subcategory_name 
+    FROM expense_subcategories 
+    WHERE expense_type_id = %s AND status = 'active' 
     ORDER BY subcategory_name
     """
     subcategories = fetch_all(subcategories_query, (expense_type_id,))
-
+    
     return jsonify({
         "subcategories": [{"id": sub["id"], "name": sub["subcategory_name"]} for sub in subcategories]
     })
-
 
 # Miscellaneous Item List
 
@@ -389,24 +381,18 @@ def miscitemlist():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     role = user["role"]
-
+    email = user.get("email")
 
     contact_details = get_contact_details()
 
-    # Modified query to show miscellaneous items with active expense types
-    # If subcategory is deleted, it will show as NULL (displayed as "-" in template)
-    # If expense type is deleted, hide the entire row
+    # Base query with expense type + subcategory
     query = """
     SELECT
         mi.id,
         et.type_name AS type_of_expense,
-        CASE
-            WHEN es.status = 'active' THEN es.subcategory_name
-            ELSE NULL
-        END AS sub_category,
+        es.subcategory_name AS sub_category,
         mi.cost,
         mi.notes,
         mi.restaurant_id,
@@ -419,32 +405,34 @@ def miscitemlist():
     LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id
     LEFT JOIN restaurant r ON mi.restaurant_id = r.id
     WHERE 1=1
-    AND (mi.expense_type_id IS NULL OR (et.id IS NOT NULL AND et.status = 'active'))
     """
     params = []
 
-    # Rule 1 → Branch Manager should not see manual_date records
-    if role == "branch_manager":
+    # Restrict by user role/email → only own branch
+    if role in ["branch_manager", "store_manager"]:
+        if email == "bmktcnagar@gmail.com":
+            query += " AND mi.restaurant_id = %s"
+            params.append(1)  # KTC NAGAR
+        elif email == "bmnewbs@gmail.com":
+            query += " AND mi.restaurant_id = %s"
+            params.append(2)  # NEW BUS STAND
+        elif email == "dharanistorekeeper@gmail.com":
+            query += " AND mi.restaurant_id = %s"
+            params.append(4)  # STORE MANAGER BRANCH
+
+    # Hide manual_date records for branch/store managers
+    if role in ["branch_manager", "store_manager"]:
         query += " AND mi.manual_date IS NULL"
 
-
-    if role == "store_manager":
-        query += " AND mi.manual_date IS NULL"
-
-
-    # Rule 2 → Admin, Branch Manager, Store Manager can only see today's records
+    # Show only today’s records for admin, branch manager, store manager
     if role in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(mi.created_at) = CURDATE()"
 
-
-    # Rule 3 → Order by latest first
+    # Sort latest first
     query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC, mi.id DESC"
 
-    # Fetch misc items
     misc_items = fetch_all(query, params)
 
-
-    # Get restaurants for dropdown (unchanged)
     restaurants = fetch_all(
         "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
     )
@@ -454,7 +442,7 @@ def miscitemlist():
         user=user,
         contact_details=contact_details,
         misc_items=misc_items,
-        total_cost=sum(float(item['cost']) for item in misc_items),
+        total_cost=sum(float(item['cost']) for item in misc_items if item['cost']),
         restaurants=restaurants
     )
 
@@ -465,7 +453,6 @@ def edit_misc_item():
     if "user" not in session:
         return redirect("/login")
 
-
     # Get all form data (removed status)
     item_id = request.form.get('id')
     type_of_expense = request.form.get('type_of_expense', '').strip()
@@ -475,19 +462,16 @@ def edit_misc_item():
     cost = request.form.get('cost', '').strip()
     notes = request.form.get('notes', '').strip()
 
-
     # Validate required fields
     if not item_id or not type_of_expense:
         flash("Type of expense is required.", "error")
         return redirect(url_for('miscitemlist'))
-
 
     # Convert empty strings to None for optional fields
     sub_category = sub_category if sub_category else None
     restaurant_id = int(restaurant_id) if restaurant_id else None
     branch_manager = branch_manager if branch_manager else None
     notes = notes if notes else None
-
 
     # Build the update query (removed status)
     query = """
@@ -512,39 +496,31 @@ def edit_misc_item():
         item_id
     )
 
-
     # Execute the query
     success = execute_query(query, params)
-
 
     if success:
         flash("Miscellaneous item updated successfully.", "success")
     else:
         flash("Failed to update miscellaneous item.", "danger")
 
-
     return redirect(url_for('miscitemlist'))
-
 
 @app.route("/misc_item_report", methods=["GET"])
 def misc_item_report():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     contact_details = get_contact_details()
-
 
     # Get filter parameters
     search = request.args.get("search", "").strip()
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
 
-
     # DEBUG: Print filter parameters
     print(f"Filter params - search: '{search}', date_from: '{date_from}', date_to: '{date_to}'")
-
 
     # Base query with dynamic joins
     query = """
@@ -562,46 +538,37 @@ def misc_item_report():
     """
     params = []
 
-
     # Apply search filter
     if search:
         query += " AND (et.type_name LIKE %s OR es.subcategory_name LIKE %s)"
         params.extend([f"%{search}%", f"%{search}%"])
-
 
     # Apply date filters - Use COALESCE to prefer manual_date, fall back to created_at
     if date_from:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) >= %s"
         params.append(date_from)
 
-
     if date_to:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) <= %s"
         params.append(date_to)
-
 
     # For non-admin roles, only show today's records
     if user["role"] not in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) = CURDATE()"
 
-
     query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC"
-
 
     # DEBUG: Print the final query
     print(f"Final query: {query}")
     print(f"Query params: {params}")
 
-
     # Fetch records
     misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
-
 
     # DEBUG: Print the results with effective dates
     for item in misc_items:
         effective_date = item.get('manual_date') or item.get('created_at')
         print(f"Item {item.get('id')}: {item.get('type_of_expense')} - Effective Date: {effective_date}")
-
 
     return render_template(
         "misc_item_report.html",
@@ -611,25 +578,20 @@ def misc_item_report():
         total_cost=sum(float(item.get('cost', 0)) for item in misc_items)
     )
 
-
 @app.route("/manage-expense-types", methods=["GET", "POST"])
 def manage_expense_types():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
-
 
     # Only admin can manage expense types
     if user.get("role") != "admin":
         flash("Access denied. Only admin can manage expense types.", "danger")
         return redirect("/")
 
-
     if request.method == "POST":
         action = request.form.get("action", "add")
-
 
         if action == "add":
             # Add new expense type
@@ -637,21 +599,17 @@ def manage_expense_types():
             has_subcategory = request.form.get("has_subcategory") == "on"
             subcategories = request.form.getlist("subcategories[]")
 
-
             # Remove empty subcategories
             subcategories = [sub.strip() for sub in subcategories if sub.strip()]
-
 
             if not type_name:
                 flash("Expense type name is required!", "danger")
                 return redirect("/manage-expense-types")
 
-
             try:
                 # Check if expense type already exists (including inactive ones)
                 check_query = "SELECT id, status FROM expense_types WHERE type_name = %s"
                 existing = fetch_one(check_query, (type_name,))
-
 
                 if existing:
                     if existing['status'] == 'inactive':
@@ -659,7 +617,6 @@ def manage_expense_types():
                     else:
                         flash(f"Expense type '{type_name}' already exists and is active!", "danger")
                     return redirect("/manage-expense-types")
-
 
                 # Insert expense type
                 insert_type_query = """
@@ -671,7 +628,6 @@ def manage_expense_types():
                     type_id_query = "SELECT id FROM expense_types WHERE type_name = %s"
                     expense_type = fetch_one(type_id_query, (type_name,))
 
-
                     if expense_type and has_subcategory and subcategories:
                         # Insert subcategories
                         for subcategory in subcategories:
@@ -681,26 +637,21 @@ def manage_expense_types():
                             """
                             execute_query(insert_sub_query, (expense_type['id'], subcategory))
 
-
                     flash(f"Expense type '{type_name}' added successfully!", "success")
                 else:
                     flash("Error adding expense type. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "add_subcategory":
             # Add subcategory to existing expense type
             expense_type_id = request.form["expense_type_id"].strip()
             new_subcategory = request.form["new_subcategory"].strip()
 
-
             if not expense_type_id or not new_subcategory:
                 flash("Both expense type and subcategory name are required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Check if subcategory already exists for this expense type
@@ -710,7 +661,6 @@ def manage_expense_types():
                 """
                 existing_sub = fetch_one(check_sub_query, (expense_type_id, new_subcategory))
 
-
                 if existing_sub:
                     if existing_sub['status'] == 'inactive':
                         flash(f"Subcategory '{new_subcategory}' exists but is inactive. Please activate it instead.", "warning")
@@ -718,14 +668,12 @@ def manage_expense_types():
                         flash(f"Subcategory '{new_subcategory}' already exists for this expense type!", "danger")
                     return redirect("/manage-expense-types")
 
-
                 # Update expense type to have subcategory if it doesn't
                 update_type_query = """
                 UPDATE expense_types SET has_subcategory = TRUE, updated_at = NOW()
                 WHERE id = %s
                 """
                 execute_query(update_type_query, (expense_type_id,))
-
 
                 # Insert new subcategory
                 insert_sub_query = """
@@ -737,32 +685,26 @@ def manage_expense_types():
                 else:
                     flash("Error adding subcategory. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "edit_expense_type":
             # Edit existing expense type
             expense_type_id = request.form["expense_type_id"].strip()
             new_type_name = request.form["new_type_name"].strip()
 
-
             if not expense_type_id or not new_type_name:
                 flash("Expense type ID and new name are required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Check if the new name already exists (excluding the current record)
                 check_query = "SELECT id FROM expense_types WHERE type_name = %s AND id != %s"
                 existing = fetch_one(check_query, (new_type_name, expense_type_id))
 
-
                 if existing:
                     flash(f"Expense type '{new_type_name}' already exists!", "danger")
                     return redirect("/manage-expense-types")
-
 
                 # Update expense type
                 update_query = """
@@ -774,20 +716,16 @@ def manage_expense_types():
                 else:
                     flash("Error updating expense type. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "delete_expense_type":
             # Delete expense type (soft delete by setting status to 'inactive')
             expense_type_id = request.form["expense_type_id"].strip()
 
-
             if not expense_type_id:
                 flash("Expense type ID is required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Update status to 'inactive' for expense type and its subcategories
@@ -800,26 +738,21 @@ def manage_expense_types():
                 WHERE expense_type_id = %s
                 """
 
-
                 if execute_query(update_type_query, (expense_type_id,)) and execute_query(update_sub_query, (expense_type_id,)):
                     flash("Expense type deactivated successfully!", "success")
                 else:
                     flash("Error deactivating expense type. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "activate_expense_type":
             # Activate expense type (set status back to 'active')
             expense_type_id = request.form["expense_type_id"].strip()
 
-
             if not expense_type_id:
                 flash("Expense type ID is required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Update status to 'active' for expense type and its subcategories
@@ -832,27 +765,22 @@ def manage_expense_types():
                 WHERE expense_type_id = %s
                 """
 
-
                 if execute_query(update_type_query, (expense_type_id,)) and execute_query(update_sub_query, (expense_type_id,)):
                     flash("Expense type activated successfully!", "success")
                 else:
                     flash("Error activating expense type. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "edit_subcategory":
             # Edit existing subcategory
             subcategory_id = request.form["subcategory_id"].strip()
             new_subcategory_name = request.form["new_subcategory_name"].strip()
 
-
             if not subcategory_id or not new_subcategory_name:
                 flash("Subcategory ID and new name are required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Check if the new name already exists for the same expense type
@@ -864,11 +792,9 @@ def manage_expense_types():
                 """
                 existing_sub = fetch_one(check_sub_query, (new_subcategory_name, subcategory_id, subcategory_id))
 
-
                 if existing_sub:
                     flash(f"Subcategory '{new_subcategory_name}' already exists for this expense type!", "danger")
                     return redirect("/manage-expense-types")
-
 
                 # Update subcategory
                 update_sub_query = """
@@ -880,20 +806,16 @@ def manage_expense_types():
                 else:
                     flash("Error updating subcategory. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "delete_subcategory":
             # Delete subcategory (soft delete by setting status to 'inactive')
             subcategory_id = request.form["subcategory_id"].strip()
 
-
             if not subcategory_id:
                 flash("Subcategory ID is required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Update status to 'inactive' for subcategory
@@ -917,25 +839,20 @@ def manage_expense_types():
                         """
                         execute_query(update_type_query, (subcategory_id,))
 
-
                     flash("Subcategory deactivated successfully!", "success")
                 else:
                     flash("Error deactivating subcategory. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
-
 
         elif action == "activate_subcategory":
             # Activate subcategory (set status back to 'active')
             subcategory_id = request.form["subcategory_id"].strip()
 
-
             if not subcategory_id:
                 flash("Subcategory ID is required!", "danger")
                 return redirect("/manage-expense-types")
-
 
             try:
                 # Update status to 'active' for subcategory
@@ -951,38 +868,31 @@ def manage_expense_types():
                     """
                     execute_query(update_type_query, (subcategory_id,))
 
-
                     flash("Subcategory activated successfully!", "success")
                 else:
                     flash("Error activating subcategory. Please try again.", "danger")
 
-
             except Exception as e:
                 flash(f"Database error: {str(e)}", "danger")
 
-
         return redirect("/manage-expense-types")
-
 
     # GET request - show ALL expense types (both active and inactive)
     expense_types_query = """
-    SELECT et.id, et.type_name, et.has_subcategory, et.status
-    FROM expense_types et
-    ORDER BY et.status DESC, et.type_name
-    """
-
+SELECT et.id, et.type_name, et.has_subcategory, et.status
+FROM expense_types et
+ORDER BY et.status DESC, et.type_name
+"""
 
     subcategories_query = """
-    SELECT es.id, es.expense_type_id, es.subcategory_name, es.status, et.type_name
-    FROM expense_subcategories es
-    JOIN expense_types et ON es.expense_type_id = et.id
-    ORDER BY et.type_name, es.subcategory_name
-    """
-
+SELECT es.id, es.expense_type_id, es.subcategory_name, es.status, et.type_name
+FROM expense_subcategories es
+JOIN expense_types et ON es.expense_type_id = et.id
+ORDER BY et.type_name, es.subcategory_name
+"""
 
     existing_types = fetch_all(expense_types_query)
     existing_subcategories = fetch_all(subcategories_query)
-
 
     return render_template(
         "manage_expense_types.html",
@@ -1766,7 +1676,7 @@ def add_purchase():
                 # Fetch current stock (if exists)
                 cursor.execute(
                     """
-                    SELECT currently_available
+                    SELECT currently_available, total_stock_value
                     FROM inventory_stock
                     WHERE destination_type='storageroom' AND destination_id=%s AND raw_material_id=%s
                     """,
@@ -1774,27 +1684,34 @@ def add_purchase():
                 )
                 stock_row = cursor.fetchone()
                 opening_stock = stock_row[0] if stock_row and stock_row[0] is not None else 0
+                total_stock_value = stock_row[1] if stock_row and stock_row[1] is not None else 0
+
+                print(f"total_stock_value '{total_stock_value}'")
 
                 # Compute quantity_needed (only if minimum_quantity > available stock)
                 new_currently_available = opening_stock + quantity
                 new_quantity_needed = max(0, min_quantity - new_currently_available)
+                new_total_stock_value = total_stock_value + Decimal(cost)
+                new_average_cost = new_total_stock_value / new_currently_available
 
                 # Insert or Update Stock (Avoiding Subqueries)
                 cursor.execute(
                     """
                     INSERT INTO inventory_stock
                     (destination_type, destination_id, raw_material_id, metric,
-                    opening_stock, incoming_stock, currently_available, minimum_quantity, quantity_needed)
-                    VALUES ('storageroom', %s, %s, %s, %s, %s, %s, %s, %s)
+                    opening_stock, incoming_stock, currently_available, minimum_quantity, quantity_needed, total_stock_value, average_unit_cost)
+                    VALUES ('storageroom', %s, %s, %s, %s, %s, %s, %s, %s , %s , %s )
                     ON DUPLICATE KEY UPDATE
                         incoming_stock = incoming_stock + VALUES(incoming_stock),
                         currently_available = currently_available + VALUES(incoming_stock),
                         minimum_quantity = VALUES(minimum_quantity),
                         quantity_needed = GREATEST(0, minimum_quantity - currently_available),
+                        total_stock_value = VALUES(total_stock_value),
+                        average_unit_cost = VALUES(average_unit_cost),
                         updated_at = CURRENT_TIMESTAMP;
                     """,
                     (storageroom['id'], raw_material_id, metric, opening_stock, quantity,
-                     new_currently_available, min_quantity, new_quantity_needed)
+                     new_currently_available, min_quantity, new_quantity_needed ,new_total_stock_value, new_average_cost,)
                 )
 
             #  Commit all changes after successful operations
@@ -2223,11 +2140,11 @@ def convert_to_base_units(quantity, metric):
     return quantity  # Return as is for kg, liters, and units
 
 
-@app.route('/transfer_raw_material', methods=['GET', 'POST'])
+@app.route('/transfer_raw_material', methods=['GET', 'POST', 'PUT'])
 def transfer_raw_material():
     if "user" not in session:
         return redirect("/login")
-
+      
     if request.method == 'POST':
         source_storeroom_id = request.form.get("storageroom")
         destination_type = request.form.get("destination_type")
@@ -2236,6 +2153,8 @@ def transfer_raw_material():
         raw_materials = request.form.getlist("raw_material_id[]")
         quantities = request.form.getlist("quantity[]")
         metrics = request.form.getlist("metric[]")
+        transfer_avgs = request.form.getlist("transfer_avgs[]") or [0.0]
+        total_costs = request.form.getlist("total_cost[]") or [0.0]
         transfer_datetime = get_current_datetime()
         connection = get_db_connection()
 
@@ -2251,83 +2170,144 @@ def transfer_raw_material():
                 next_transfer_id = cursor.fetchone()[0]  # Get next transfer ID
 
                 # Step 2: Prepare Transfer Details
+                transfer_status = "APPROVED"
+
+                if session['user']["role"] == 'branch_manager':
+                    transfer_status = 'PENDING'
+
                 transfer_details = [
                     (source_storeroom_id, destination_type, destination_id,
                      raw_material, Decimal(convert_to_base_units(quantity, metric)),
-                     metric, transfer_date, transfer_datetime, next_transfer_id)
-                    for raw_material, quantity, metric in zip(raw_materials, quantities, metrics)
+                     metric, transfer_date, transfer_datetime, next_transfer_id, transfer_avg, total_cost , transfer_status)
+                    for raw_material, quantity, metric, transfer_avg,total_cost in zip(raw_materials, quantities, metrics,transfer_avgs, total_costs)
                 ]
 
                 # Step 3: Bulk INSERT into `raw_material_transfer_details`
+            
                 insert_transfer_sql = """
                     INSERT INTO raw_material_transfer_details
                         (source_storage_room_id, destination_type, destination_id,
-                        raw_material_id, quantity, metric, transferred_date, transfer_time, transfer_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        raw_material_id, quantity, metric, transferred_date, transfer_time, transfer_id, transfer_avg, total_cost , transfer_status )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s , %s , %s ,%s )
                 """
-                cursor.executemany(insert_transfer_sql, transfer_details)
+
+                inserted_ids = []
+
+                for detail in transfer_details:
+                    cursor.execute(insert_transfer_sql, detail)
+                    inserted_ids.append(cursor.lastrowid)  # capture ID
+
+                print(f"inserted_id - : '{inserted_ids}'")
+
+
+                # Step 3.2: Prepare data for raw_material_transfer_request_details
+                if session['user']["role"] == 'branch_manager':
+
+                    transfer_datetime = get_current_datetime()
+
+                    user_email = session['user']["email"]
+                    print(f"user_id - : '{user_email}'")
+
+                    request_details = [
+                        (transfer_id, user_email, transfer_datetime, None, None , transfer_id)
+                        for transfer_id in inserted_ids
+                    ]
+
+                    print(f"request_details - : '{request_details}'")
+
+                    # Step 3.3: Bulk INSERT into raw_material_transfer_request_details
+                    insert_request_sql = """
+                        INSERT INTO raw_material_transfer_request_details
+                            (transfer_id, user_email, requested_date_time, approved_date_time, rejected_date_time , request_id)
+                        VALUES (%s, %s, %s, %s, %s ,  
+                                (SELECT transfer_id
+                                            FROM raw_material_transfer_details
+                                WHERE id = %s))
+                        """
+                    
+                    for detail in request_details:
+                        cursor.execute(insert_request_sql, detail)
+
+
 
                 # Step 4: Update inventory_stock
-                raw_material_ids = [item[3] for item in transfer_details]
-                raw_material_ids_str = ",".join(map(str, raw_material_ids))  # Convert to comma-separated string
+                # raw_material_ids = [item[3] for item in transfer_details]
+                # raw_material_ids_str = ",".join(map(str, raw_material_ids))  # Convert to comma-separated string
 
-                case_statements_outgoing = " ".join([f"WHEN {item[3]} THEN {item[4]}" for item in transfer_details])
-                case_statements_available = case_statements_outgoing  # Same logic for both columns
+                # case_statements_outgoing = " ".join([f"WHEN {item[3]} THEN {item[4]}" for item in transfer_details])
+                # case_statements_available = case_statements_outgoing  # Same logic for both columns
 
-                update_inventory_sql = f"""
-                    UPDATE inventory_stock
-                    SET 
-                        outgoing_stock = outgoing_stock + CASE raw_material_id 
-                            {case_statements_outgoing} ELSE outgoing_stock END,
-                        currently_available = currently_available - CASE raw_material_id 
-                            {case_statements_available} ELSE 0 END,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE destination_type = 'storageroom' 
-                    AND destination_id = %s
-                    AND raw_material_id IN ({raw_material_ids_str})
-                """
+                # update_inventory_sql = f"""
+                #     UPDATE inventory_stock
+                #     SET 
+                #         outgoing_stock = outgoing_stock + CASE raw_material_id 
+                #             {case_statements_outgoing} ELSE outgoing_stock END,
+                #         currently_available = currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END, 
+                        
+                #         total_stock_value = total_stock_value - CASE raw_material_id
+                #             {" ".join([f"WHEN {item[3]} THEN {item[10]}" for item in transfer_details])} ELSE 0 END,
 
-                cursor.execute(update_inventory_sql, (source_storeroom_id,))
+                #         average_unit_cost = CASE 
+                #              WHEN (currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END) > 0
+                #         THEN 
+                #             (total_stock_value - CASE raw_material_id
+                #             {" ".join([f"WHEN {item[3]} THEN {item[10]}" for item in transfer_details])} ELSE 0 END)
+                #             / 
+                #             (currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END)
+                #         ELSE 0
+                #         END,
+           
+                #         updated_at = CURRENT_TIMESTAMP
+                #     WHERE destination_type = 'storageroom' 
+                #     AND destination_id = %s
+                #     AND raw_material_id IN ({raw_material_ids_str})
+                # """
 
-                # Step 5: Fetch current inventory details
-                fetch_inventory_sql = f"""
-                    SELECT raw_material_id, 
-                        IFNULL(currently_available, 0),
-                        IFNULL(minimum_quantity, 0), 
-                        IFNULL(quantity_needed, 0) 
-                    FROM inventory_stock 
-                    WHERE destination_type = %s 
-                    AND destination_id = %s 
-                    AND raw_material_id IN ({raw_material_ids_str})
-                """
+                # cursor.execute(update_inventory_sql, (source_storeroom_id,))
 
-                cursor.execute(fetch_inventory_sql, (destination_type, destination_id))
-                existing_inventory = {row[0]: (Decimal(row[1]), Decimal(row[2]), Decimal(row[3]))
-                                      for row in cursor.fetchall()}  # Convert to Decimal
+                # # Step 5: Fetch current inventory details
+                # fetch_inventory_sql = f"""
+                #     SELECT raw_material_id, 
+                #         IFNULL(currently_available, 0),
+                #         IFNULL(minimum_quantity, 0), 
+                #         IFNULL(quantity_needed, 0) 
+                #     FROM inventory_stock 
+                #     WHERE destination_type = %s 
+                #     AND destination_id = %s 
+                #     AND raw_material_id IN ({raw_material_ids_str})
+                # """
 
-                # Step 6: Bulk INSERT or UPDATE inventory_stock
-                insert_inventory_sql = """
-                    INSERT INTO inventory_stock
-                        (destination_type, destination_id, raw_material_id, metric,
-                        incoming_stock, currently_available, minimum_quantity, quantity_needed, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON DUPLICATE KEY UPDATE
-                        incoming_stock = incoming_stock + VALUES(incoming_stock),
-                        currently_available = COALESCE(currently_available, 0) + VALUES(incoming_stock),
-                        updated_at = CURRENT_TIMESTAMP
-                """
+                # cursor.execute(fetch_inventory_sql, (destination_type, destination_id))
+                # existing_inventory = {row[0]: (Decimal(row[1]), Decimal(row[2]), Decimal(row[3]))
+                #                       for row in cursor.fetchall()}  # Convert to Decimal
 
-                inventory_values = [
-                    (item[1], item[2], item[3], item[5], Decimal(item[4]),  # Ensure quantity is Decimal
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
-                        0] + Decimal(item[4]),  # Compute currently_available
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
-                        1],  # Fetch minimum_quantity if exists, else 0
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[2])  # Fetch quantity_needed if exists, else 0
-                    for item in transfer_details
-                ]
+                # # Step 6: Bulk INSERT or UPDATE inventory_stock
+                # insert_inventory_sql = """
+                #     INSERT INTO inventory_stock
+                #         (destination_type, destination_id, raw_material_id, metric,
+                #         incoming_stock, currently_available, minimum_quantity, quantity_needed, updated_at)
+                #     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                #     ON DUPLICATE KEY UPDATE
+                #         incoming_stock = incoming_stock + VALUES(incoming_stock),
+                #         currently_available = COALESCE(currently_available, 0) + VALUES(incoming_stock),
+                #         updated_at = CURRENT_TIMESTAMP
+                # """
+                
+                # inventory_values = [
+                #     (item[1], item[2], item[3], item[5], Decimal(item[4]),  # Ensure quantity is Decimal
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                #         0] + Decimal(item[4]),  # Compute currently_available
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                #         1],  # Fetch minimum_quantity if exists, else 0
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[2])  # Fetch quantity_needed if exists, else 0
+                     
+                #     for item in transfer_details
+                # ]
 
-                cursor.executemany(insert_inventory_sql, inventory_values)
+                # cursor.executemany(insert_inventory_sql, inventory_values)
 
                 connection.commit()
                 flash(f"Transfer successful (Transfer ID: {next_transfer_id})", "success")
@@ -2353,6 +2333,166 @@ def transfer_raw_material():
         today_date=get_current_date()
     )
 
+@app.route("/raw_material_transfers", methods=["GET"])
+def get_raw_material_transfers():
+    if "user" not in session:
+        return redirect("/login")
+    
+    # Get filter parameters
+    transfer_status = request.args.get("transfer_status", "PENDING")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 500))
+    requested_user_email = request.args.get("requested_user_email")
+
+    conn = get_db_connection()
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # ADD THIS: Get current stock value
+        cursor.execute("""
+            SELECT SUM(total_stock_value) as current_total_value
+            FROM inventory_stock 
+            WHERE destination_type = 'storageroom'
+        """)
+        stock_result = cursor.fetchone()
+        current_total_value = stock_result['current_total_value'] if stock_result and stock_result['current_total_value'] else 0
+
+        # Rest of your existing code...
+        if transfer_status == 'PENDING':
+            order_column_name = "rmtrq.requested_date_time"
+        elif transfer_status == 'REJECTED':         
+            order_column_name = "rmtrq.rejected_date_time"
+        else:
+            order_column_name = "rmtrq.approved_date_time"
+
+        offset = (page - 1) * per_page
+
+        # Dynamic WHERE conditions
+        where_clause = "rmtd.id = rmtrq.transfer_id AND rmtd.transfer_status = %s"
+        params = [transfer_status]
+
+        if requested_user_email:
+            where_clause += " AND rmtrq.user_email = %s"
+            params.append(requested_user_email)
+
+        # Count total rows
+        count_sql = f"""
+            SELECT COUNT(*) AS total
+            FROM raw_material_transfer_details rmtd
+            INNER JOIN raw_material_transfer_request_details rmtrq
+                ON {where_clause}
+            INNER JOIN storagerooms s
+                ON s.id = rmtd.source_storage_room_id
+            INNER JOIN raw_materials r
+                ON r.id = rmtd.raw_material_id
+            INNER JOIN inventory_stock i
+                ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+        """
+        cursor.execute(count_sql, tuple(params))
+        total_row = cursor.fetchone()
+        total = total_row["total"] if total_row else 0
+
+        # Fetch paginated data
+        query = f"""
+            SELECT rmtd.id AS transfer_id,
+                   rmtrq.request_id AS no_of_time_requested,
+                   rmtrq.id AS request_id,
+                   rmtd.transfer_status,
+                   rmtd.transferred_date,
+                   s.storageroomname,
+                   rmtd.destination_type,
+                   rmtd.destination_type AS destination_id,
+                   r.name AS raw_material_name,
+                   i.currently_available AS current_available_quantity,
+                   rmtd.quantity,
+                   rmtd.metric,
+                   i.average_unit_cost,
+                   rmtd.transfer_avg,
+                   rmtrq.requested_date_time,
+                   rmtrq.approved_date_time,
+                   rmtrq.rejected_date_time,
+                   rmtrq.user_email AS requested_user_email_id
+            FROM raw_material_transfer_details rmtd
+            INNER JOIN raw_material_transfer_request_details rmtrq
+                ON {where_clause}
+            INNER JOIN storagerooms s
+                ON s.id = rmtd.source_storage_room_id
+            INNER JOIN raw_materials r
+                ON r.id = rmtd.raw_material_id
+            INNER JOIN inventory_stock i
+                ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+            ORDER BY {order_column_name} DESC
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(query, tuple(params + [per_page, offset]))
+        results = cursor.fetchall()
+
+        # Render template with data - ADD current_total_value
+        return render_template(
+            'raw_material_transfers.html',
+            transfers=results,
+            transfer_status=transfer_status,
+            page=page,
+            per_page=per_page,
+            total=total,
+            total_pages=ceil(total / per_page) if per_page > 0 else 0,
+            user=session["user"],
+            current_total_value=current_total_value  # ADD THIS
+        )
+
+    except Exception as e:
+        flash(f"An error occurred: {str(e)}", "danger")
+        return render_template('raw_material_transfers.html', 
+                             transfers=[], 
+                             error=str(e),
+                             current_total_value=0)  # ADD DEFAULT
+    finally:
+        conn.close()
+
+@app.route("/reject", methods=["POST"])
+def reject_transfers():
+    data = request.get_json()
+    transfer_ids = data.get("transfer_ids", [])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if not transfer_ids:
+        return jsonify({"error": "No transfer IDs provided"}), 400
+
+    try:
+      
+        placeholders = ",".join(["%s"] * len(transfer_ids))
+
+        # Step 4: Update transfer status to REJECTED
+        update_transfer_sql = f"""
+            UPDATE raw_material_transfer_details
+            SET transfer_status = 'REJECTED'
+            WHERE id IN ({placeholders})
+        """
+        
+        cursor.execute(update_transfer_sql, tuple(transfer_ids))
+        
+        update_sql = f"""
+        UPDATE raw_material_transfer_request_details
+        SET rejected_date_time = NOW()
+        WHERE transfer_id IN ({placeholders})
+    """
+        cursor.execute(update_sql, tuple(transfer_ids))
+
+
+        conn.commit()
+        return jsonify({"message": "Transfers rejected and inventory updated successfully"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
 
 @app.route('/list_rawmaterial_transfers', methods=["GET", "POST"])
 def list_rawmaterial_transfers():
@@ -2363,6 +2503,106 @@ def list_rawmaterial_transfers():
         transfers = get_rawmaterial_transfer_history(selected_date)
         return render_template('list_rawmaterial_transfers.html', transfers=transfers, current_date=selected_date, user=session["user"])
     return render_template('list_rawmaterial_transfers.html', user=session["user"])
+
+@app.route('/list_rawmaterial_transfers_range', methods=["GET", "POST"])
+def list_rawmaterial_transfers_range():
+    if "user" not in session:
+        return redirect("/login")
+
+    contact_details = get_contact_details()
+    kitchens = fetch_all("SELECT id, kitchenname FROM kitchen;", ()) or []
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant;", ()) or []
+
+    range_transfers = []
+    grand_total_qty = 0
+    grand_total_cost = 0
+    grand_total_avg = 0
+
+    if request.method == "POST":
+        from_date = request.form.get('from_date')
+        to_date = request.form.get('to_date')
+        destination_type = request.form.get('destination_type')
+        destination_name = request.form.get('destination_name')
+
+        if from_date and to_date and destination_type and destination_name:
+            range_transfers = get_rawmaterial_transfer_history_range(
+                from_date, to_date, destination_type, destination_name
+            )
+
+            # Calculate grand totals
+            grand_total_qty = sum(t['quantity'] for t in range_transfers if t['quantity'])
+            grand_total_cost = sum(t['total_cost'] for t in range_transfers if t['total_cost'])
+            # average of transfer_avg (not sum)
+            transfer_avgs = [t['transfer_avg'] for t in range_transfers if t['transfer_avg']]
+            grand_total_avg = sum(transfer_avgs) / len(transfer_avgs) if transfer_avgs else 0
+
+        return render_template(
+            'list_rawmaterial_transfers_range.html',
+            range_transfers=range_transfers,
+            kitchens=kitchens,
+            restaurants=restaurants,
+            user=session["user"],
+            from_date=from_date,
+            to_date=to_date,
+            destination_type=destination_type,
+            destination_name=destination_name,
+            grand_total_qty=grand_total_qty,
+            grand_total_cost=grand_total_cost,
+            grand_total_avg=grand_total_avg,
+            contact_details=contact_details,
+        )
+
+    # For GET load
+    return render_template(
+        'list_rawmaterial_transfers_range.html',
+        range_transfers=[],
+        kitchens=kitchens,
+        restaurants=restaurants,
+        user=session["user"],
+        from_date=None,
+        to_date=None,
+        destination_type=None,
+        destination_name=None,
+        grand_total_qty=0,
+        grand_total_cost=0,
+        grand_total_avg=0,
+        contact_details=contact_details,
+    )
+
+
+def get_rawmaterial_transfer_history_range(from_date, to_date, destination_type, destination_name):
+    query = """
+    SELECT
+        rm.name AS raw_material_name,
+        rmt.quantity,
+        rmt.metric,
+        sr.storageroomname AS transferred_from,
+        rmt.destination_type,
+        CASE
+            WHEN rmt.destination_type = 'kitchen' THEN k.kitchenname
+            WHEN rmt.destination_type = 'restaurant' THEN r.restaurantname
+            ELSE 'Unknown'
+        END AS transferred_to,
+        rmt.transferred_date,
+        rmt.total_cost,
+        rmt.transfer_avg
+    FROM
+        raw_material_transfer_details rmt
+    JOIN
+        raw_materials rm ON rmt.raw_material_id = rm.id
+    JOIN
+        storagerooms sr ON rmt.source_storage_room_id = sr.id
+    LEFT JOIN
+        kitchen k ON rmt.destination_type = 'kitchen' AND rmt.destination_id = k.id
+    LEFT JOIN
+        restaurant r ON rmt.destination_type = 'restaurant' AND rmt.destination_id = r.id
+    WHERE
+        DATE(rmt.transferred_date) BETWEEN %s AND %s
+        AND rmt.destination_type = %s
+        AND rmt.destination_id = %s;
+    """
+    return fetch_all(query, (from_date, to_date, destination_type, destination_name))
+
 
 
 @app.route('/list_prepared_dishes_transfers', methods=["GET", "POST"])
@@ -2605,12 +2845,23 @@ def get_available_quantity():
     storageroom_id = int(request.args.get('storageroom_id'))
     raw_material_id = request.args.get('raw_material_id')
     available_quantity = get_storageroom_rawmaterial_quantity(storageroom_id, raw_material_id)
+    avg_cost  = get_average_cost_from_inventory_by_raw_material_id(raw_material_id, storageroom_id)
+    
+    print(f"average_cost '{avg_cost}'")
+
+    average_cost = (
+        float(avg_cost["average_unit_cost"])
+        if avg_cost and avg_cost.get("average_unit_cost") is not None
+        else 0.0
+    )
+
     storage_available_quantity = 0
     if available_quantity:
         storage_available_quantity = available_quantity[0]["quantity"]
     # # Check if storage room and raw material exist
     # available_quantity = storage_available_quantity.get(raw_material_id, 0)
-    data = {"available_quantity": float(storage_available_quantity)}
+
+    data = {"available_quantity": float(storage_available_quantity) ,  "avg_cost" : average_cost }
     return jsonify(data)
 
 
@@ -2948,39 +3199,72 @@ def kitchen_consumption():
 @app.route("/api/purchase_trend")
 def purchase_trend():
     year = request.args.get("year", type=int)
-    query = """
-        SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
-        FROM purchase_history
-        WHERE YEAR(purchase_date) = %s
-        GROUP BY MONTH(purchase_date)
-        ORDER BY MONTH(purchase_date);
-    """
+    month = request.args.get("month", type=int)
+    from_date = request.args.get("from")
+    to_date = request.args.get("to")
 
     connection = get_db_connection()
-    with connection.cursor() as cursor:
+    cursor = connection.cursor()
+
+    if year and not month: 
+        # ✅ Yearly aggregation
+        query = """
+            SELECT MONTH(purchase_date) AS month, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE YEAR(purchase_date) = %s
+            GROUP BY MONTH(purchase_date)
+            ORDER BY MONTH(purchase_date);
+        """
         cursor.execute(query, (year,))
         result = cursor.fetchall()
 
+        months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        purchase_data = {row[0]: row[1] for row in result}
+        purchase_amounts = [purchase_data.get(i+1, 0) for i in range(12)]
+
+        response = {"type": "yearly", "year": year, "months": months, "purchase_amounts": purchase_amounts}
+
+    elif year and month: 
+        # ✅ Monthly aggregation (day wise)
+        query = """
+            SELECT DAY(purchase_date) AS day, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE YEAR(purchase_date) = %s AND MONTH(purchase_date) = %s
+            GROUP BY DAY(purchase_date)
+            ORDER BY DAY(purchase_date);
+        """
+        cursor.execute(query, (year, month))
+        result = cursor.fetchall()
+
+        days = [str(row[0]) for row in result]
+        amounts = [row[1] for row in result]
+
+        response = {"type": "monthly", "year": year, "month": month, "days": days, "purchase_amounts": amounts}
+
+    elif from_date and to_date: 
+        # ✅ Custom date range
+        query = """
+            SELECT DATE(purchase_date) AS date, SUM(total_cost) AS purchase_amount
+            FROM purchase_history
+            WHERE purchase_date BETWEEN %s AND %s
+            GROUP BY DATE(purchase_date)
+            ORDER BY DATE(purchase_date);
+        """
+        cursor.execute(query, (from_date, to_date))
+        result = cursor.fetchall()
+
+        dates = [str(row[0]) for row in result]
+        amounts = [row[1] for row in result]
+
+        response = {"type": "custom", "from": from_date, "to": to_date, "dates": dates, "purchase_amounts": amounts}
+
+    else:
+        response = {"error": "Please provide either year, year+month, or from+to dates."}
+
+    cursor.close()
     connection.close()
-
-    # Mapping database results to required format
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    purchase_data = {row[0]: row[1] for row in result}
-
-    purchase_amounts = [purchase_data.get(i+1, 0) for i in range(12)]  # Fill missing months with 0
-
-    response = {
-        "year": year,
-        "months": months,
-        "purchase_amounts": purchase_amounts
-    }
-
     return jsonify(response)
-    # return {
-    #     "year": 2025,
-    #     "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-    #     "purchase_amounts": [12000, 15000, 18000, 11000, 9000, 20000, 25000, 23000, 17000, 19000, 22000, 24000]
-    # }
 
 
 @app.route('/stock_report', methods=["GET", "POST"])
@@ -3144,7 +3428,7 @@ def delete_purchase_and_adjust_stock():
     try:
         # Fetch all raw materials associated with the purchase
         cursor.execute("""
-            SELECT raw_material_id, quantity 
+            SELECT raw_material_id, quantity , total_cost 
             FROM purchase_history 
             WHERE vendor_id = %s AND invoice_number = %s AND purchase_date = %s
         """, (vendor_id, invoice_number, purchase_date))
@@ -3158,13 +3442,30 @@ def delete_purchase_and_adjust_stock():
         for record in purchase_records:
             raw_material_id = record[0]
             quantity = record[1]
-
+            total_cost = record[2]
+            
             cursor.execute("""
-                UPDATE inventory_stock 
-                SET incoming_stock = incoming_stock - %s, 
-                    currently_available = currently_available - %s 
-                WHERE raw_material_id = %s AND destination_type = 'storageroom' AND destination_id = %s
-            """, (quantity, quantity, raw_material_id, storageroom_id))
+            UPDATE inventory_stock 
+            SET incoming_stock = incoming_stock - %s, 
+                currently_available = currently_available - %s,
+                average_unit_cost = CASE 
+                    WHEN (currently_available - %s) > 0 
+                    THEN (total_stock_value - %s) / (currently_available - %s)
+                    ELSE 0
+                END,
+                total_stock_value = total_stock_value - %s                               
+            WHERE raw_material_id = %s 
+                AND destination_type = 'storageroom' 
+                AND destination_id = %s
+            """, (quantity, quantity, quantity, total_cost, quantity, total_cost, raw_material_id, storageroom_id))
+            # cursor.execute("""
+            #     UPDATE inventory_stock 
+            #     SET incoming_stock = incoming_stock - %s, 
+            #         currently_available = currently_available - %s
+            #         average_unit_cost =  total_stock_value / (currently_available - %s)   
+            #         total_stock_value =  total_stock_value - %s                               
+            #     WHERE raw_material_id = %s AND destination_type = 'storageroom' AND destination_id = %s
+            # """, (quantity, quantity,quantity ,total_cost , raw_material_id, storageroom_id))
         # Delete purchase records after stock adjustment
         cursor.execute("""
             DELETE FROM purchase_history 
@@ -3195,6 +3496,519 @@ def delete_purchase_and_adjust_stock():
         cursor.close()
         conn.close()
 
+
+from decimal import Decimal, ROUND_HALF_UP
+
+def clamp_decimal(value, max_value, scale):
+    """Clamp value within [0, max_value] and round to given scale"""
+    if value < 0:
+        value = Decimal("0")
+    if value > Decimal(max_value):
+        value = Decimal(max_value)
+    return value.quantize(Decimal(scale), rounding=ROUND_HALF_UP)
+
+
+@app.route("/approve_transfers", methods=["PUT"])
+def approve_transfers():
+    data = request.get_json()
+    transfer_ids = data.get("transfer_ids", [])
+
+    if not transfer_ids:
+        return jsonify({"error": "No transfer IDs provided"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        placeholders = ",".join(["%s"] * len(transfer_ids))
+
+        # Step 1: Fetch transfer details by id
+        fetch_transfer_sql = f"""
+            SELECT *
+            FROM raw_material_transfer_details
+            WHERE id IN ({placeholders})
+        """
+        cursor.execute(fetch_transfer_sql, tuple(transfer_ids))
+        transfer_details = cursor.fetchall()
+
+        if not transfer_details:
+            return jsonify({"error": "No transfers found for these IDs"}), 404
+
+        for item in transfer_details:
+            raw_id = item['raw_material_id']
+            quantity = Decimal(item['quantity'])
+            total_cost = Decimal(item['total_cost'])
+            metric = item['metric']
+
+            source_type = "storageroom"
+            dest_type = item['destination_type']
+            dest_id = item['destination_id']
+
+            # =============================
+            # Step 2A: Deduct from storageroom
+            # =============================
+            fetch_source_sql = """
+                SELECT raw_material_id, currently_available, incoming_stock, outgoing_stock, total_stock_value
+                FROM inventory_stock
+                WHERE destination_type = %s
+                  AND raw_material_id = %s
+            """
+            cursor.execute(fetch_source_sql, (source_type, raw_id))
+            source_inv = cursor.fetchone()
+
+            if source_inv:
+                currently_available = Decimal(source_inv['currently_available']) - quantity
+                outgoing_stock = Decimal(source_inv['outgoing_stock']) + quantity
+                total_stock_value = Decimal(source_inv['total_stock_value']) - total_cost
+
+                # clamp values based on schema
+                currently_available = clamp_decimal(currently_available, "99999.99999", "0.00001")
+                outgoing_stock = clamp_decimal(outgoing_stock, "99999.99999", "0.00001")
+                total_stock_value = clamp_decimal(total_stock_value, "9999999999.99", "0.01")
+
+                average_unit_cost = (total_stock_value / currently_available
+                                     if currently_available > 0 else Decimal("0.00"))
+                average_unit_cost = clamp_decimal(average_unit_cost, "9999999999.99", "0.01")
+
+                update_source_sql = """
+                    UPDATE inventory_stock
+                    SET currently_available = %s,
+                        outgoing_stock = %s,
+                        total_stock_value = %s,
+                        average_unit_cost = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type = %s
+                      AND raw_material_id = %s
+                """
+                cursor.execute(update_source_sql, (
+                    currently_available, outgoing_stock,
+                    total_stock_value, average_unit_cost,
+                    source_type, raw_id
+                ))
+
+            # =============================
+            # Step 2B: Add to destination
+            # =============================
+            fetch_dest_sql = """
+                SELECT raw_material_id, currently_available, incoming_stock, total_stock_value
+                FROM inventory_stock
+                WHERE destination_type = %s
+                  AND destination_id = %s
+                  AND raw_material_id = %s
+            """
+            cursor.execute(fetch_dest_sql, (dest_type, dest_id, raw_id))
+            dest_inv = cursor.fetchone()
+
+            if dest_inv:
+                currently_available = Decimal(dest_inv['currently_available']) + quantity
+                incoming_stock = Decimal(dest_inv['incoming_stock']) + quantity
+                total_stock_value = Decimal(dest_inv['total_stock_value']) + total_cost
+
+                currently_available = clamp_decimal(currently_available, "99999.99999", "0.00001")
+                incoming_stock = clamp_decimal(incoming_stock, "99999.99999", "0.00001")
+                total_stock_value = clamp_decimal(total_stock_value, "9999999999.99", "0.01")
+
+                average_unit_cost = (total_stock_value / currently_available
+                                     if currently_available > 0 else Decimal("0.00"))
+                average_unit_cost = clamp_decimal(average_unit_cost, "9999999999.99", "0.01")
+
+                update_dest_sql = """
+                    UPDATE inventory_stock
+                    SET currently_available = %s,
+                        incoming_stock = %s,
+                        total_stock_value = %s,
+                        average_unit_cost = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type = %s
+                      AND destination_id = %s
+                      AND raw_material_id = %s
+                """
+                cursor.execute(update_dest_sql, (
+                    currently_available, incoming_stock,
+                    total_stock_value, average_unit_cost,
+                    dest_type, dest_id, raw_id
+                ))
+            else:
+                avg_cost = (total_cost / quantity) if quantity > 0 else Decimal("0.00")
+                avg_cost = clamp_decimal(avg_cost, "9999999999.99", "0.01")
+
+                quantity = clamp_decimal(quantity, "99999.99999", "0.00001")
+                total_cost = clamp_decimal(total_cost, "9999999999.99", "0.01")
+
+                insert_dest_sql = """
+                    INSERT INTO inventory_stock
+                        (destination_type, destination_id, raw_material_id, metric,
+                         opening_stock, incoming_stock, outgoing_stock,
+                         currently_available, minimum_quantity, quantity_needed,
+                         total_stock_value, average_unit_cost, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, 0, %s, 0, %s, 0, 0, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(insert_dest_sql, (
+                    dest_type, dest_id, raw_id, metric,
+                    quantity, quantity, total_cost, avg_cost
+                ))
+
+        # Step 3: Approve transfers
+        approved_time_sql = f"""
+            UPDATE raw_material_transfer_request_details
+            SET approved_date_time = NOW()
+            WHERE transfer_id IN ({placeholders})
+        """
+        cursor.execute(approved_time_sql, tuple(transfer_ids))
+
+        transfer_status_sql = f"""
+            UPDATE raw_material_transfer_details
+            SET transfer_status = 'APPROVED'
+            WHERE id IN ({placeholders})
+        """
+        cursor.execute(transfer_status_sql, tuple(transfer_ids))
+
+        conn.commit()
+        return jsonify({"message": "Transfers approved, storageroom reduced, and destination updated"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+from flask import render_template, request, redirect, session, flash, url_for
+from datetime import date, datetime
+import pytz
+
+@app.route('/add-nbs-report', methods=['GET', 'POST'])
+def add_nbs_report():
+    if "user" not in session:
+        return redirect("/login")
+
+    user = session["user"]
+    email = user.get("email")
+
+    selected_restaurant_id = None
+    disable_restaurant_dropdown = False
+
+    # Email → branch mapping for branch managers
+    if email == "bmktcnagar@gmail.com":
+        selected_restaurant_id = 1
+        disable_restaurant_dropdown = True
+    elif email == "bmnewbs@gmail.com":
+        selected_restaurant_id = 2
+        disable_restaurant_dropdown = True
+    elif email == "dharanistorekeeper@gmail.com":
+        selected_restaurant_id = 4
+        disable_restaurant_dropdown = True
+
+    # Fetch all active restaurants
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status='active'")
+
+    today = date.today()
+
+    # GET request - calculate prefilled misc expense
+    r_expense_prefill = 0
+    if selected_restaurant_id:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT COALESCE(SUM(cost),0) AS total_misc
+            FROM miscellaneous_items
+            WHERE restaurant_id=%s AND DATE(created_at)=%s AND status='active'
+        """, (selected_restaurant_id, today))
+        result = cursor.fetchone()
+        r_expense_prefill = float(result['total_misc'] or 0)
+        cursor.close()
+        conn.close()
+
+    if request.method == 'POST':
+        try:
+            report_date = request.form['report_date']
+            restaurant_id = request.form.get('restaurant_id')
+            if disable_restaurant_dropdown and selected_restaurant_id:
+                restaurant_id = selected_restaurant_id
+            restaurant_id = int(restaurant_id)
+
+            # Income fields
+            petpooja_total = float(request.form.get('petpooja_total') or 0)
+            ns_total = float(request.form.get('ns_total') or 0)
+            outdoor_catering = float(request.form.get('outdoor_catering') or 0)
+
+            # Payment methods
+            upi = float(request.form.get('upi') or 0)
+            cash = float(request.form.get('cash') or 0)
+            r_expense = float(request.form.get('r_expense') or 0)
+
+            # Online platforms
+            swiggy = float(request.form.get('swiggy') or 0)
+            zomato = float(request.form.get('zomato') or 0)
+
+            # Derived fields
+            total_income = petpooja_total + ns_total + outdoor_catering
+            net_petpooja = total_income - (swiggy + zomato)
+            net_counter = upi + cash + r_expense
+            difference = abs(net_counter - net_petpooja)
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Check existing report
+            cursor.execute("""
+                SELECT id FROM nbs_daily_reports 
+                WHERE report_date=%s AND restaurant_id=%s
+            """, (report_date, restaurant_id))
+            existing_report = cursor.fetchone()
+
+            if existing_report:
+                cursor.execute("""
+                    UPDATE nbs_daily_reports SET
+                    petpooja_total=%s, ns_total=%s, outdoor_catering=%s,
+                    total_income=%s, upi=%s, cash=%s, r_expense=%s,
+                    swiggy=%s, zomato=%s, net_counter=%s, difference=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                    WHERE report_date=%s AND restaurant_id=%s
+                """, (
+                    petpooja_total, ns_total, outdoor_catering, total_income,
+                    upi, cash, r_expense, swiggy, zomato, net_counter,
+                    difference, report_date, restaurant_id
+                ))
+                message = "Report updated successfully!"
+            else:
+                cursor.execute("""
+                    INSERT INTO nbs_daily_reports (
+                        report_date, restaurant_id, petpooja_total, ns_total,
+                        outdoor_catering, total_income, upi, cash, r_expense,
+                        swiggy, zomato, net_counter, difference
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    report_date, restaurant_id, petpooja_total, ns_total,
+                    outdoor_catering, total_income, upi, cash, r_expense,
+                    swiggy, zomato, net_counter, difference
+                ))
+                message = "Report added successfully!"
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            flash(message, 'success')
+            return redirect(url_for('nbs_reports'))
+
+        except Exception as e:
+            flash(f"Error: {str(e)}", 'danger')
+            return redirect(url_for('add_nbs_report'))
+
+    # GET request - render form
+    return render_template(
+        'add_nbs_report.html',
+        user=user,
+        restaurants=restaurants,
+        selected_restaurant_id=selected_restaurant_id,
+        disable_restaurant_dropdown=disable_restaurant_dropdown,
+        today=today,
+        r_expense_prefill=r_expense_prefill
+    )
+
+
+
+@app.route('/edit-nbs-report/<int:report_id>', methods=['GET', 'POST'])
+def edit_nbs_report(report_id):
+    if "user" not in session:
+        return redirect("/login")
+    
+    user = session["user"]
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch all active restaurants
+    cursor.execute("SELECT id, restaurantname FROM restaurant WHERE status='active'")
+    restaurants = cursor.fetchall()
+
+    if request.method == 'POST':
+        try:
+            report_date = request.form['report_date']
+            restaurant_id = request.form['restaurant_id']  # new field
+
+            # Income fields
+            petpooja_total = float(request.form['petpooja_total'] or 0)
+            ns_total = float(request.form['ns_total'] or 0)
+            outdoor_catering = float(request.form['outdoor_catering'] or 0)
+
+            # Payment methods
+            upi = float(request.form['upi'] or 0)
+            cash = float(request.form['cash'] or 0)
+            r_expense = float(request.form['r_expense'] or 0)
+
+            # Online platforms
+            swiggy = float(request.form['swiggy'] or 0)
+            zomato = float(request.form['zomato'] or 0)
+
+            # Derived fields
+            total_income = petpooja_total + ns_total + outdoor_catering
+            net_petpooja = total_income - (swiggy + zomato)
+            net_counter = upi + cash + r_expense
+            difference = abs(net_counter - net_petpooja)
+
+            cursor.execute("""
+                UPDATE nbs_daily_reports SET
+                    report_date=%s,
+                    restaurant_id=%s,
+                    petpooja_total=%s,
+                    ns_total=%s,
+                    outdoor_catering=%s,
+                    total_income=%s,
+                    upi=%s,
+                    cash=%s,
+                    r_expense=%s,
+                    swiggy=%s,
+                    zomato=%s,
+                    net_counter=%s,
+                    difference=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            """, (
+                report_date, restaurant_id, petpooja_total, ns_total, outdoor_catering,
+                total_income, upi, cash, r_expense, swiggy, zomato, net_counter, difference,
+                report_id
+            ))
+
+            conn.commit()
+            flash("Report updated successfully!", "success")
+            return redirect(url_for("nbs_reports"))
+
+        except Exception as e:
+            flash(f"Error: {str(e)}", "error")
+            return redirect(url_for("edit_nbs_report", report_id=report_id))
+
+    # GET request - fetch report
+    cursor.execute("SELECT * FROM nbs_daily_reports WHERE id=%s", (report_id,))
+    report = cursor.fetchone()
+
+    # Map restaurant_id to name for display
+    restaurant_name = None
+    if report:
+        for r in restaurants:
+            if r['id'] == report['restaurant_id']:
+                restaurant_name = r['restaurantname']
+                break
+        report['restaurant_name'] = restaurant_name
+        # Net PetPooja calculation for display
+        swiggy = report.get('swiggy', 0) or 0
+        zomato = report.get('zomato', 0) or 0
+        total_income = report.get('total_income', 0) or 0
+        report['net_petpooja'] = total_income - (swiggy + zomato)
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'edit_nbs_report.html',
+        report=report,
+        user=user,
+        restaurants=restaurants,
+        selected_restaurant_id=report['restaurant_id']
+    )
+
+
+@app.route('/nbs-reports')
+def nbs_reports():
+    if "user" not in session:
+        return redirect("/login")
+
+    user = session["user"]
+    role = user["role"]
+    email = user.get("email")
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Base query
+    query = """
+    SELECT n.*, r.restaurantname
+    FROM nbs_daily_reports n
+    LEFT JOIN restaurant r ON n.restaurant_id = r.id
+    WHERE 1=1
+    """
+    params = []
+
+    # Restrict by user → branch manager only sees their restaurant
+    if role in ["branch_manager", "store_manager"]:
+        if email == "bmktcnagar@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(1)
+        elif email == "bmnewbs@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(2)
+        elif email == "dharanistorekeeper@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(4)
+
+    # Optional: show only today's records
+    if role in ["branch_manager", "store_manager", "admin"]:
+        query += " AND DATE(n.created_at) = CURDATE()"
+
+    query += " ORDER BY n.report_date DESC"
+
+    cursor.execute(query, params)
+    reports = cursor.fetchall()
+
+    # Calculate net_petpooja for display
+    for report in reports:
+        swiggy = report.get('swiggy', 0) or 0
+        zomato = report.get('zomato', 0) or 0
+        total_income = report.get('total_income', 0) or 0
+        report['net_petpooja'] = total_income - (swiggy + zomato)
+
+    cursor.close()
+    conn.close()
+
+    return render_template('nbs_reports.html', reports=reports, user=user)
+
+
+@app.route('/view-nbs-report/<int:report_id>')
+def view_nbs_report(report_id):
+    if "user" not in session:
+        return redirect("/login")
+    
+    user = session["user"]
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("SELECT * FROM nbs_daily_reports WHERE id = %s", (report_id,))
+    report = cursor.fetchone()
+    
+    # Calculate net_petpooja with new logic
+    if report:
+        swiggy = report.get('swiggy', 0) or 0
+        zomato = report.get('zomato', 0) or 0
+        total_income = report.get('total_income', 0) or 0
+        report['net_petpooja'] = total_income - (swiggy + zomato)
+    
+    cursor.close()
+    conn.close()
+    
+    if not report:
+        flash('Report not found!', 'error')
+        return redirect(url_for('nbs_reports'))
+    
+    return render_template('view_nbs_report.html', report=report, user=user)
+
+@app.route('/delete-nbs-report/<int:report_id>')
+def delete_nbs_report(report_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM nbs_daily_reports WHERE id = %s", (report_id,))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        flash('Report deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('nbs_reports'))
 
 if __name__ == "__main__":
     app.run()

@@ -123,22 +123,22 @@
                         <li class="submenu">
                             <a href="javascript:void(0);">
                                 <img src="../static/img/icons/sales1.svg" alt="img">
-                                <span>Miscellaneous Item</span>
+                                <span>Miscellaneous Expense</span>
                                 <span class="menu-arrow"></span>
                             </a>
                             <ul>
-                                {% if user.role in ['admin', 'branch_manager'] %}
+                                {% if user.role in ['admin', 'branch_manager', 'store_manager'] %}
                                 <li>
                                     <a href="/addmiscitem"
                                         class="{{ 'active' if request.path == '/addmiscitem' else '' }}">
-                                        Add Miscellaneous Item
+                                        Add Miscellaneous Expense
                                     </a>
                                 </li>
                                 {% endif %}
                                 <li>
                                     <a href="/miscitemlist"
                                         class="{{ 'active' if request.path == '/miscitemlist' else '' }}">
-                                        Miscellaneous Item List
+                                        Miscellaneous Expense List
                                     </a>
                                 </li>
                                 {% if user.role == 'admin' %}
@@ -148,16 +148,40 @@
                                         Manage Expense Types
                                     </a>
                                 </li>
+
                                 <li>
                                     <a href="/misc_item_report"
                                         class="{{ 'active' if request.path == '/misc_item_report' else '' }}">
-                                        Miscellaneous Item Report
+                                        Miscellaneous Expense Report
                                     </a>
                                 </li>
                                 {% endif %}
                             </ul>
 
                         </li>
+                        {% if user.role in ['admin', 'branch_manager'] %}
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
+                                <span>Daily Report</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li>
+                                    <a href="/add-nbs-report"
+                                        class="{{ 'active' if request.path == '/add-nbs-report' else '' }}">
+                                        Add NBS Daily Report
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/nbs-reports"
+                                        class="{{ 'active' if request.path == '/nbs-reports' else '' }}">
+                                        NBS Daily Report
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        {% endif %}
                         <li class="submenu">
                             <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                     Kitchen</span> <span class="menu-arrow"></span></a>
@@ -319,11 +343,17 @@
                             <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg" alt="img"><span>
                                     Transfer</span> <span class="menu-arrow"></span></a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='store_manager' or
+                                {% if user.role=='admin' or
                                 user.role=='branch_manager' %}
                                 <li><a href="/transfer_raw_material"
-                                        class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Transfer
+                                        class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Request
                                         Raw Materials</a></li>
+                                {% endif %}
+                                {% if user.role=='admin' or user.role=='store_manager' %}
+                                <li><a href="/raw_material_transfers"
+                                        class="{{ 'active' if request.path == '/raw_material_transfers' else '' }}">Transfer
+                                        Requests</a>
+                                </li>
                                 {% endif %}
                                 <!-- {% if user.role=='admin' or user.role=='store_manager' or
                                     user.role=='branch_manager' %}
@@ -335,6 +365,15 @@
                                         class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
                                         Raw
                                         Material Transfers </a></li>
+
+                                {% if user.role=='admin' or user.role=='store_manager' or
+                                user.role=='branch_manager' %}
+                                <li><a href="/list_rawmaterial_transfers_range"
+                                        class="{{ 'active' if request.path == '/list_rawmaterial_transfers_range' else '' }}">Get
+                                        Raw Material Transfers By Range
+                                    </a></li>
+                                {% endif %}
+
                                 {% if user.role=='admin' or user.role=='store_manager' or
                                 user.role=='branch_manager' %}
                                 <li><a href="/transfer_raw_material_report"
@@ -343,6 +382,7 @@
                                         Report
                                     </a></li>
                                 {% endif %}
+
                                 <!-- <li><a href="/list_prepared_dishes_transfers"
                                             class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
                                             Prepared

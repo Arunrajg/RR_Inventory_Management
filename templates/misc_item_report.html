@@ -5,7 +5,7 @@
   <div class="content">
     <div class="page-header">
       <div class="page-title">
-        <h4>Miscellaneous Item Report</h4>
+        <h4>Miscellaneous Expense Report</h4>
       </div>
     </div>
 
@@ -161,7 +161,6 @@
       const table = $('#miscTable').dataTable().api();
       let allRows = table.rows({ search: 'applied' }).data();
       const currentUrl = window.location.href.split('?')[0];
-
 
       const printTotalCost = updateGrandTotal();
 
