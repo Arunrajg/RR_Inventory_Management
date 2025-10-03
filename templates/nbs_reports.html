@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  .negative-value {
+    color: #dc3545;
+  }
+
+  .positive-value {
+    color: #28a745;
+  }
+</style>
+
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header d-flex justify-content-between align-items-center">
+      <div class="page-title">
+        <h4>NBS Daily Reports</h4>
+      </div>
+      <div class="page-btn d-flex gap-2">
+        <a href="/add-nbs-report" class="btn btn-added">
+          <i class="fas fa-plus me-1"></i>Add New Report
+        </a>
+        <button onclick="printNBSReports()" class="btn btn-info">
+          <i class="fas fa-print me-1"></i>Print Reports
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Restaurant</th>
+                <th>Total Income</th>
+                <th>Net Counter</th>
+                <th>Net Sales</th>
+                <th>Difference</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for report in reports %}
+              <tr>
+                <td>{{ report.report_date.strftime('%d/%m/%y') }}</td>
+                <td>{{ report.restaurantname }}</td>
+                <td>{{ "%.2f"|format(report.total_income) }}</td>
+                <td>{{ "%.2f"|format(report.net_counter) }}</td>
+                <td>{{ "%.2f"|format(report.net_petpooja) }}</td>
+                <td>
+                  <span class="{% if report.difference < 0 %}negative-value{% else %}positive-value{% endif %}">
+                    {{ "%.2f"|format(report.difference) }}
+                  </span>
+                </td>
+                <td>
+                  <a href="/view-nbs-report/{{ report.id }}" class="btn btn-sm btn-info">
+                    <i class="fas fa-eye"></i>
+                  </a>
+                  {% if user.role == 'admin' %}
+                  <a href="/edit-nbs-report/{{ report.id }}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-edit"></i>
+                  </a>
+                  <a href="/delete-nbs-report/{{ report.id }}" class="btn btn-sm btn-danger"
+                    onclick="return confirm('Are you sure you want to delete this report?')">
+                    <i class="fas fa-trash"></i>
+                  </a>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="7" class="text-center">No reports found</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+
+            <tfoot>
+              <tr style="font-weight: bold; background-color: #f2f2f2;">
+                <td colspan="2" class="text-end">TOTALS:</td>
+                <td>{{ "%.2f"|format(totals.total_income) }}</td>
+                <td>{{ "%.2f"|format(totals.net_counter) }}</td>
+                <td>{{ "%.2f"|format(totals.net_sales) }}</td>
+                <td>{{ "%.2f"|format(totals.difference) }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function printNBSReports() {
+    const currentUrl = window.location.href.split('?')[0];
+
+    // Clone the table to modify for print
+    const tableClone = document.querySelector('.table-responsive table').cloneNode(true);
+
+    // Remove last column (Actions) from header
+    tableClone.querySelectorAll('thead tr th:last-child, tfoot tr td:last-child').forEach(el => el.remove());
+
+    // Remove last column from each body row
+    tableClone.querySelectorAll('tbody tr').forEach(row => row.querySelector('td:last-child').remove());
+
+    const tableHTML = tableClone.outerHTML;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>NBS Daily Reports</title>
+        <style>
+          body { margin: 0; font-family: Arial, sans-serif; }
+          .company-info { text-align: center; margin-bottom: 20px; }
+          .report-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px; }
+          .report-header h3 { margin: 0; font-size: 18px; padding-bottom: 2px; }
+          .contact-info { text-align: right; font-size: 14px; line-height: 1.4; }
+          .contact-info p { margin: 0; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; table-layout: fixed; border: 2px solid #000; }
+          th, td { padding: 10px; border: 1px solid #000; font-size: 12px; word-wrap: break-word; word-break: break-word; text-align: center; }
+          tfoot td { font-weight: bold; background-color: #f2f2f2; }
+          .negative-value { color: #dc3545; }
+          .positive-value { color: #28a745; }
+          .signatures { margin-top: 60px; display: flex; justify-content: flex-start; }
+          .signatures p { margin: 0 20px 0 0; }
+          @media print {
+            .btn, .page-btn { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="company-info">
+          <h2>Dharani Inventory Solution</h2>
+        </div>
+        <div class="report-header">
+          <h3>NBS DAILY REPORTS</h3>
+          <div class="contact-info">
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
+        <div>${tableHTML}</div>
+        <div class="signatures">
+          <p>Authorized Signature: __________</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
+
+    iframe.contentWindow.focus();
+    setTimeout(() => {
+      iframe.contentWindow.print();
+      document.body.removeChild(iframe);
+    }, 200);
+  }
+</script>
+{% endblock %}

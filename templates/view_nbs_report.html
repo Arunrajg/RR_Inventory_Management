@@ -1,0 +1,358 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+  .negative-value {
+    color: #dc3545;
+    /* Red color for negative values */
+  }
+
+  .positive-value {
+    color: #28a745;
+    /* Green color for positive values */
+  }
+</style>
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header">
+      <div class="page-title">
+        <h4>NBS Daily Report - {{ report.report_date.strftime('%d/%m/%y') }}</h4>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div class="nbs-report">
+          <table class="table table-bordered" style="width: 100%;">
+            <tr>
+              <td style="width: 20%; border: none;"></td>
+              <td style="width: 20%; border: none;">DATE:</td>
+              <td style="width: 30%; border: none;"><strong>{{ report.report_date.strftime('%d/%m/%y') }}</strong></td>
+              <td style="width: 30%; border: none;"></td>
+            </tr>
+            <tr>
+              <td style="border: none;"></td>
+              <td style="border: none;">CASHIER:</td>
+              <td style="border: none;"><strong>{{ report.cashier_name }}</strong></td>
+              <td style="border: none;"></td>
+            </tr>
+          </table>
+
+          <table class="table table-bordered" style="width: 100%; margin-top: 20px;">
+            <tr>
+              <td style="width: 25%;"><strong>PETPOOJA</strong></td>
+              <td style="width: 25%;">{{ "%.2f"|format(report.petpooja_total) }}</td>
+              <td style="width: 25%;"><strong>UPI</strong></td>
+              <td style="width: 25%;">{{ "%.2f"|format(report.upi) }}</td>
+            </tr>
+            <tr>
+              <td><strong>NS</strong></td>
+              <td>{{ "%.2f"|format(report.ns_total) }}</td>
+              <td><strong>CASH</strong></td>
+              <td>{{ "%.2f"|format(report.cash) }}</td>
+            </tr>
+            <tr>
+              <td><strong>OUTDOOR CATERING</strong></td>
+              <td>{{ "%.2f"|format(report.outdoor_catering) }}</td>
+              <td><strong>Miscellaneous Expense</strong></td>
+              <td>{{ "%.2f"|format(report.r_expense) }}</td>
+            </tr>
+            <tr>
+              <td><strong>TOTAL</strong></td>
+              <td><strong>{{ "%.2f"|format(report.total_income) }}</strong></td>
+              <td><strong>NET COUNTER</strong></td>
+              <td><strong>{{ "%.2f"|format(report.net_counter) }}</strong></td>
+            </tr>
+            <tr>
+              <td><strong>SWIGGY</strong></td>
+              <td>{{ "%.2f"|format(report.swiggy) }}</td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><strong>ZOMATO</strong></td>
+              <td>{{ "%.2f"|format(report.zomato) }}</td>
+              <td></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><strong>NET SALES</strong></td>
+              <td><strong>{{ "%.2f"|format(report.net_petpooja) }}</strong></td>
+              <td></td>
+              <td></td>
+            </tr>
+          </table>
+
+          <table class="table table-bordered" style="width: 100%; margin-top: 20px;">
+            <tr>
+              <td style="width: 50%;"><strong>NET COUNTER</strong></td>
+              <td style="width: 50%;">{{ "%.2f"|format(report.net_counter) }}</td>
+            </tr>
+            <tr>
+              <td><strong>NET SALES</strong></td>
+              <td>{{ "%.2f"|format(report.net_petpooja) }}</td>
+            </tr>
+            <tr>
+              <td><strong>DIFFERENCE</strong></td>
+              <td>
+                <strong class="{% if report.difference < 0 %}negative-value{% else %}positive-value{% endif %}">
+                  {{ "%.2f"|format(report.difference) }}
+                </strong>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="mt-4">
+          <a href="{{ url_for('nbs_reports') }}" class="btn btn-secondary">Back to List</a>
+          <a href="/edit-nbs-report/{{ report.id }}" class="btn btn-primary">Edit Report</a>
+          <button onclick="printNBSReport()" class="btn btn-info">Print Report</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .nbs-report table {
+    border: 2px solid #000;
+  }
+
+  .nbs-report td {
+    padding: 10px;
+    border: 1px solid #000 !important;
+    font-size: 14px;
+  }
+
+  @media print {
+
+    .page-header,
+    .btn {
+      display: none !important;
+    }
+
+    .nbs-report {
+      font-size: 12px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function printNBSReport() {
+    const currentUrl = window.location.href.split('?')[0];
+
+    const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>NBS Daily Report</title>
+            <style>
+                @page { 
+                    margin: 1cm; 
+                    @top-right { 
+                        content: "${new Date().toLocaleDateString('en-GB')}:${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"; 
+                        font-size: 10pt; 
+                    } 
+                    @top-center { 
+                        content: "Dharani Inventory Solution"; 
+                        font-size: 12pt; 
+                        font-weight: bold; 
+                    } 
+                    @bottom-left { 
+                        content: "${currentUrl}"; 
+                        font-size: 8pt; 
+                    } 
+                    @bottom-right { 
+                        content: "Page " counter(page) " of " counter(pages); 
+                        font-size: 8pt; 
+                    } 
+                }
+                body { 
+                    margin: 0; 
+                    font-family: Arial, sans-serif;
+                }
+                .report-title { 
+                    text-align: start; 
+                }
+                .company-info { 
+                    text-align: center; 
+                    margin-bottom: 20px; 
+                }
+                .main-content { 
+                    margin-top: 0px; 
+                }
+                .report-header { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: flex-end; 
+                    margin-bottom: 20px; 
+                    width: 100%; 
+                }
+                .report-header h3 { 
+                    margin: 0; 
+                    font-size: 18px; 
+                    padding-bottom: 2px; 
+                }
+                .contact-info { 
+                    text-align: right; 
+                    font-size: 14px; 
+                    line-height: 1.4; 
+                }
+                .contact-info p { 
+                    margin: 0; 
+                }
+                .nbs-table { 
+                    width: 100%; 
+                    border-collapse: collapse; 
+                    text-align: center; 
+                    table-layout: fixed; 
+                    margin-bottom: 20px; 
+                    border: 2px solid #000;
+                }
+                .nbs-table th, .nbs-table td { 
+                    padding: 8px; 
+                    border: 1px solid #000; 
+                    word-wrap: break-word; 
+                    word-break: break-word; 
+                    font-size: 11px; 
+                    vertical-align: top; 
+                    line-height: 1.2; 
+                }
+                .summary-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-top: 20px;
+                    border: 2px solid #000;
+                }
+                .summary-table td {
+                    padding: 8px;
+                    border: 1px solid #000;
+                    font-size: 11px;
+                }
+                .total { 
+                    text-align: right; 
+                    margin-top: 20px; 
+                }
+                .signatures { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    margin-top: 60px; 
+                }
+                .text-warning { color: #ffc107; }
+                .text-success { color: #28a745; }
+            </style>
+        </head>
+        <body>
+            <div class="main-content">
+                <div class="company-info">
+                    <h2>Dharani Inventory Solution</h2>
+                </div>
+                <div class="report-header">
+                    <h3>NBS DAILY REPORT</h3>
+                    <div class="contact-info">
+                        <p><strong>Date:</strong> {{ report.report_date.strftime('%d/%m/%y') }}</p>
+                        <p><strong>Cashier:</strong> {{ report.cashier_name }}</p>
+                    </div>
+                </div>
+                
+                <table class="nbs-table">
+                    <tbody>
+                        <tr>
+                            <td style="width: 25%;"><strong>PETPOOJA</strong></td>
+                            <td style="width: 25%;">{{ "%.2f"|format(report.petpooja_total) }}</td>
+                            <td style="width: 25%;"><strong>UPI</strong></td>
+                            <td style="width: 25%;">{{ "%.2f"|format(report.upi) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>NS</strong></td>
+                            <td>{{ "%.2f"|format(report.ns_total) }}</td>
+                            <td><strong>CASH</strong></td>
+                            <td>{{ "%.2f"|format(report.cash) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>OUTDOOR CATERING</strong></td>
+                            <td>{{ "%.2f"|format(report.outdoor_catering) }}</td>
+                            <td><strong>Miscellaneous Expense</strong></td>
+                            <td>{{ "%.2f"|format(report.r_expense) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>TOTAL</strong></td>
+                            <td><strong>{{ "%.2f"|format(report.total_income) }}</strong></td>
+                            <td><strong>NET COUNTER</strong></td>
+                            <td><strong>{{ "%.2f"|format(report.net_counter) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <td><strong>SWIGGY</strong></td>
+                            <td>{{ "%.2f"|format(report.swiggy) }}</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td><strong>ZOMATO</strong></td>
+                            <td>{{ "%.2f"|format(report.zomato) }}</td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td><strong>NET SALES</strong></td>
+                            <td><strong>{{ "%.2f"|format(report.net_petpooja) }}</strong></td>
+                            <td></td>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <table class="summary-table">
+                    <tr>
+                        <td style="width: 50%;"><strong>NET COUNTER</strong></td>
+                        <td style="width: 50%;">{{ "%.2f"|format(report.net_counter) }}</td>
+                    </tr>
+                    <tr>
+                        <td><strong>NET SALES</strong></td>
+                        <td>{{ "%.2f"|format(report.net_petpooja) }}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>DIFFERENCE</strong></td>
+                      <td><strong>{{ "%.2f"|format(report.difference) }}</strong></td>
+                    </tr>
+                </table>
+
+                <div class="signatures">
+                    <p>Authorized Signature: __________</p>
+                    <p>Cashier Signature: __________</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(printContent);
+    doc.close();
+
+    iframe.contentWindow.onbeforeprint = function () {
+      document.title = "NBS Daily Report";
+    };
+
+    iframe.contentWindow.focus();
+    setTimeout(function () {
+      iframe.contentWindow.document.title = "NBS Daily Report";
+      iframe.contentWindow.print();
+    }, 200);
+
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 1000);
+  }
+</script>
+{% endblock %}
