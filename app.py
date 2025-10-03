@@ -321,12 +321,16 @@ def addmiscitem():
         current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
 
         # Manual date handling
-        manual_date_str = None
-        if manual_date_str:
+        manual_date = None
+        if manual_date_str:  # only if admin selected a date
             selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
-            manual_date = datetime.combine(selected_date, current_datetime_ist.time())
-            manual_date = pytz.timezone('Asia/Kolkata').localize(manual_date)
+            current_time = current_datetime_ist.time()
+            manual_date = datetime.combine(selected_date, current_time)
+            ist = pytz.timezone('Asia/Kolkata')
+            manual_date = ist.localize(manual_date)
             manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            manual_date_str = None
 
         created_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
         updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
@@ -3222,6 +3226,422 @@ def delete_purchase_and_adjust_stock():
         cursor.close()
         conn.close()
 
+from flask import render_template, request, redirect, session, flash, url_for
+from datetime import date, datetime
+import pytz
+
+@app.route('/fetch-misc-expense', methods=['GET'])
+def fetch_misc_expense():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    restaurant_id = request.args.get("restaurant_id")
+    report_date = request.args.get("report_date")
+
+    if not restaurant_id or not report_date:
+        return jsonify({"total_misc": 0})
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Use COALESCE(manual_date, created_at) so that manual_date takes priority
+    cursor.execute("""
+        SELECT COALESCE(SUM(cost),0) AS total_misc
+        FROM miscellaneous_items
+        WHERE restaurant_id = %s
+          AND DATE(COALESCE(manual_date, created_at)) = %s
+          AND status = 'active'
+    """, (restaurant_id, report_date))
+
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return jsonify({"total_misc": float(result['total_misc'] or 0)})
+
+@app.route('/add-nbs-report', methods=['GET', 'POST'])
+def add_nbs_report():
+    if "user" not in session:
+        return redirect("/login")
+
+    user = session["user"]
+    email = user.get("email")
+
+    selected_restaurant_id = None
+    disable_restaurant_dropdown = False
+
+    # Email → branch mapping for branch managers
+    if email == "bmktcnagar@gmail.com":
+        selected_restaurant_id = 1
+        disable_restaurant_dropdown = True
+    elif email == "bmnewbs@gmail.com":
+        selected_restaurant_id = 2
+        disable_restaurant_dropdown = True
+    elif email == "dharanistorekeeper@gmail.com":
+        selected_restaurant_id = 4
+        disable_restaurant_dropdown = True
+
+    # Fetch all active restaurants
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status='active'")
+
+    today = date.today()
+
+    # GET request - calculate prefilled misc expense
+    r_expense_prefill = 0
+    if selected_restaurant_id:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT COALESCE(SUM(cost),0) AS total_misc
+            FROM miscellaneous_items
+            WHERE restaurant_id=%s AND DATE(created_at)=%s AND status='active'
+        """, (selected_restaurant_id, today))
+        result = cursor.fetchone()
+        r_expense_prefill = float(result['total_misc'] or 0)
+        cursor.close()
+        conn.close()
+
+    if request.method == 'POST':
+        try:
+            report_date = request.form['report_date']
+            restaurant_id = request.form.get('restaurant_id')
+            if disable_restaurant_dropdown and selected_restaurant_id:
+                restaurant_id = selected_restaurant_id
+            restaurant_id = int(restaurant_id)
+
+            # Income fields
+            petpooja_total = float(request.form.get('petpooja_total') or 0)
+            ns_total = float(request.form.get('ns_total') or 0)
+            outdoor_catering = float(request.form.get('outdoor_catering') or 0)
+
+            # Payment methods
+            upi = float(request.form.get('upi') or 0)
+            cash = float(request.form.get('cash') or 0)
+            r_expense = float(request.form.get('r_expense') or 0)
+
+            # Online platforms
+            swiggy = float(request.form.get('swiggy') or 0)
+            zomato = float(request.form.get('zomato') or 0)
+
+            # Derived fields
+            total_income = petpooja_total + ns_total + outdoor_catering
+            net_sales = total_income - (swiggy + zomato)
+            net_counter = upi + cash + r_expense
+            difference = net_counter - net_sales
+
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            # Check existing report
+            cursor.execute("""
+                SELECT id FROM nbs_daily_reports 
+                WHERE report_date=%s AND restaurant_id=%s
+            """, (report_date, restaurant_id))
+            existing_report = cursor.fetchone()
+
+            if existing_report:
+                cursor.execute("""
+                    UPDATE nbs_daily_reports SET
+                    petpooja_total=%s, ns_total=%s, outdoor_catering=%s,
+                    total_income=%s, upi=%s, cash=%s, r_expense=%s,
+                    swiggy=%s, zomato=%s, net_counter=%s, difference=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                    WHERE report_date=%s AND restaurant_id=%s
+                """, (
+                    petpooja_total, ns_total, outdoor_catering, total_income,
+                    upi, cash, r_expense, swiggy, zomato, net_counter,
+                    difference, report_date, restaurant_id
+                ))
+                message = "Report updated successfully!"
+            else:
+                cursor.execute("""
+                    INSERT INTO nbs_daily_reports (
+                    report_date, restaurant_id, petpooja_total, ns_total,
+                    outdoor_catering, total_income, upi, cash, r_expense,
+                    swiggy, zomato, net_counter, net_sales, difference
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    report_date, restaurant_id, petpooja_total, ns_total,
+                    outdoor_catering, total_income, upi, cash, r_expense,
+                    swiggy, zomato, net_counter, net_sales, difference
+                ))
+                message = "Report added successfully!"
+
+            conn.commit()
+            cursor.close()
+            conn.close()
+
+            flash(message, 'success')
+            return redirect(url_for('nbs_reports'))
+
+        except Exception as e:
+            flash(f"Error: {str(e)}", 'danger')
+            return redirect(url_for('add_nbs_report'))
+
+    # GET request - render form
+    return render_template(
+        'add_nbs_report.html',
+        user=user,
+        restaurants=restaurants,
+        selected_restaurant_id=selected_restaurant_id,
+        disable_restaurant_dropdown=disable_restaurant_dropdown,
+        today=today,
+        r_expense_prefill=r_expense_prefill
+    )
+
+@app.route('/edit-nbs-report/<int:report_id>', methods=['GET', 'POST'])
+def edit_nbs_report(report_id):
+    if "user" not in session:
+        return redirect("/login")
+    
+    user = session["user"]
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Fetch all active restaurants
+    cursor.execute("SELECT id, restaurantname FROM restaurant WHERE status='active'")
+    restaurants = cursor.fetchall()
+
+    if request.method == 'POST':
+        try:
+            report_date = request.form['report_date']
+            restaurant_id = request.form['restaurant_id']
+
+            # Income fields
+            petpooja_total = float(request.form['petpooja_total'] or 0)
+            ns_total = float(request.form['ns_total'] or 0)
+            outdoor_catering = float(request.form['outdoor_catering'] or 0)
+
+            # Payment methods
+            upi = float(request.form['upi'] or 0)
+            cash = float(request.form['cash'] or 0)
+            r_expense = float(request.form['r_expense'] or 0)
+
+            # Online platforms
+            swiggy = float(request.form['swiggy'] or 0)
+            zomato = float(request.form['zomato'] or 0)
+
+            # Derived fields
+            total_income = petpooja_total + ns_total + outdoor_catering
+            net_sales = total_income - (swiggy + zomato)
+            net_counter = upi + cash + r_expense
+            difference = net_counter - net_sales
+
+            cursor.execute("""
+                UPDATE nbs_daily_reports SET
+                    report_date=%s,
+                    restaurant_id=%s,
+                    petpooja_total=%s,
+                    ns_total=%s,
+                    outdoor_catering=%s,
+                    total_income=%s,
+                    upi=%s,
+                    cash=%s,
+                    r_expense=%s,
+                    swiggy=%s,
+                    zomato=%s,
+                    net_counter=%s,
+                    net_sales=%s,
+                    difference=%s,
+                    updated_at=CURRENT_TIMESTAMP
+                WHERE id=%s
+            """, (
+                report_date, restaurant_id, petpooja_total, ns_total, outdoor_catering,
+                total_income, upi, cash, r_expense, swiggy, zomato, net_counter,
+                net_sales, difference, report_id
+            ))
+
+            conn.commit()
+            flash("Report updated successfully!", "success")
+            return redirect(url_for("nbs_reports"))
+
+        except Exception as e:
+            flash(f"Error: {str(e)}", "error")
+            return redirect(url_for("edit_nbs_report", report_id=report_id))
+
+    # GET request - fetch report
+    cursor.execute("SELECT * FROM nbs_daily_reports WHERE id=%s", (report_id,))
+    report = cursor.fetchone()
+
+    # Map restaurant_id to name for display
+    restaurant_name = None
+    if report:
+        for r in restaurants:
+            if r['id'] == report['restaurant_id']:
+                restaurant_name = r['restaurantname']
+                break
+        report['restaurant_name'] = restaurant_name
+        # Derived fields
+        swiggy = report.get('swiggy', 0) or 0
+        zomato = report.get('zomato', 0) or 0
+        total_income = report.get('total_income', 0) or 0
+        report['net_sales'] = total_income - (swiggy + zomato)
+        report['difference'] = report.get('net_counter', 0) - report['net_sales']
+
+    cursor.close()
+    conn.close()
+
+    return render_template(
+        'edit_nbs_report.html',
+        report=report,
+        user=user,
+        restaurants=restaurants,
+        selected_restaurant_id=report['restaurant_id']
+    )
+
+@app.route('/nbs-reports')
+def nbs_reports():
+    if "user" not in session:
+        return redirect("/login")
+
+    user = session["user"]
+    role = user["role"]
+    email = user.get("email")
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Base query
+    query = """
+    SELECT n.*, r.restaurantname
+    FROM nbs_daily_reports n
+    LEFT JOIN restaurant r ON n.restaurant_id = r.id
+    WHERE 1=1
+    """
+    params = []
+
+    # Restrict by user → branch manager only sees their restaurant
+    if role in ["branch_manager", "store_manager"]:
+        if email == "bmktcnagar@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(1)
+        elif email == "bmnewbs@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(2)
+        elif email == "dharanistorekeeper@gmail.com":
+            query += " AND n.restaurant_id = %s"
+            params.append(4)
+
+    query += " ORDER BY n.report_date DESC"
+
+    cursor.execute(query, params)
+    reports = cursor.fetchall() or []
+
+    # Initialize totals
+    total_income_sum = 0.0
+    total_net_counter_sum = 0.0
+    total_net_sales_sum = 0.0
+    total_difference_sum = 0.0
+
+    for report in reports:
+        try:
+            swiggy = float(report.get('swiggy') or 0)
+            zomato = float(report.get('zomato') or 0)
+
+            # Calculate total_income if missing
+            if report.get('total_income') is None:
+                pet = float(report.get('petpooja_total') or 0)
+                ns = float(report.get('ns_total') or 0)
+                outdoor = float(report.get('outdoor_catering') or 0)
+                total_income = pet + ns + outdoor
+                report['total_income'] = total_income
+            else:
+                total_income = float(report.get('total_income') or 0)
+
+            # Net Sales
+            net_sales = total_income - (swiggy + zomato)
+            report['net_petpooja'] = net_sales
+
+            # Net Counter
+            upi = float(report.get('upi') or 0)
+            cash = float(report.get('cash') or 0)
+            r_expense = float(report.get('r_expense') or 0)
+            net_counter = upi + cash + r_expense
+            report['net_counter'] = net_counter
+
+            # Difference
+            difference = net_counter - net_sales
+            report['difference'] = difference
+
+            # Add to totals
+            total_income_sum += total_income
+            total_net_counter_sum += net_counter
+            total_net_sales_sum += net_sales
+            total_difference_sum += difference
+
+        except Exception:
+            report.setdefault('net_petpooja', 0.0)
+            report.setdefault('total_income', 0.0)
+            report.setdefault('net_counter', 0.0)
+            report.setdefault('difference', 0.0)
+
+    cursor.close()
+    conn.close()
+
+    totals = {
+        'total_income': total_income_sum,
+        'net_counter': total_net_counter_sum,
+        'net_sales': total_net_sales_sum,
+        'difference': total_difference_sum
+    }
+
+    return render_template('nbs_reports.html', reports=reports, user=user, totals=totals)
+
+@app.route('/view-nbs-report/<int:report_id>')
+def view_nbs_report(report_id):
+    if "user" not in session:
+        return redirect("/login")
+    
+    user = session["user"]
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    cursor.execute("SELECT * FROM nbs_daily_reports WHERE id = %s", (report_id,))
+    report = cursor.fetchone()
+    
+    if report:
+        # Ensure cashier_name is fetched from branch if empty
+        if not report.get('cashier_name'):
+            cursor.execute("SELECT restaurantname FROM restaurant WHERE id=%s", (report['restaurant_id'],))
+            branch = cursor.fetchone()
+            report['cashier_name'] = branch['restaurantname'] if branch else ''
+
+        swiggy = report.get('swiggy', 0) or 0
+        zomato = report.get('zomato', 0) or 0
+        total_income = report.get('total_income', 0) or 0
+        net_counter = report.get('net_counter', 0) or 0
+
+        # Compute fields needed in template
+        report['net_petpooja'] = total_income - (swiggy + zomato)   # Net Sales
+        report['difference'] = net_counter - report['net_petpooja']
+
+    cursor.close()
+    conn.close()
+    
+    if not report:
+        flash('Report not found!', 'error')
+        return redirect(url_for('nbs_reports'))
+    
+    return render_template('view_nbs_report.html', report=report, user=user)
+
+@app.route('/delete-nbs-report/<int:report_id>')
+def delete_nbs_report(report_id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM nbs_daily_reports WHERE id = %s", (report_id,))
+        conn.commit()
+        
+        cursor.close()
+        conn.close()
+        
+        flash('Report deleted successfully!', 'success')
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('nbs_reports'))
 
 if __name__ == "__main__":
     app.run()

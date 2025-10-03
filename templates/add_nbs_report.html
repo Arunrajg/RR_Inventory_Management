@@ -1,0 +1,237 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header">
+      <div class="page-title">
+        <h4>Add NBS Daily Report</h4>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages">
+          {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category=='error' else 'success' }}">
+            {{ message }}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="/add-nbs-report" id="nbsForm">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="report_date">Date</label>
+                <input type="date" class="form-control" id="report_date" name="report_date" value="{{ today }}" {% if
+                  user.role !='admin' %}disabled{% endif %} required>
+                {% if user.role != 'admin' %}
+                <input type="hidden" name="report_date" value="{{ today }}">
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="form-group">
+                <label for="restaurant_id">Branch (Restaurant)</label>
+                <select class="form-control" id="restaurant_id" name="restaurant_id" {% if disable_restaurant_dropdown
+                  %}disabled{% endif %} required>
+                  <option value="">Select Branch</option>
+                  {% for r in restaurants %}
+                  <option value="{{ r.id }}" {% if r.id==selected_restaurant_id %}selected{% endif %}>
+                    {{ r.restaurantname }}
+                  </option>
+                  {% endfor %}
+                </select>
+                {% if disable_restaurant_dropdown %}
+                <input type="hidden" name="restaurant_id" value="{{ selected_restaurant_id }}">
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <hr>
+          <h5>Income Section</h5>
+          <div class="row">
+            <div class="col-md-4">
+              <label for="petpooja_total">PetPooja Total</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="petpooja_total" name="petpooja_total"
+                value="0">
+            </div>
+            <div class="col-md-4">
+              <label for="ns_total">NS Total</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="ns_total" name="ns_total" value="0">
+            </div>
+            <div class="col-md-4">
+              <label for="outdoor_catering">Outdoor Catering</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="outdoor_catering"
+                name="outdoor_catering" value="0">
+            </div>
+          </div>
+
+          <hr>
+          <h5>Payment Methods</h5>
+          <div class="row">
+            <div class="col-md-4">
+              <label for="upi">UPI</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="upi" name="upi" value="0">
+            </div>
+            <div class="col-md-4">
+              <label for="cash">Cash</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="cash" name="cash" value="0">
+            </div>
+            <div class="col-md-4">
+              <label for="r_expense_display">Misc Expense</label>
+              <input type="number" step="0.01" class="form-control" id="r_expense_display"
+                value="{{ r_expense_prefill }}" {% if user.role !='admin' %}disabled{% endif %}>
+
+              <!-- hidden input (this is submitted and used by the live JS) -->
+              <input type="hidden" class="calc-input" name="r_expense" id="r_expense" value="{{ r_expense_prefill }}">
+            </div>
+          </div>
+
+          <hr>
+          <h5>Online Platforms</h5>
+          <div class="row">
+            <div class="col-md-6">
+              <label for="swiggy">Swiggy</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="swiggy" name="swiggy" value="0">
+            </div>
+            <div class="col-md-6">
+              <label for="zomato">Zomato</label>
+              <input type="number" step="0.01" class="form-control calc-input" id="zomato" name="zomato" value="0">
+            </div>
+          </div>
+
+          <!-- Live Results -->
+          <hr>
+          <h5>Live Calculation Summary</h5>
+          <div class="row">
+            <div class="col-md-4">
+              <label>Net Counter</label>
+              <input type="text" class="form-control" id="net_counter" readonly>
+            </div>
+            <div class="col-md-4">
+              <label>Net Sales</label>
+              <input type="text" class="form-control" id="net_sales" readonly>
+            </div>
+            <div class="col-md-4">
+              <label>Difference</label>
+              <input type="text" class="form-control" id="difference" readonly>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Save Report</button>
+            <a href="{{ url_for('nbs_reports') }}" class="btn btn-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Live Calculation Script -->
+<script>
+
+  function updateMiscExpense() {
+    const branchId = document.getElementById('restaurant_id').value;
+    const reportDate = document.getElementById('report_date').value;
+
+    if (!branchId || !reportDate) {
+      document.getElementById('r_expense_display').value = 0;
+      document.getElementById('r_expense').value = 0;
+      calculateLive();
+      return;
+    }
+
+    fetch(`/fetch-misc-expense?restaurant_id=${branchId}&report_date=${reportDate}`)
+      .then(res => res.json())
+      .then(data => {
+        const miscValue = parseFloat(data.total_misc || 0).toFixed(2);
+        document.getElementById('r_expense_display').value = miscValue;
+        document.getElementById('r_expense').value = miscValue;
+        calculateLive();
+      })
+      .catch(err => {
+        console.error("Error fetching misc expense:", err);
+        document.getElementById('r_expense_display').value = 0;
+        document.getElementById('r_expense').value = 0;
+        calculateLive();
+      });
+  }
+
+  // Listen to changes
+  const restaurantDropdown = document.getElementById('restaurant_id');
+  const reportDateInput = document.getElementById('report_date');
+
+  if ('{{ user.role }}' === 'admin') {
+    restaurantDropdown.addEventListener('change', updateMiscExpense);
+    reportDateInput.addEventListener('change', updateMiscExpense);
+  }
+
+  // Initial fetch if prefilled
+  updateMiscExpense();
+
+  function parseNum(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    return parseFloat(el.value) || 0;
+  }
+
+  function calculateLive() {
+    // Income
+    const petpooja = parseNum('petpooja_total');
+    const ns_total = parseNum('ns_total');
+    const outdoor = parseNum('outdoor_catering');
+
+    const total_income = petpooja + ns_total + outdoor;
+
+    // Online deductions
+    const swiggy = parseNum('swiggy');
+    const zomato = parseNum('zomato');
+
+    // Net Sales = total_income - (swiggy + zomato)
+    const net_sales = total_income - (swiggy + zomato);
+
+    // Net Counter = upi + cash + misc_expense
+    const upi = parseNum('upi');
+    const cash = parseNum('cash');
+    const r_expense = parseNum('r_expense'); // hidden input
+
+    const net_counter = upi + cash + r_expense;
+
+    // Signed difference (Net Counter - Net Sales)
+    const difference = net_counter - net_sales;
+
+    // Update UI (2 decimal places)
+    document.getElementById('net_counter').value = net_counter.toFixed(2);
+    document.getElementById('net_sales').value = net_sales.toFixed(2);
+    const diffEl = document.getElementById('difference');
+    diffEl.value = difference.toFixed(2);
+
+    // Color-code difference (green >=0, red <0)
+    diffEl.classList.remove('text-success', 'text-danger');
+    if (difference < 0) {
+      diffEl.classList.add('text-danger');
+    } else {
+      diffEl.classList.add('text-success');
+    }
+  }
+
+  // Wire all inputs that affect calculations
+  document.querySelectorAll('.calc-input').forEach(input => {
+    input.addEventListener('input', calculateLive);
+  });
+
+  // Initial run
+  calculateLive();
+
+  // If your server-side code updates the hidden r_expense dynamically after load (via JS),
+  // make sure to call calculateLive() after changing #r_expense.value so UI updates.
+</script>
+{% endblock %}
