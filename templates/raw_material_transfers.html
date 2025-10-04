@@ -1,0 +1,464 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="page-wrapper">
+  <div class="content">
+    <div class="page-header">
+      <div class="page-title">
+        <h4>Raw Material Transfer Requests</h4>
+        <h6>Approve or Reject raw material requests by batch</h6>
+      </div>
+    </div>
+
+    <!-- Stock Value Header -->
+    <div class="row mb-4">
+      <div class="col-md-12">
+        <div class="card bg-primary text-white">
+          <div class="card-body py-3">
+            <div class="row align-items-center">
+              <div class="col-md-8">
+                <h5 class="mb-0">
+                  <i class="fas fa-warehouse me-2"></i>
+                  Current Storageroom Stock Value
+                </h5>
+              </div>
+              <div class="col-md-4 text-end">
+                <h3 class="mb-0">₹{{ "%.2f"|format(current_total_value|default(0)) }}</h3>
+                <small>Total Inventory Value</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end mb-3">
+      <button type="button" id="printTransfers" class="btn btn-secondary px-5 py-2">
+        Print Transfers Report
+      </button>
+    </div>
+
+    <!-- Overall Summary -->
+    {% if transfers %}
+    {% set grouped_transfers = {} %}
+    {% for transfer in transfers %}
+    {% if transfer.no_of_time_requested not in grouped_transfers %}
+    {% set _ = grouped_transfers.update({transfer.no_of_time_requested: []}) %}
+    {% endif %}
+    {% set _ = grouped_transfers[transfer.no_of_time_requested].append(transfer) %}
+    {% endfor %}
+
+    {% set grand_total = namespace(value=0) %}
+    {% for transfer in transfers %}
+    {% if transfer.transfer_avg and transfer.quantity %}
+    {% set grand_total.value = grand_total.value + (transfer.transfer_avg|float * transfer.quantity|float) %}
+    {% endif %}
+    {% endfor %}
+
+    <div class="row mb-4">
+      <div class="col-md-12">
+        <div class="card bg-light">
+          <div class="card-body">
+            <h6 class="card-title text-muted mb-3">
+              <i class="fas fa-chart-bar me-2"></i>
+              Transfer Requests Summary
+            </h6>
+            <div class="row text-center">
+              <div class="col-md-4">
+                <h4 class="text-primary mb-1">{{ grouped_transfers.keys()|list|length }}</h4>
+                <small class="text-muted">Request Batches</small>
+              </div>
+              <div class="col-md-4">
+                <h4 class="text-info mb-1">{{ transfers|length }}</h4>
+                <small class="text-muted">Total Items</small>
+              </div>
+              <div class="col-md-4">
+                <h4 class="text-success mb-1">₹{{ "%.2f"|format(grand_total.value) }}</h4>
+                <small class="text-muted">Total Transfer Value</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Filter -->
+    <div class="mb-3">
+      <form method="GET" action="/raw_material_transfers" class="row g-3 align-items-center">
+        <div class="col-auto">
+          <label for="statusFilter" class="form-label">Filter by Status:</label>
+        </div>
+        <div class="col-auto">
+          <select id="statusFilter" name="transfer_status" class="form-control" style="width:200px;"
+            onchange="this.form.submit()">
+            <option value="PENDING" {% if transfer_status=='PENDING' %}selected{% endif %}>PENDING</option>
+            <option value="APPROVED" {% if transfer_status=='APPROVED' %}selected{% endif %}>APPROVED</option>
+            <option value="REJECTED" {% if transfer_status=='REJECTED' %}selected{% endif %}>REJECTED</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <span class="badge bg-secondary">Total: {{ total }} records</span>
+        </div>
+      </form>
+    </div>
+
+    <!-- Grouped Transfers -->
+    {% if transfers %}
+    {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+    {% set first_transfer = batch_transfers[0] %}
+
+    <!-- Calculate total batch cost properly -->
+    {% set total_batch_cost = namespace(value=0) %}
+    {% for t in batch_transfers %}
+    {% if t.transfer_avg and t.quantity %}
+    {% set item_cost = t.transfer_avg|float * t.quantity|float %}
+    {% set total_batch_cost.value = total_batch_cost.value + item_cost %}
+    {% endif %}
+    {% endfor %}
+
+    <div class="card mb-4 shadow-sm">
+      <!-- Group Header -->
+      <div class="card-header bg-light">
+        <div class="row align-items-center">
+          <div class="col-md-8">
+            <h5 class="mb-1">
+              <i class="fas fa-box text-primary me-2"></i>
+              Request Batch #{{ request_batch_id }}
+              <span
+                class="badge bg-{% if first_transfer.transfer_status == 'APPROVED' %}success{% elif first_transfer.transfer_status == 'REJECTED' %}danger{% else %}warning{% endif %} ms-2">
+                {{ first_transfer.transfer_status }}
+              </span>
+            </h5>
+            <div class="text-muted small">
+              <i class="fas fa-user me-1"></i> {{ first_transfer.requested_user_email_id }}
+              <i class="fas fa-clock me-1 ms-3"></i> {{ first_transfer.requested_date_time.strftime('%Y-%m-%d %H:%M') if
+              first_transfer.requested_date_time else '-' }}
+              <i class="fas fa-map-marker-alt me-1 ms-3"></i> {{ first_transfer.storageroomname }} → {{
+              first_transfer.destination_type|title }}
+            </div>
+          </div>
+          <div class="col-md-4 text-end">
+            <div class="text-muted small">
+              <div><strong>{{ batch_transfers|length }}</strong> Items</div>
+              <div class="text-primary"><strong>₹{{ "%.2f"|format(total_batch_cost.value) }}</strong> Total</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Group Content -->
+      <div class="card-body">
+        <!-- Raw Materials Table -->
+        <div class="table-responsive">
+          <table class="table table-sm table-hover">
+            <thead class="table-light">
+              <tr>
+                <th>#</th>
+                <th>Transfer ID</th>
+                <th>Raw Material</th>
+                <th>Quantity</th>
+                <th>Metric</th>
+                <th>Avg Unit Cost</th>
+                <th>Transfer Avg</th>
+                <th>Total Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for transfer in batch_transfers %}
+              {% set item_total_cost = transfer.transfer_avg|float * transfer.quantity|float if transfer.transfer_avg
+              and transfer.quantity else 0 %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td><code>{{ transfer.transfer_id }}</code></td>
+                <td>
+                  <strong>{{ transfer.raw_material_name }}</strong>
+                  <small class="text-muted d-block">Available: {{ transfer.current_available_quantity }}</small>
+                </td>
+                <td><strong>{{ transfer.quantity }}</strong></td>
+                <td>{{ transfer.metric }}</td>
+                <td>
+                  {% if transfer.average_unit_cost %}
+                  ₹{{ "%.2f"|format(transfer.average_unit_cost|float) }}
+                  {% else %}
+                  <span class="text-muted">N/A</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if transfer.transfer_avg %}
+                  ₹{{ "%.2f"|format(transfer.transfer_avg|float) }}
+                  {% else %}
+                  <span class="text-muted">N/A</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <strong class="text-success">₹{{ "%.2f"|format(item_total_cost) }}</strong>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+            <!-- Batch Total Row -->
+            <tfoot class="table-active">
+              <tr>
+                <td colspan="7" class="text-end"><strong>Batch Total:</strong></td>
+                <td><strong class="text-primary">₹{{ "%.2f"|format(total_batch_cost.value) }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Group Actions (only for PENDING status) -->
+        {% if transfer_status == 'PENDING' %}
+        <div class="row mt-3">
+          <div class="col-12">
+            <div class="d-flex gap-2 justify-content-end">
+              <button class="btn btn-success approve-group-btn" data-batch-id="{{ request_batch_id }}">
+                <i class="fas fa-check me-1"></i>
+                Approve Batch ({{ batch_transfers|length }} items)
+              </button>
+              <button class="btn btn-danger reject-group-btn" data-batch-id="{{ request_batch_id }}">
+                <i class="fas fa-times me-1"></i>
+                Reject Batch ({{ batch_transfers|length }} items)
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center py-5">
+        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+        <h5 class="text-muted">No transfer requests found</h5>
+        <p class="text-muted">Try changing the status filter or check back later.</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Pagination -->
+    {% if total_pages > 1 %}
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center">
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link"
+            href="/raw_material_transfers?transfer_status={{ transfer_status }}&page={{ p }}&per_page={{ per_page }}">{{
+            p }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+
+<!-- JavaScript for Group Actions -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    console.log("🔄 DOM Content Loaded - Group script initialized");
+
+    // Group transfer data by batch ID
+    const transfersByBatch = {
+      {% if transfers %}
+    {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+    "{{ request_batch_id }}": [
+      {% for t in batch_transfers %}
+          {{ t.transfer_id }}{% if not loop.last %}, {% endif %}
+  {% endfor %}
+      ]{% if not loop.last %}, {% endif %}
+  {% endfor %}
+  {% endif %}
+    };
+
+  console.log("📦 Transfers by batch:", transfersByBatch);
+
+  // Handle group approve buttons
+  {% if transfers and transfer_status == 'PENDING' %}
+  document.querySelectorAll('.approve-group-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const batchId = this.getAttribute('data-batch-id');
+      const transferIds = transfersByBatch[batchId];
+
+      if (!transferIds || transferIds.length === 0) {
+        alert("No transfers found for this batch");
+        return;
+      }
+
+      console.log(`🟢 Approving batch ${batchId} with transfers:`, transferIds);
+
+      if (confirm(`Approve all ${transferIds.length} transfers in Request Batch #${batchId}?`)) {
+        performGroupAction('approve', transferIds, this);
+      }
+    });
+  });
+
+  // Handle group reject buttons
+  document.querySelectorAll('.reject-group-btn').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const batchId = this.getAttribute('data-batch-id');
+      const transferIds = transfersByBatch[batchId];
+
+      if (!transferIds || transferIds.length === 0) {
+        alert("No transfers found for this batch");
+        return;
+      }
+
+      console.log(`🔴 Rejecting batch ${batchId} with transfers:`, transferIds);
+
+      if (confirm(`Reject all ${transferIds.length} transfers in Request Batch #${batchId}?`)) {
+        performGroupAction('reject', transferIds, this);
+      }
+    });
+  });
+  {% endif %}
+
+  function performGroupAction(action, transferIds, button) {
+    console.log(`🚀 Performing ${action} for transfer IDs:`, transferIds);
+
+    const url = action === "approve" ? "/approve_transfers" : "/reject";
+    const method = action === "approve" ? "PUT" : "POST";
+
+    const originalText = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+    button.disabled = true;
+
+    // Disable both buttons during processing
+    document.querySelectorAll('.approve-group-btn, .reject-group-btn').forEach(btn => {
+      btn.disabled = true;
+    });
+
+    fetch(url, {
+      method: method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transfer_ids: transferIds })
+    })
+      .then(response => {
+        console.log(`📥 Response status: ${response.status}`);
+        if (!response.ok) {
+          return response.json().then(err => {
+            throw new Error(err.error || `HTTP error! status: ${response.status}`)
+          });
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log("✅ Response data:", data);
+        alert(data.message || `${action} successful for ${transferIds.length} transfers`);
+        window.location.reload();
+      })
+      .catch(error => {
+        console.error("❌ Error occurred:", error);
+        alert("Error: " + error.message);
+        // Re-enable buttons
+        button.innerHTML = originalText;
+        button.disabled = false;
+        document.querySelectorAll('.approve-group-btn, .reject-group-btn').forEach(btn => {
+          if (btn !== button) btn.disabled = false;
+        });
+      });
+  }
+
+  console.log("🎯 Group script setup complete");
+  });
+
+  document.addEventListener("DOMContentLoaded", function () {
+    const printButton = document.getElementById("printTransfers");
+
+    printButton.addEventListener("click", function () {
+      let printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Raw Material Transfers Report</title>
+        <style>
+          body { margin: 0; font-family: Arial, sans-serif; }
+          h2, h3 { margin: 0; padding: 4px 0; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th, td { border: 1px solid #000; padding: 6px; font-size: 10px; text-align: center; }
+          th { background: #f4f4f4; }
+          .batch-header { text-align: left; margin: 15px 0 5px; font-size: 13px; font-weight: bold; }
+          .total { text-align: right; margin-top: 10px; font-size: 12px; font-weight: bold; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; }
+        </style>
+      </head>
+      <body>
+        <h2>Raw Material Transfer Report</h2>
+        <h3>Dharani Inventory Solution</h3>
+    `;
+
+      {% for request_batch_id, batch_transfers in grouped_transfers.items() %}
+      {% set total_batch_cost = namespace(value = 0) %}
+      {% for t in batch_transfers %}
+      {% set item_cost = (t.transfer_avg | float * t.quantity | float) if t.transfer_avg and t.quantity else 0 %}
+      {% set total_batch_cost.value = total_batch_cost.value + item_cost %}
+      {% endfor %}
+
+      printContent += `
+        <div class="batch-header">Request Batch #{{ request_batch_id }} ({{ batch_transfers|length }} items)</div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Transfer ID</th>
+              <th>Raw Material</th>
+              <th>Available Stock</th>
+              <th>Quantity</th>
+              <th>Metric</th>
+              <th>Avg Unit Cost</th>
+              <th>Transfer Avg</th>
+              <th>Total Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      {% for transfer in batch_transfers %}
+      {% set item_total_cost = (transfer.transfer_avg | float * transfer.quantity | float) if transfer.transfer_avg and transfer.quantity else 0 %}
+      printContent += `
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ transfer.transfer_id }}</td>
+            <td>{{ transfer.raw_material_name }}</td>
+            <td>{{ transfer.current_available_quantity }}</td>
+            <td>{{ transfer.quantity }}</td>
+            <td>{{ transfer.metric }}</td>
+            <td>{{ "%.2f"|format(transfer.average_unit_cost|float) if transfer.average_unit_cost else 'N/A' }}</td>
+            <td>{{ "%.2f"|format(transfer.transfer_avg|float) if transfer.transfer_avg else 'N/A' }}</td>
+            <td>{{ "%.2f"|format(item_total_cost) }}</td>
+          </tr>
+        `;
+      {% endfor %}
+
+      printContent += `
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="8" class="text-end"><strong>Batch Total</strong></td>
+              <td><strong>₹{{ "%.2f"|format(total_batch_cost.value) }}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+      {% endfor %}
+
+      printContent += `
+      <div class="signatures">
+        <p>Authorized Signature: __________</p>
+        <p>Receiver Signature: __________</p>
+      </div>
+      </body>
+      </html>
+    `;
+
+      const printWindow = window.open("", "_blank");
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      setTimeout(() => { printWindow.close(); }, 500);
+    });
+  });
+</script>
+{% endblock %}

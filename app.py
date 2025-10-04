@@ -6,8 +6,9 @@ from markupsafe import Markup
 from flask_mail import Mail, Message
 from db_utils import *
 from encryption import encrypt_message, decrypt_message, generate_random_password
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from werkzeug.utils import secure_filename
+from math import ceil
 import os
 import pytz
 from dotenv import load_dotenv
@@ -2216,11 +2217,11 @@ def convert_to_base_units(quantity, metric):
     return quantity  # Return as is for kg, liters, and units
 
 
-@app.route('/transfer_raw_material', methods=['GET', 'POST'])
+@app.route('/transfer_raw_material', methods=['GET', 'POST', 'PUT'])
 def transfer_raw_material():
     if "user" not in session:
         return redirect("/login")
-
+      
     if request.method == 'POST':
         source_storeroom_id = request.form.get("storageroom")
         destination_type = request.form.get("destination_type")
@@ -2229,6 +2230,8 @@ def transfer_raw_material():
         raw_materials = request.form.getlist("raw_material_id[]")
         quantities = request.form.getlist("quantity[]")
         metrics = request.form.getlist("metric[]")
+        transfer_avgs = request.form.getlist("transfer_avgs[]") or [0.0]
+        total_costs = request.form.getlist("total_cost[]") or [0.0]
         transfer_datetime = get_current_datetime()
         connection = get_db_connection()
 
@@ -2244,83 +2247,144 @@ def transfer_raw_material():
                 next_transfer_id = cursor.fetchone()[0]  # Get next transfer ID
 
                 # Step 2: Prepare Transfer Details
+                transfer_status = "APPROVED"
+
+                if session['user']["role"] == 'branch_manager':
+                    transfer_status = 'PENDING'
+
                 transfer_details = [
                     (source_storeroom_id, destination_type, destination_id,
                      raw_material, Decimal(convert_to_base_units(quantity, metric)),
-                     metric, transfer_date, transfer_datetime, next_transfer_id)
-                    for raw_material, quantity, metric in zip(raw_materials, quantities, metrics)
+                     metric, transfer_date, transfer_datetime, next_transfer_id, transfer_avg, total_cost , transfer_status)
+                    for raw_material, quantity, metric, transfer_avg,total_cost in zip(raw_materials, quantities, metrics,transfer_avgs, total_costs)
                 ]
 
                 # Step 3: Bulk INSERT into `raw_material_transfer_details`
+            
                 insert_transfer_sql = """
                     INSERT INTO raw_material_transfer_details
                         (source_storage_room_id, destination_type, destination_id,
-                        raw_material_id, quantity, metric, transferred_date, transfer_time, transfer_id)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        raw_material_id, quantity, metric, transferred_date, transfer_time, transfer_id, transfer_avg, total_cost , transfer_status )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s , %s , %s ,%s )
                 """
-                cursor.executemany(insert_transfer_sql, transfer_details)
+
+                inserted_ids = []
+
+                for detail in transfer_details:
+                    cursor.execute(insert_transfer_sql, detail)
+                    inserted_ids.append(cursor.lastrowid)  # capture ID
+
+                print(f"inserted_id - : '{inserted_ids}'")
+
+
+                # Step 3.2: Prepare data for raw_material_transfer_request_details
+                if session['user']["role"] == 'branch_manager':
+
+                    transfer_datetime = get_current_datetime()
+
+                    user_email = session['user']["email"]
+                    print(f"user_id - : '{user_email}'")
+
+                    request_details = [
+                        (transfer_id, user_email, transfer_datetime, None, None , transfer_id)
+                        for transfer_id in inserted_ids
+                    ]
+
+                    print(f"request_details - : '{request_details}'")
+
+                    # Step 3.3: Bulk INSERT into raw_material_transfer_request_details
+                    insert_request_sql = """
+                        INSERT INTO raw_material_transfer_request_details
+                            (transfer_id, user_email, requested_date_time, approved_date_time, rejected_date_time , request_id)
+                        VALUES (%s, %s, %s, %s, %s ,  
+                                (SELECT transfer_id
+                                            FROM raw_material_transfer_details
+                                WHERE id = %s))
+                        """
+                    
+                    for detail in request_details:
+                        cursor.execute(insert_request_sql, detail)
+
+
 
                 # Step 4: Update inventory_stock
-                raw_material_ids = [item[3] for item in transfer_details]
-                raw_material_ids_str = ",".join(map(str, raw_material_ids))  # Convert to comma-separated string
+                # raw_material_ids = [item[3] for item in transfer_details]
+                # raw_material_ids_str = ",".join(map(str, raw_material_ids))  # Convert to comma-separated string
 
-                case_statements_outgoing = " ".join([f"WHEN {item[3]} THEN {item[4]}" for item in transfer_details])
-                case_statements_available = case_statements_outgoing  # Same logic for both columns
+                # case_statements_outgoing = " ".join([f"WHEN {item[3]} THEN {item[4]}" for item in transfer_details])
+                # case_statements_available = case_statements_outgoing  # Same logic for both columns
 
-                update_inventory_sql = f"""
-                    UPDATE inventory_stock
-                    SET 
-                        outgoing_stock = outgoing_stock + CASE raw_material_id 
-                            {case_statements_outgoing} ELSE outgoing_stock END,
-                        currently_available = currently_available - CASE raw_material_id 
-                            {case_statements_available} ELSE 0 END,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE destination_type = 'storageroom' 
-                    AND destination_id = %s
-                    AND raw_material_id IN ({raw_material_ids_str})
-                """
+                # update_inventory_sql = f"""
+                #     UPDATE inventory_stock
+                #     SET 
+                #         outgoing_stock = outgoing_stock + CASE raw_material_id 
+                #             {case_statements_outgoing} ELSE outgoing_stock END,
+                #         currently_available = currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END, 
+                        
+                #         total_stock_value = total_stock_value - CASE raw_material_id
+                #             {" ".join([f"WHEN {item[3]} THEN {item[10]}" for item in transfer_details])} ELSE 0 END,
 
-                cursor.execute(update_inventory_sql, (source_storeroom_id,))
+                #         average_unit_cost = CASE 
+                #              WHEN (currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END) > 0
+                #         THEN 
+                #             (total_stock_value - CASE raw_material_id
+                #             {" ".join([f"WHEN {item[3]} THEN {item[10]}" for item in transfer_details])} ELSE 0 END)
+                #             / 
+                #             (currently_available - CASE raw_material_id 
+                #             {case_statements_available} ELSE 0 END)
+                #         ELSE 0
+                #         END,
+           
+                #         updated_at = CURRENT_TIMESTAMP
+                #     WHERE destination_type = 'storageroom' 
+                #     AND destination_id = %s
+                #     AND raw_material_id IN ({raw_material_ids_str})
+                # """
 
-                # Step 5: Fetch current inventory details
-                fetch_inventory_sql = f"""
-                    SELECT raw_material_id, 
-                        IFNULL(currently_available, 0),
-                        IFNULL(minimum_quantity, 0), 
-                        IFNULL(quantity_needed, 0) 
-                    FROM inventory_stock 
-                    WHERE destination_type = %s 
-                    AND destination_id = %s 
-                    AND raw_material_id IN ({raw_material_ids_str})
-                """
+                # cursor.execute(update_inventory_sql, (source_storeroom_id,))
 
-                cursor.execute(fetch_inventory_sql, (destination_type, destination_id))
-                existing_inventory = {row[0]: (Decimal(row[1]), Decimal(row[2]), Decimal(row[3]))
-                                      for row in cursor.fetchall()}  # Convert to Decimal
+                # # Step 5: Fetch current inventory details
+                # fetch_inventory_sql = f"""
+                #     SELECT raw_material_id, 
+                #         IFNULL(currently_available, 0),
+                #         IFNULL(minimum_quantity, 0), 
+                #         IFNULL(quantity_needed, 0) 
+                #     FROM inventory_stock 
+                #     WHERE destination_type = %s 
+                #     AND destination_id = %s 
+                #     AND raw_material_id IN ({raw_material_ids_str})
+                # """
 
-                # Step 6: Bulk INSERT or UPDATE inventory_stock
-                insert_inventory_sql = """
-                    INSERT INTO inventory_stock
-                        (destination_type, destination_id, raw_material_id, metric,
-                        incoming_stock, currently_available, minimum_quantity, quantity_needed, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    ON DUPLICATE KEY UPDATE
-                        incoming_stock = incoming_stock + VALUES(incoming_stock),
-                        currently_available = COALESCE(currently_available, 0) + VALUES(incoming_stock),
-                        updated_at = CURRENT_TIMESTAMP
-                """
+                # cursor.execute(fetch_inventory_sql, (destination_type, destination_id))
+                # existing_inventory = {row[0]: (Decimal(row[1]), Decimal(row[2]), Decimal(row[3]))
+                #                       for row in cursor.fetchall()}  # Convert to Decimal
 
-                inventory_values = [
-                    (item[1], item[2], item[3], item[5], Decimal(item[4]),  # Ensure quantity is Decimal
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
-                        0] + Decimal(item[4]),  # Compute currently_available
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
-                        1],  # Fetch minimum_quantity if exists, else 0
-                     existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[2])  # Fetch quantity_needed if exists, else 0
-                    for item in transfer_details
-                ]
+                # # Step 6: Bulk INSERT or UPDATE inventory_stock
+                # insert_inventory_sql = """
+                #     INSERT INTO inventory_stock
+                #         (destination_type, destination_id, raw_material_id, metric,
+                #         incoming_stock, currently_available, minimum_quantity, quantity_needed, updated_at)
+                #     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                #     ON DUPLICATE KEY UPDATE
+                #         incoming_stock = incoming_stock + VALUES(incoming_stock),
+                #         currently_available = COALESCE(currently_available, 0) + VALUES(incoming_stock),
+                #         updated_at = CURRENT_TIMESTAMP
+                # """
+                
+                # inventory_values = [
+                #     (item[1], item[2], item[3], item[5], Decimal(item[4]),  # Ensure quantity is Decimal
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                #         0] + Decimal(item[4]),  # Compute currently_available
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[
+                #         1],  # Fetch minimum_quantity if exists, else 0
+                #      existing_inventory.get(item[3], (Decimal(0), Decimal(0), Decimal(0)))[2])  # Fetch quantity_needed if exists, else 0
+                     
+                #     for item in transfer_details
+                # ]
 
-                cursor.executemany(insert_inventory_sql, inventory_values)
+                # cursor.executemany(insert_inventory_sql, inventory_values)
 
                 connection.commit()
                 flash(f"Transfer successful (Transfer ID: {next_transfer_id})", "success")
@@ -2346,6 +2410,520 @@ def transfer_raw_material():
         today_date=get_current_date()
     )
 
+@app.route("/raw_material_transfers", methods=["GET"])
+def get_raw_material_transfers():
+    if "user" not in session:
+        return redirect("/login")
+    
+    # Get filter parameters
+    transfer_status = request.args.get("transfer_status")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 500))
+    requested_user_email = request.args.get("requested_user_email")
+
+    conn = get_db_connection()
+    
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Get current stock value
+        cursor.execute("""
+            SELECT SUM(total_stock_value) AS current_total_value
+            FROM inventory_stock 
+            WHERE destination_type = 'storageroom'
+        """)
+        stock_result = cursor.fetchone()
+        current_total_value = stock_result['current_total_value'] if stock_result and stock_result['current_total_value'] else 0
+
+        # Default to PENDING if no status is provided
+        if not transfer_status:
+            transfer_status = 'PENDING'
+
+        # Determine ordering column based on status
+        if transfer_status == 'PENDING':
+            order_column_name = "rmtrq.requested_date_time"
+        elif transfer_status == 'REJECTED':
+            order_column_name = "rmtrq.rejected_date_time"
+        else:
+            order_column_name = "rmtrq.approved_date_time"
+            transfer_status = transfer_status or 'APPROVED'
+
+        offset = (page - 1) * per_page
+
+        # Build WHERE conditions
+        where_conditions = ["rmtd.id = rmtrq.transfer_id"]
+        params = []
+
+        if transfer_status:
+            where_conditions.append("rmtd.transfer_status = %s")
+            params.append(transfer_status)
+
+        if requested_user_email:
+            where_conditions.append("rmtrq.user_email = %s")
+            params.append(requested_user_email)
+
+        where_clause = " AND ".join(where_conditions)
+
+        # Count total rows for pagination
+        count_sql = f"""
+            SELECT COUNT(*) AS total
+            FROM raw_material_transfer_details rmtd
+            INNER JOIN raw_material_transfer_request_details rmtrq
+                ON {where_clause}
+            INNER JOIN storagerooms s
+                ON s.id = rmtd.source_storage_room_id
+            INNER JOIN raw_materials r
+                ON r.id = rmtd.raw_material_id
+            INNER JOIN inventory_stock i
+                ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+        """
+        cursor.execute(count_sql, tuple(params))
+        total_row = cursor.fetchone()
+        total = total_row["total"] if total_row else 0
+        total_pages = ceil(total / per_page) if per_page > 0 else 0
+
+        # Fetch paginated transfers
+        query = f"""
+            SELECT rmtd.id AS transfer_id,
+                   rmtrq.request_id AS no_of_time_requested,
+                   rmtrq.id AS request_id,
+                   rmtd.transfer_status,
+                   rmtd.transferred_date,
+                   s.storageroomname,
+                   rmtd.destination_type,
+                   rmtd.destination_type AS destination_id,
+                   r.name AS raw_material_name,
+                   i.currently_available AS current_available_quantity,
+                   rmtd.quantity,
+                   rmtd.metric,
+                   i.average_unit_cost,
+                   rmtd.transfer_avg,
+                   rmtrq.requested_date_time,
+                   rmtrq.approved_date_time,
+                   rmtrq.rejected_date_time,
+                   rmtrq.user_email AS requested_user_email_id
+            FROM raw_material_transfer_details rmtd
+            INNER JOIN raw_material_transfer_request_details rmtrq
+                ON {where_clause}
+            INNER JOIN storagerooms s
+                ON s.id = rmtd.source_storage_room_id
+            INNER JOIN raw_materials r
+                ON r.id = rmtd.raw_material_id
+            INNER JOIN inventory_stock i
+                ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+            ORDER BY {order_column_name} DESC
+            LIMIT %s OFFSET %s
+        """
+        cursor.execute(query, tuple(params + [per_page, offset]))
+        results = cursor.fetchall()
+
+        # Build grouped_transfers dictionary for template
+        grouped_transfers = {}
+        for transfer in results:
+            batch_id = transfer['no_of_time_requested']
+            if batch_id not in grouped_transfers:
+                grouped_transfers[batch_id] = []
+            grouped_transfers[batch_id].append(transfer)
+
+        return render_template(
+            'raw_material_transfers.html',
+            transfers=results,
+            grouped_transfers=grouped_transfers,  # ✅ Pass this to template
+            transfer_status=transfer_status or 'APPROVED',
+            page=page,
+            per_page=per_page,
+            total=total,
+            total_pages=total_pages,
+            user=session["user"],
+            current_total_value=current_total_value
+        )
+
+    except Exception as e:
+        app.logger.error(f"Error in get_raw_material_transfers: {e}")
+        flash(f"An error occurred: {str(e)}", "danger")
+        return render_template(
+            'raw_material_transfers.html',
+            transfers=[],
+            grouped_transfers={},  # provide empty dict on error
+            transfer_status=transfer_status or 'APPROVED',
+            page=page,
+            per_page=per_page,
+            total=0,
+            total_pages=0,
+            user=session["user"],
+            current_total_value=0,
+            error=str(e)
+        )
+
+    finally:
+        conn.close()
+
+# @app.route("/raw_material_transfers", methods=["GET"])
+# def get_raw_material_transfers():
+#     if "user" not in session:
+#         return redirect("/login")
+    
+#     # Get filter parameters
+#     transfer_status = request.args.get("transfer_status")
+#     page = int(request.args.get("page", 1))
+#     per_page = int(request.args.get("per_page", 500))
+#     requested_user_email = request.args.get("requested_user_email")
+
+#     conn = get_db_connection()
+    
+#     try:
+#         cursor = conn.cursor(dictionary=True)
+
+#         # Get current stock value
+#         cursor.execute("""
+#             SELECT SUM(total_stock_value) AS current_total_value
+#             FROM inventory_stock 
+#             WHERE destination_type = 'storageroom'
+#         """)
+#         stock_result = cursor.fetchone()
+#         current_total_value = stock_result['current_total_value'] if stock_result and stock_result['current_total_value'] else 0
+
+#         # Default to PENDING if no status is provided
+#         if not transfer_status:
+#             transfer_status = 'PENDING'
+
+#         # Determine ordering column based on status
+#         if transfer_status == 'PENDING':
+#             order_column_name = "rmtrq.requested_date_time"
+#         elif transfer_status == 'REJECTED':
+#             order_column_name = "rmtrq.rejected_date_time"
+#         else:
+#             order_column_name = "rmtrq.approved_date_time"
+#             transfer_status = transfer_status or 'APPROVED'
+
+#         offset = (page - 1) * per_page
+
+#         # Build WHERE conditions
+#         where_conditions = ["rmtd.id = rmtrq.transfer_id"]
+#         params = []
+
+#         if transfer_status:
+#             where_conditions.append("rmtd.transfer_status = %s")
+#             params.append(transfer_status)
+
+#         if requested_user_email:
+#             where_conditions.append("rmtrq.user_email = %s")
+#             params.append(requested_user_email)
+
+#         where_clause = " AND ".join(where_conditions)
+
+#         # Count total rows for pagination
+#         count_sql = f"""
+#             SELECT COUNT(*) AS total
+#             FROM raw_material_transfer_details rmtd
+#             INNER JOIN raw_material_transfer_request_details rmtrq
+#                 ON {where_clause}
+#             INNER JOIN storagerooms s
+#                 ON s.id = rmtd.source_storage_room_id
+#             INNER JOIN raw_materials r
+#                 ON r.id = rmtd.raw_material_id
+#             INNER JOIN inventory_stock i
+#                 ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+#         """
+#         cursor.execute(count_sql, tuple(params))
+#         total_row = cursor.fetchone()
+#         total = total_row["total"] if total_row else 0
+#         total_pages = ceil(total / per_page) if per_page > 0 else 0
+
+#         # Fetch paginated transfers
+#         query = f"""
+#             SELECT rmtd.id AS transfer_id,
+#                    rmtrq.request_id AS no_of_time_requested,
+#                    rmtrq.id AS request_id,
+#                    rmtd.transfer_status,
+#                    rmtd.transferred_date,
+#                    s.storageroomname,
+#                    rmtd.destination_type,
+#                    rmtd.destination_type AS destination_id,
+#                    r.name AS raw_material_name,
+#                    i.currently_available AS current_available_quantity,
+#                    rmtd.quantity,
+#                    rmtd.metric,
+#                    i.average_unit_cost,
+#                    rmtd.transfer_avg,
+#                    rmtrq.requested_date_time,
+#                    rmtrq.approved_date_time,
+#                    rmtrq.rejected_date_time,
+#                    rmtrq.user_email AS requested_user_email_id
+#             FROM raw_material_transfer_details rmtd
+#             INNER JOIN raw_material_transfer_request_details rmtrq
+#                 ON {where_clause}
+#             INNER JOIN storagerooms s
+#                 ON s.id = rmtd.source_storage_room_id
+#             INNER JOIN raw_materials r
+#                 ON r.id = rmtd.raw_material_id
+#             INNER JOIN inventory_stock i
+#                 ON i.raw_material_id = rmtd.raw_material_id AND i.destination_type = 'storageroom'
+#             ORDER BY {order_column_name} DESC
+#             LIMIT %s OFFSET %s
+#         """
+#         cursor.execute(query, tuple(params + [per_page, offset]))
+#         results = cursor.fetchall()
+
+#         # Build grouped_transfers dictionary for template
+#         grouped_transfers = {}
+#         for transfer in results:
+#             batch_id = transfer['no_of_time_requested']
+#             if batch_id not in grouped_transfers:
+#                 grouped_transfers[batch_id] = []
+#             grouped_transfers[batch_id].append(transfer)
+
+#         return render_template(
+#             'raw_material_transfers.html',
+#             transfers=results,
+#             grouped_transfers=grouped_transfers,  # ✅ Pass this to template
+#             transfer_status=transfer_status or 'APPROVED',
+#             page=page,
+#             per_page=per_page,
+#             total=total,
+#             total_pages=total_pages,
+#             user=session["user"],
+#             current_total_value=current_total_value
+#         )
+
+#     except Exception as e:
+#         app.logger.error(f"Error in get_raw_material_transfers: {e}")
+#         flash(f"An error occurred: {str(e)}", "danger")
+#         return render_template(
+#             'raw_material_transfers.html',
+#             transfers=[],
+#             grouped_transfers={},  # provide empty dict on error
+#             transfer_status=transfer_status or 'APPROVED',
+#             page=page,
+#             per_page=per_page,
+#             total=0,
+#             total_pages=0,
+#             user=session["user"],
+#             current_total_value=0,
+#             error=str(e)
+#         )
+
+#     finally:
+#         conn.close()
+
+from decimal import Decimal, ROUND_HALF_UP
+
+def clamp_decimal(value, max_value, scale):
+    """Clamp value within [0, max_value] and round to given scale"""
+    if value < 0:
+        value = Decimal("0")
+    if value > Decimal(max_value):
+        value = Decimal(max_value)
+    return value.quantize(Decimal(scale), rounding=ROUND_HALF_UP)
+
+
+@app.route("/approve_transfers", methods=["PUT"])
+def approve_transfers():
+    data = request.get_json()
+    transfer_ids = data.get("transfer_ids", [])
+
+    if not transfer_ids:
+        return jsonify({"error": "No transfer IDs provided"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        placeholders = ",".join(["%s"] * len(transfer_ids))
+
+        # Step 1: Fetch transfer details by id
+        fetch_transfer_sql = f"""
+            SELECT *
+            FROM raw_material_transfer_details
+            WHERE id IN ({placeholders})
+        """
+        cursor.execute(fetch_transfer_sql, tuple(transfer_ids))
+        transfer_details = cursor.fetchall()
+
+        if not transfer_details:
+            return jsonify({"error": "No transfers found for these IDs"}), 404
+
+        for item in transfer_details:
+            raw_id = item['raw_material_id']
+            quantity = Decimal(item['quantity'])
+            total_cost = Decimal(item['total_cost'])
+            metric = item['metric']
+
+            source_type = "storageroom"
+            dest_type = item['destination_type']
+            dest_id = item['destination_id']
+
+            # =============================
+            # Step 2A: Deduct from storageroom
+            # =============================
+            fetch_source_sql = """
+                SELECT raw_material_id, currently_available, incoming_stock, outgoing_stock, total_stock_value
+                FROM inventory_stock
+                WHERE destination_type = %s
+                  AND raw_material_id = %s
+            """
+            cursor.execute(fetch_source_sql, (source_type, raw_id))
+            source_inv = cursor.fetchone()
+
+            if source_inv:
+                currently_available = Decimal(source_inv['currently_available']) - quantity
+                outgoing_stock = Decimal(source_inv['outgoing_stock']) + quantity
+                total_stock_value = Decimal(source_inv['total_stock_value']) - total_cost
+
+                # clamp values based on schema
+                currently_available = clamp_decimal(currently_available, "99999.99999", "0.00001")
+                outgoing_stock = clamp_decimal(outgoing_stock, "99999.99999", "0.00001")
+                total_stock_value = clamp_decimal(total_stock_value, "9999999999.99", "0.01")
+
+                average_unit_cost = (total_stock_value / currently_available
+                                     if currently_available > 0 else Decimal("0.00"))
+                average_unit_cost = clamp_decimal(average_unit_cost, "9999999999.99", "0.01")
+
+                update_source_sql = """
+                    UPDATE inventory_stock
+                    SET currently_available = %s,
+                        outgoing_stock = %s,
+                        total_stock_value = %s,
+                        average_unit_cost = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type = %s
+                      AND raw_material_id = %s
+                """
+                cursor.execute(update_source_sql, (
+                    currently_available, outgoing_stock,
+                    total_stock_value, average_unit_cost,
+                    source_type, raw_id
+                ))
+
+            # =============================
+            # Step 2B: Add to destination
+            # =============================
+            fetch_dest_sql = """
+                SELECT raw_material_id, currently_available, incoming_stock, total_stock_value
+                FROM inventory_stock
+                WHERE destination_type = %s
+                  AND destination_id = %s
+                  AND raw_material_id = %s
+            """
+            cursor.execute(fetch_dest_sql, (dest_type, dest_id, raw_id))
+            dest_inv = cursor.fetchone()
+
+            if dest_inv:
+                currently_available = Decimal(dest_inv['currently_available']) + quantity
+                incoming_stock = Decimal(dest_inv['incoming_stock']) + quantity
+                total_stock_value = Decimal(dest_inv['total_stock_value']) + total_cost
+
+                currently_available = clamp_decimal(currently_available, "99999.99999", "0.00001")
+                incoming_stock = clamp_decimal(incoming_stock, "99999.99999", "0.00001")
+                total_stock_value = clamp_decimal(total_stock_value, "9999999999.99", "0.01")
+
+                average_unit_cost = (total_stock_value / currently_available
+                                     if currently_available > 0 else Decimal("0.00"))
+                average_unit_cost = clamp_decimal(average_unit_cost, "9999999999.99", "0.01")
+
+                update_dest_sql = """
+                    UPDATE inventory_stock
+                    SET currently_available = %s,
+                        incoming_stock = %s,
+                        total_stock_value = %s,
+                        average_unit_cost = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE destination_type = %s
+                      AND destination_id = %s
+                      AND raw_material_id = %s
+                """
+                cursor.execute(update_dest_sql, (
+                    currently_available, incoming_stock,
+                    total_stock_value, average_unit_cost,
+                    dest_type, dest_id, raw_id
+                ))
+            else:
+                avg_cost = (total_cost / quantity) if quantity > 0 else Decimal("0.00")
+                avg_cost = clamp_decimal(avg_cost, "9999999999.99", "0.01")
+
+                quantity = clamp_decimal(quantity, "99999.99999", "0.00001")
+                total_cost = clamp_decimal(total_cost, "9999999999.99", "0.01")
+
+                insert_dest_sql = """
+                    INSERT INTO inventory_stock
+                        (destination_type, destination_id, raw_material_id, metric,
+                         opening_stock, incoming_stock, outgoing_stock,
+                         currently_available, minimum_quantity, quantity_needed,
+                         total_stock_value, average_unit_cost, created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, 0, %s, 0, %s, 0, 0, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+                cursor.execute(insert_dest_sql, (
+                    dest_type, dest_id, raw_id, metric,
+                    quantity, quantity, total_cost, avg_cost
+                ))
+
+        # Step 3: Approve transfers
+        approved_time_sql = f"""
+            UPDATE raw_material_transfer_request_details
+            SET approved_date_time = NOW()
+            WHERE transfer_id IN ({placeholders})
+        """
+        cursor.execute(approved_time_sql, tuple(transfer_ids))
+
+        transfer_status_sql = f"""
+            UPDATE raw_material_transfer_details
+            SET transfer_status = 'APPROVED'
+            WHERE id IN ({placeholders})
+        """
+        cursor.execute(transfer_status_sql, tuple(transfer_ids))
+
+        conn.commit()
+        return jsonify({"message": "Transfers approved, storageroom reduced, and destination updated"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
+@app.route("/reject", methods=["POST"])
+def reject_transfers():
+    data = request.get_json()
+    transfer_ids = data.get("transfer_ids", [])
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if not transfer_ids:
+        return jsonify({"error": "No transfer IDs provided"}), 400
+
+    try:
+      
+        placeholders = ",".join(["%s"] * len(transfer_ids))
+
+        # Step 4: Update transfer status to REJECTED
+        update_transfer_sql = f"""
+            UPDATE raw_material_transfer_details
+            SET transfer_status = 'REJECTED'
+            WHERE id IN ({placeholders})
+        """
+        
+        cursor.execute(update_transfer_sql, tuple(transfer_ids))
+        
+        update_sql = f"""
+        UPDATE raw_material_transfer_request_details
+        SET rejected_date_time = NOW()
+        WHERE transfer_id IN ({placeholders})
+    """
+        cursor.execute(update_sql, tuple(transfer_ids))
+
+
+        conn.commit()
+        return jsonify({"message": "Transfers rejected and inventory updated successfully"}), 200
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
 
 @app.route('/list_rawmaterial_transfers', methods=["GET", "POST"])
 def list_rawmaterial_transfers():
@@ -2598,12 +3176,23 @@ def get_available_quantity():
     storageroom_id = int(request.args.get('storageroom_id'))
     raw_material_id = request.args.get('raw_material_id')
     available_quantity = get_storageroom_rawmaterial_quantity(storageroom_id, raw_material_id)
+    avg_cost  = get_average_cost_from_inventory_by_raw_material_id(raw_material_id, storageroom_id)
+    
+    print(f"average_cost '{avg_cost}'")
+
+    average_cost = (
+        float(avg_cost["average_unit_cost"])
+        if avg_cost and avg_cost.get("average_unit_cost") is not None
+        else 0.0
+    )
+
     storage_available_quantity = 0
     if available_quantity:
         storage_available_quantity = available_quantity[0]["quantity"]
     # # Check if storage room and raw material exist
     # available_quantity = storage_available_quantity.get(raw_material_id, 0)
-    data = {"available_quantity": float(storage_available_quantity)}
+
+    data = {"available_quantity": float(storage_available_quantity) ,  "avg_cost" : average_cost }
     return jsonify(data)
 
 
