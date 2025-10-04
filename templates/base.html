@@ -158,6 +158,29 @@
                                 {% endif %}
                             </ul>
                         </li>
+                        {% if user.role in ['admin', 'branch_manager'] %}
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
+                                <span>Daily Report</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li>
+                                    <a href="/add-nbs-report"
+                                        class="{{ 'active' if request.path == '/add-nbs-report' else '' }}">
+                                        Add NBS Daily Report
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/nbs-reports"
+                                        class="{{ 'active' if request.path == '/nbs-reports' else '' }}">
+                                        NBS Daily Report
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                        {% endif %}
                         <li class="submenu">
                             <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
                                     Kitchen</span> <span class="menu-arrow"></span></a>
