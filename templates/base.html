@@ -342,11 +342,17 @@
                             <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg" alt="img"><span>
                                     Transfer</span> <span class="menu-arrow"></span></a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='store_manager' or
+                                {% if user.role=='admin' or
                                 user.role=='branch_manager' %}
                                 <li><a href="/transfer_raw_material"
-                                        class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Transfer
+                                        class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Request
                                         Raw Materials</a></li>
+                                {% endif %}
+                                {% if user.role=='admin' or user.role=='store_manager' %}
+                                <li><a href="/raw_material_transfers"
+                                        class="{{ 'active' if request.path == '/raw_material_transfers' else '' }}">Transfer
+                                        Requests</a>
+                                </li>
                                 {% endif %}
                                 <!-- {% if user.role=='admin' or user.role=='store_manager' or
                                     user.role=='branch_manager' %}
@@ -358,6 +364,14 @@
                                         class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
                                         Raw
                                         Material Transfers </a></li>
+                                {% if user.role=='admin' or user.role=='store_manager' or
+                                user.role=='branch_manager' %}
+                                <li><a href="/list_rawmaterial_transfers_range"
+                                        class="{{ 'active' if request.path == '/list_rawmaterial_transfers_range' else '' }}">Get
+                                        Raw Material Transfers By Range
+                                    </a></li>
+                                {% endif %}
+
                                 {% if user.role=='admin' or user.role=='store_manager' or
                                 user.role=='branch_manager' %}
                                 <li><a href="/transfer_raw_material_report"

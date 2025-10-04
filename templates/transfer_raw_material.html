@@ -67,7 +67,6 @@
                         </div>
                     </div>
 
-
                     <!-- Raw Material Rows -->
                     <div id="raw-material-container">
                         <!-- First Row with Headings -->
@@ -83,8 +82,8 @@
                                         <datalist id="raw_materials">
                                             {% for material in raw_materials %}
                                             <option value="{{ material.name }}" data-id="{{ material.id }}"
-                                                data-metric="{{ material.metric }}">
-                                                {% endfor %}
+                                                data-metric="{{ material.metric }}"></option>
+                                            {% endfor %}
                                         </datalist>
                                         <input type="hidden" class="raw-material-id" name="raw_material_id[]" />
                                     </div>
@@ -96,21 +95,31 @@
                                     </div>
                                     <div class="col-lg-2">
                                         <label>Transfer Quantity</label>
-                                        <input type="number" name="quantity[]" class="form-control" step="0.01"
-                                            placeholder="Enter Quantity" min="0.01" required>
+                                        <input type="number" name="quantity[]" class="form-control transfer-quantity"
+                                            step="0.01" placeholder="Enter Quantity" min="0.01" required>
                                     </div>
                                     <div class="col-lg-2">
                                         <label>Metric</label>
-                                        <select name="metric[]" class="form-control metric-dropdown" readonly>
+                                        <select name="metric_display[]" class="form-control metric-dropdown" disabled>
                                             <option value="kg">Kilogram (kg)</option>
                                             <option value="grams">Grams</option>
                                             <option value="liter">Liter</option>
                                             <option value="ml">Milliliter (ml)</option>
                                             <option value="unit">Unit</option>
                                         </select>
+                                        <!-- Hidden input to store metric value for submission -->
+                                        <input type="hidden" class="hidden-metric-input" name="metric[]">
                                     </div>
-                                    <!-- Hidden input to store metric value for submission -->
-                                    <input type="hidden" class="hidden-metric-input" name="metric[]">
+                                    <div class="col-lg-2">
+                                        <label>Average Cost Per Unit</label>
+                                        <input type="number" name="transfer_avgs[]" class="form-control transfer-avg"
+                                            step="0.01" min="0" readonly>
+                                    </div>
+                                    <div class="col-lg-2">
+                                        <label>Total Transfer Cost</label>
+                                        <input type="number" name="total_cost[]" class="form-control total-cost"
+                                            step="0.01" readonly>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-lg-2 d-flex align-items-center">
@@ -141,9 +150,10 @@
         const container = document.getElementById('raw-material-container');
         const destinationTypeSelect = document.getElementById('destination_type');
         const destinationNameSelect = document.getElementById('destination_name');
+        const storageroomSelect = document.querySelector('select[name="storageroom"]');
         const kitchens = {{ kitchens | tojson
-    }};  // Passing kitchens data
-    const restaurants = {{ restaurants | tojson }};  // Passing restaurants data
+    }};
+    const restaurants = {{ restaurants | tojson }};
 
     function updateDestinationNameOptions() {
         const selectedType = destinationTypeSelect.value;
@@ -155,83 +165,68 @@
             options = restaurants;
         }
 
-        destinationNameSelect.innerHTML = ''; // Clear existing options
-
+        destinationNameSelect.innerHTML = '';
         const defaultOption = document.createElement('option');
         defaultOption.text = 'Select Destination';
         defaultOption.disabled = true;
         defaultOption.selected = true;
-        defaultOption.value = ""; // Ensure empty value to trigger required
+        defaultOption.value = "";
         destinationNameSelect.appendChild(defaultOption);
 
         options.forEach(option => {
             const newOption = document.createElement('option');
             newOption.value = option.id;
-            newOption.textContent = option[`${selectedType}name`];  // kitchenname or restaurantname
+            newOption.textContent = option[`${selectedType}name`];
             destinationNameSelect.appendChild(newOption);
         });
 
-        // Ensure `required` is properly set
         destinationNameSelect.setAttribute('required', 'true');
     }
 
-
-    // Event listener for Destination Type change
     destinationTypeSelect.addEventListener('change', updateDestinationNameOptions);
-
-    // Initial update of Destination Name options
     updateDestinationNameOptions();
 
     // Add new row
     container.addEventListener('click', function (e) {
         if (e.target.classList.contains('btn-add-row')) {
             const newRow = e.target.closest('.raw-material-row').cloneNode(true);
-            newRow.querySelectorAll('input, select').forEach(input => input.value = ''); // Clear inputs
+            newRow.querySelectorAll('input:not([type="hidden"]), select').forEach(input => input.value = '');
 
-            // Remove any existing 'X' buttons before cloning
             const existingRemoveBtn = newRow.querySelector('.btn-remove-row');
             if (existingRemoveBtn) {
                 existingRemoveBtn.remove();
             }
 
-            // Ensure both + and X buttons for the new row
             const addBtn = newRow.querySelector('.btn-add-row');
             addBtn.textContent = '+';
             addBtn.classList.replace('btn-remove-row', 'btn-add-row');
             addBtn.classList.replace('btn-danger', 'btn-success');
 
-            // Add an X button
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.textContent = 'X';
             removeBtn.classList.add('btn', 'btn-danger', 'btn-remove-row');
             newRow.querySelector('.d-flex').appendChild(removeBtn);
 
-            // Hide labels for subsequent rows
             const labels = newRow.querySelectorAll('label');
             labels.forEach(label => label.style.display = 'none');
 
-            // Append new row to the container
-            container.appendChild(newRow);
+            const metricDropdown = newRow.querySelector('.metric-dropdown');
+            if (metricDropdown) {
+                metricDropdown.innerHTML = `
+                        <option value="kg">Kilogram (kg)</option>
+                        <option value="grams">Grams</option>
+                        <option value="liter">Liter</option>
+                        <option value="ml">Milliliter (ml)</option>
+                        <option value="unit">Unit</option>
+                    `;
+                metricDropdown.disabled = true;
+            }
 
-            // Focus the raw material input field in the new row
+            container.appendChild(newRow);
             const rawMaterialInput = newRow.querySelector('input[name="raw_material[]"]');
             if (rawMaterialInput) {
                 rawMaterialInput.focus();
-            }
-
-            // Re-render the metric dropdown for the new row
-            const metricDropdown = newRow.querySelector('.metric-dropdown');
-            const rawMaterialInputField = newRow.querySelector('input[name="raw_material[]"]');
-
-            if (metricDropdown && rawMaterialInputField) {
-                metricDropdown.innerHTML = `
-                    <option value="kg">Kilogram (kg)</option>
-                    <option value="grams">Grams</option>
-                    <option value="liter">Liter</option>
-                    <option value="ml">Milliliter (ml)</option>
-                    <option value="unit">Unit</option>
-                `;
             }
         }
     });
@@ -242,14 +237,16 @@
             e.target.closest('.raw-material-row').remove();
         }
     });
+
     // Handle Enter Key
     container.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') {
-            e.preventDefault(); // Prevent form submission
+            e.preventDefault();
             const addBtn = e.target.closest('.raw-material-row').querySelector('.btn-add-row');
             if (addBtn) addBtn.click();
         }
     });
+
     // Auto-select metric based on raw material
     container.addEventListener('input', function (e) {
         if (e.target.classList.contains('raw-material-input')) {
@@ -261,150 +258,151 @@
             if (matchingOption) {
                 const metric = matchingOption.dataset.metric;
                 const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
+                const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
                 metricDropdown.value = metric;
+                hiddenMetricInput.value = metric;
             }
         }
     });
-    });
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('raw-material-container');
-        const storageroomSelect = document.querySelector('select[name="storageroom"]');
 
-        // Fetch available quantity based on raw_material_id
-        async function fetchAvailableQuantity(storageroomId, rawMaterialId) {
-            try {
-                const response = await fetch(`/get_available_quantity?storageroom_id=${storageroomId}&raw_material_id=${rawMaterialId}`);
-
-                if (!response.ok) throw new Error('Failed to fetch available quantity');
-                const data = await response.json();
-                // alert(data)
-                // alert(data.available_quantity)
-                return data.available_quantity || 0;
-            } catch (error) {
-                console.error('Error fetching available quantity:', error);
-                return 0;
-            }
+    // Fetch available quantity and average cost (per unit)
+    async function fetchAvailableQuantityAndCost(storageroomId, rawMaterialId) {
+        try {
+            const response = await fetch(`/get_available_quantity?storageroom_id=${storageroomId}&raw_material_id=${rawMaterialId}`);
+            if (!response.ok) throw new Error('Failed to fetch available quantity and cost');
+            const data = await response.json();
+            return {
+                available_quantity: data.available_quantity || 0,
+                transfer_avgs: data.avg_cost || 0  // Backend sends cost per unit, renamed to match API
+            };
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            return { available_quantity: 0, transfer_avgs: 0 };
         }
+    }
 
-        // Update available quantity and add validation for transfer quantity
-        async function updateAvailableQuantity(row, storageroomId, rawMaterialId) {
-            const availableQuantityInput = row.querySelector('input[name="available_quantity"]');
-            const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
+    // Update available quantity, average cost, and total cost
+    async function updateRowData(row, storageroomId, rawMaterialId) {
+        const availableQuantityInput = row.querySelector('input[name="available_quantity"]');
+        const transferQuantityInput = row.querySelector('input[name="quantity[]"]');
+        const transferAvgInput = row.querySelector('input[name="transfer_avgs[]"]');
+        const totalCostInput = row.querySelector('input[name="total_cost[]"]');
 
-            const availableQuantity = await fetchAvailableQuantity(storageroomId, rawMaterialId);
-            availableQuantityInput.value = availableQuantity.toFixed(2);
+        const data = await fetchAvailableQuantityAndCost(storageroomId, rawMaterialId);
+        availableQuantityInput.value = data.available_quantity.toFixed(2);
+        transferQuantityInput.setAttribute('max', data.available_quantity);
+        transferAvgInput.value = data.transfer_avgs.toFixed(2);
 
-            // Update max attribute for transfer quantity
-            transferQuantityInput.setAttribute('max', availableQuantity);
+        // Calculate total cost = transfer_quantity * transfer_avgs
+        const transferQuantity = parseFloat(transferQuantityInput.value) || 0;
+        totalCostInput.value = (transferQuantity * data.transfer_avgs).toFixed(2);
 
-            // Remove any previous event listeners to avoid conflicts
-            transferQuantityInput.replaceWith(transferQuantityInput.cloneNode(true));
-            const newTransferQuantityInput = row.querySelector('input[name="quantity[]"]');
+        // Remove previous event listeners to avoid duplicates
+        transferQuantityInput.replaceWith(transferQuantityInput.cloneNode(true));
+        const newTransferQuantityInput = row.querySelector('input[name="quantity[]"]');
 
-            // Add new event listener with updated max limit
-            newTransferQuantityInput.addEventListener('input', function () {
-                if (parseFloat(this.value) > availableQuantity) {
-                    alert('Transfer Quantity cannot exceed Available Quantity.');
-                    this.value = availableQuantity.toFixed(2);
+        // Add event listener for transfer quantity changes
+        newTransferQuantityInput.addEventListener('input', function () {
+            const quantity = parseFloat(this.value) || 0;
+            if (quantity > data.available_quantity) {
+                alert('Transfer Quantity cannot exceed Available Quantity.');
+                this.value = data.available_quantity.toFixed(2);
+            }
+            // Recalculate total cost = quantity * transfer_avgs
+            const updatedTotalCost = (quantity * data.transfer_avgs).toFixed(2);
+            totalCostInput.value = updatedTotalCost;
+        });
+    }
+
+    container.addEventListener('input', function (e) {
+        if (e.target.classList.contains('raw-material-input')) {
+            const row = e.target.closest('.raw-material-row');
+            const storageroomId = storageroomSelect.value;
+            const rawMaterialName = e.target.value;
+
+            const datalist = document.getElementById('raw_materials');
+            const option = Array.from(datalist.options).find(opt => opt.value === rawMaterialName);
+
+            if (option) {
+                const rawMaterialId = option.getAttribute('data-id');
+                const hiddenInput = row.querySelector('.raw-material-id');
+                hiddenInput.value = rawMaterialId;
+                if (storageroomId && rawMaterialId) {
+                    updateRowData(row, storageroomId, rawMaterialId);
                 }
-            });
+            }
         }
+    });
 
-        container.addEventListener('input', function (e) {
-            if (e.target.classList.contains('raw-material-input')) {
-                const row = e.target.closest('.raw-material-row');
-                const storageroomId = storageroomSelect.value;
-                const rawMaterialName = e.target.value;
-
+    // Also update when storage room changes (refetch for all rows)
+    storageroomSelect.addEventListener('change', function () {
+        const rows = container.querySelectorAll('.raw-material-row');
+        rows.forEach(row => {
+            const rawMaterialInput = row.querySelector('.raw-material-input');
+            const rawMaterialName = rawMaterialInput.value;
+            if (rawMaterialName) {
                 const datalist = document.getElementById('raw_materials');
                 const option = Array.from(datalist.options).find(opt => opt.value === rawMaterialName);
-
                 if (option) {
                     const rawMaterialId = option.getAttribute('data-id');
                     const hiddenInput = row.querySelector('.raw-material-id');
                     hiddenInput.value = rawMaterialId;
-                    // alert(rawMaterialId)
-                    if (storageroomId && rawMaterialId) {
-                        updateAvailableQuantity(row, storageroomId, rawMaterialId);
+                    if (this.value && rawMaterialId) {
+                        updateRowData(row, this.value, rawMaterialId);
                     }
                 }
             }
         });
     });
-    document.addEventListener('DOMContentLoaded', function () {
-        const container = document.getElementById('raw-material-container');
-        const form = document.querySelector('form');
-        const rawMaterialsDataList = document.getElementById('raw_materials');
 
-        // Validation before form submission
-        form.addEventListener('submit', function (e) {
-            const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
-            let isValid = true;
+    // Form validation
+    const form = document.querySelector('form');
+    const rawMaterialsDataList = document.getElementById('raw_materials');
+    form.addEventListener('submit', function (e) {
+        const rawMaterialInputs = container.querySelectorAll('.raw-material-input');
+        const transferQuantityInputs = container.querySelectorAll('.transfer-quantity');
+        let isValid = true;
 
-            rawMaterialInputs.forEach(input => {
-                const rawMaterialName = input.value;
-                const isRawMaterialAvailable = Array.from(rawMaterialsDataList.options).some(
-                    option => option.value === rawMaterialName
-                );
+        rawMaterialInputs.forEach(input => {
+            const rawMaterialName = input.value;
+            const isRawMaterialAvailable = Array.from(rawMaterialsDataList.options).some(
+                option => option.value === rawMaterialName
+            );
 
-                if (!isRawMaterialAvailable) {
-                    isValid = false;
-                    alert(`Raw material "${rawMaterialName}" is not available.`);
-                    input.focus();
-                }
-            });
-
-            if (!isValid) {
-                e.preventDefault(); // Prevent form submission if validation fails
+            if (!isRawMaterialAvailable) {
+                isValid = false;
+                alert(`Raw material "${rawMaterialName}" is not available.`);
+                input.focus();
             }
         });
 
-        // Auto-select metric only AFTER the user selects a raw material from the suggestions
-        container.addEventListener('change', function (e) {
-            if (e.target.classList.contains('raw-material-input')) {
-                const selectedMaterial = e.target.value;
-                const options = Array.from(rawMaterialsDataList.options);
-                const matchingOption = options.find(option => option.value === selectedMaterial);
-
-                const metricDropdown = e.target.closest('.raw-material-row').querySelector('.metric-dropdown');
-                const hiddenMetricInput = e.target.closest('.raw-material-row').querySelector('.hidden-metric-input');
-
-                if (matchingOption) {
-                    const metric = matchingOption.dataset.metric;
-                    metricDropdown.value = metric;
-
-                    // Disable the dropdown so the user cannot change it
-                    metricDropdown.setAttribute('disabled', true);
-
-                    // Set the hidden input value for form submission
-                    hiddenMetricInput.value = metric;
-                } else {
-                    // Allow the user to enter a new material and choose the metric manually
-                    metricDropdown.value = '';
-                    metricDropdown.removeAttribute('disabled');
-                    hiddenMetricInput.value = '';
-                }
+        transferQuantityInputs.forEach(input => {
+            const quantity = parseFloat(input.value);
+            const max = parseFloat(input.getAttribute('max')) || 0;
+            if (isNaN(quantity) || quantity <= 0 || quantity > max) {
+                isValid = false;
+                alert('Transfer Quantity must be a positive number and not exceed Available Quantity.');
+                input.focus();
             }
         });
-    });
-    document.addEventListener('DOMContentLoaded', function () {
-        const form = document.querySelector('form');
-        const submitButton = document.getElementById('submit-btn');
-        const loadingText = document.getElementById('loading-text');
 
-        form.addEventListener('submit', function (e) {
-            // Disable the button to prevent double-click
-            submitButton.disabled = true;
-            submitButton.textContent = "Submitting..."; // Change button text
-            loadingText.style.display = "inline"; // Show "Processing..." text
-
-            // Allow form submission to proceed
-            setTimeout(() => {
-                submitButton.disabled = false; // Re-enable if needed (for unexpected issues)
-                submitButton.textContent = "Submit"; // Reset button text
-            }, 60000); // Just in case form submission fails, re-enable after 60s
-        });
+        if (!isValid) {
+            e.preventDefault();
+        }
     });
 
+    // Form submission handling
+    const submitButton = document.getElementById('submit-btn');
+    const loadingText = document.getElementById('loading-text');
+    form.addEventListener('submit', function (e) {
+        submitButton.disabled = true;
+        submitButton.textContent = "Submitting...";
+        loadingText.style.display = "inline";
+        setTimeout(() => {
+            submitButton.disabled = false;
+            submitButton.textContent = "Submit";
+        }, 60000);
+    });
+    });
 </script>
 {% endblock %}

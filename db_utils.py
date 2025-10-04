@@ -1474,3 +1474,18 @@ def get_cumulative_purchase_record_invoice_wise(date):
 
     cumulative_purchases = fetch_all(query, (date,))
     return cumulative_purchases
+
+def get_average_cost_from_inventory_by_raw_material_id(raw_material_id , destination_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute(
+        '''
+        SELECT average_unit_cost  FROM inventory_stock
+        where raw_material_id  = %s and destination_type  = 'storageroom' and destination_id = %s ;
+    ''',
+        (raw_material_id, destination_id , )   # 👈 tuple with comma
+    )
+    quantity_and_total_cost = cursor.fetchone()
+    cursor.close()
+    conn.close()
+    return quantity_and_total_cost
