@@ -1,11 +1,25 @@
 {% extends "base.html" %}
-
 {% block content %}
+
+<style>
+  .btn-group .btn {
+    margin: 0 2px;
+  }
+
+  .btn-group {
+    flex-wrap: nowrap;
+  }
+
+  .actions-col {
+    width: 180px;
+    min-width: 180px;
+  }
+</style>
 <div class="page-wrapper">
   <div class="content">
     <div class="page-header">
       <div class="page-title">
-        <h4>Miscellaneous Item Report</h4>
+        <h4>Miscellaneous Expense Report</h4>
       </div>
     </div>
 
@@ -51,12 +65,15 @@
             <th>Notes</th>
             <th>Cost</th>
             <th>Date</th>
+            {% if user.role == 'admin' %}
+            <th>Actions</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody>
           {% if misc_items %}
           {% for item in misc_items %}
-          <tr>
+          <tr data-item-id="{{ item.id }}">
             <td>{{ loop.index }}</td>
             <td>{{ item.type_of_expense or '-' }}</td>
             <td>{{ item.sub_category or '-' }}</td>
@@ -73,10 +90,33 @@
               -
               {% endif %}
             </td>
+            {% if user.role == 'admin' %}
+            <td>
+              <div class="btn-group" role="group">
+                <button class="btn btn-sm btn-outline-primary edit-btn" data-item-id="{{ item.id }}" data-item-data='{{ {
+                                        "expense_type_id": item.expense_type_id,
+                                        "expense_subcategory_id": item.expense_subcategory_id,
+                                        "restaurant_id": item.restaurant_id,
+                                        "branch_manager": item.branch_manager or "",
+                                        "cost": item.cost or "",
+                                        "notes": item.notes or "",
+                                        "manual_date": item.manual_date.strftime("%Y-%m-%d") if item.manual_date else "",
+                                        "type_of_expense": item.type_of_expense or "",
+                                        "sub_category": item.sub_category or "",
+                                        "branch_name": item.branch_name or ""
+                                    } | tojson }}'>
+                  <i class="fas fa-edit"></i> Edit
+                </button>
+                <button class="btn btn-sm btn-outline-danger delete-btn" data-item-id="{{ item.id }}"
+                  data-item-info="{{ item.type_of_expense or 'Item' }} - ₹{{ item.cost or '0' }}">
+                  <i class="fas fa-trash"></i> Delete
+                </button>
+              </div>
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
           {% else %}
-          <!-- FIXED: Individual <td> elements instead of colspan="7" -->
           <tr>
             <td class="text-center text-muted">-</td>
             <td class="text-center text-muted">No records found</td>
@@ -86,9 +126,11 @@
             <td class="text-center text-muted">-</td>
             <td class="text-center text-muted">-</td>
             <td class="text-center text-muted">-</td>
+            <td class="text-center text-muted">-</td>
           </tr>
           {% endif %}
         </tbody>
+        <!-- Add this Grand Total Section -->
         <div class="total-summary mb-3">
           <div class="d-flex justify-content-between align-items-end">
             <div class="table-top">
@@ -110,16 +152,142 @@
           </div>
         </div>
       </table>
+
+
     </div>
-    {% endif %}
+  </div>
+  {% endif %}
+</div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editModalLabel">Edit Miscellaneous Expense</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="editForm">
+          <input type="hidden" id="edit_item_id" name="item_id">
+
+          <div class="row">
+            <!-- Type of Expense -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Type of Expense</label>
+                <select name="expense_type_id" id="edit_type_of_expense" class="form-control" required>
+                  <option value="">Select Expense Type</option>
+                  {% for expense_type in expense_types %}
+                  <option value="{{ expense_type.id }}" data-has-subcategory="{{ expense_type.has_subcategory }}">
+                    {{ expense_type.type_name }}
+                  </option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <!-- Subcategory -->
+            <div class="col-lg-6 col-sm-6 col-12" id="edit_subcategory_div" style="display:none;">
+              <div class="form-group">
+                <label>Subcategory</label>
+                <select name="expense_subcategory_id" id="edit_sub_category" class="form-control">
+                  <option value="">Select Subcategory</option>
+                </select>
+                <div id="edit_subcategory_loading" style="display:none;">
+                  <small class="text-muted">Loading subcategories...</small>
+                </div>
+              </div>
+            </div>
+
+            <!-- Restaurant -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Branch (Restaurant)</label>
+                <select name="restaurant_id" id="edit_restaurant_id" class="form-control" required>
+                  <option value="">Select Branch</option>
+                  {% for restaurant in restaurants %}
+                  <option value="{{ restaurant.id }}">{{ restaurant.restaurantname }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <!-- Branch Manager -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Branch Manager Name</label>
+                <input type="text" name="branch_manager" id="edit_branch_manager" class="form-control" required>
+              </div>
+            </div>
+
+            <!-- Cost -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Cost</label>
+                <input type="number" step="0.01" name="cost" id="edit_cost" class="form-control" required>
+              </div>
+            </div>
+
+            {% if user.role == 'admin' %}
+            <!-- Manual Date -->
+            <div class="col-lg-6 col-sm-6 col-12">
+              <div class="form-group">
+                <label>Manual Date</label>
+                <input type="date" name="manual_date" id="edit_manual_date" class="form-control">
+              </div>
+            </div>
+            {% endif %}
+
+            <!-- Notes -->
+            <div class="col-lg-12">
+              <div class="form-group">
+                <label>Notes</label>
+                <textarea name="notes" id="edit_notes" class="form-control" required></textarea>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="saveChangesBtn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="deleteModalLabel">Confirm Deletion</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Are you sure you want to delete this item?</p>
+        <p class="fw-bold" id="deleteItemInfo"></p>
+        <p class="text-danger">This action cannot be undone.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" id="confirmDeleteBtn">Delete</button>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
+  // Edit and Delete functionality
   document.addEventListener('DOMContentLoaded', function () {
-    const printButton = document.getElementById('printButton');
-    const totalCost = "{{ '%.2f' % total_cost }}";
+    const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    const deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    let currentEditingItemId = null;
+    let currentDeletingItemId = null;
 
+    // Move updateGrandTotal function to global scope within this DOMContentLoaded
     function updateGrandTotal() {
       let visibleTotal = 0;
 
@@ -136,7 +304,7 @@
         }
       });
 
-      // Update the grand total display
+      // Update the grand total display - FIXED SELECTOR
       const grandTotalSpan = document.querySelector('.total-cost-card .fw-bold');
       if (grandTotalSpan) {
         grandTotalSpan.textContent = '₹' + visibleTotal.toFixed(2);
@@ -144,6 +312,277 @@
 
       return visibleTotal;
     }
+
+
+    // Edit button click handler
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.edit-btn')) {
+        const editBtn = e.target.closest('.edit-btn');
+        const itemData = JSON.parse(editBtn.getAttribute('data-item-data'));
+        currentEditingItemId = editBtn.getAttribute('data-item-id');
+
+        // Populate form with existing data
+        populateEditForm(itemData);
+        editModal.show();
+      }
+
+      // Delete button click handler
+      if (e.target.closest('.delete-btn')) {
+        const deleteBtn = e.target.closest('.delete-btn');
+        currentDeletingItemId = deleteBtn.getAttribute('data-item-id');
+        const itemInfo = deleteBtn.getAttribute('data-item-info');
+
+        // Show confirmation modal
+        document.getElementById('deleteItemInfo').textContent = itemInfo;
+        deleteModal.show();
+      }
+    });
+
+    // Save changes handler
+    document.getElementById('saveChangesBtn').addEventListener('click', function () {
+      saveChanges();
+    });
+
+    // Confirm delete handler
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function () {
+      deleteItem();
+    });
+
+    // Type of expense change handler for subcategories
+    document.getElementById('edit_type_of_expense').addEventListener('change', function () {
+      handleExpenseTypeChange('edit');
+    });
+
+    function populateEditForm(data) {
+      document.getElementById('edit_item_id').value = currentEditingItemId;
+      document.getElementById('edit_type_of_expense').value = data.expense_type_id;
+      document.getElementById('edit_restaurant_id').value = data.restaurant_id || '';
+      document.getElementById('edit_branch_manager').value = data.branch_manager || '';
+      document.getElementById('edit_cost').value = data.cost || '';
+      document.getElementById('edit_notes').value = data.notes || '';
+
+      // Manual date (only for admins)
+      if (data.manual_date) {
+        document.getElementById('edit_manual_date').value = data.manual_date;
+      }
+
+      // Trigger subcategory loading if needed
+      setTimeout(() => {
+        handleExpenseTypeChange('edit', data.expense_subcategory_id);
+      }, 100);
+    }
+
+    function handleExpenseTypeChange(prefix = 'edit', preselectedSubcategoryId = null) {
+      const typeSelect = document.getElementById(`${prefix}_type_of_expense`);
+      const subCatDiv = document.getElementById(`${prefix}_subcategory_div`);
+      const subCatSelect = document.getElementById(`${prefix}_sub_category`);
+      const loadingDiv = document.getElementById(`${prefix}_subcategory_loading`);
+
+      const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+      const hasSubcategory = selectedOption.getAttribute('data-has-subcategory') === '1';
+      const expenseTypeId = selectedOption.value;
+
+      // Clear previous subcategories
+      subCatSelect.innerHTML = '<option value="">Select Subcategory</option>';
+      subCatSelect.value = '';
+
+      if (hasSubcategory && expenseTypeId) {
+        loadingDiv.style.display = 'block';
+        subCatDiv.style.display = 'block';
+        subCatSelect.disabled = true;
+
+        fetch(`/get-subcategories/${expenseTypeId}`)
+          .then(response => {
+            if (!response.ok) throw new Error(`Network response was not ok: ${response.status}`);
+            return response.json();
+          })
+          .then(data => {
+            loadingDiv.style.display = 'none';
+            subCatSelect.disabled = false;
+
+            if (data.subcategories && data.subcategories.length > 0) {
+              data.subcategories.forEach(function (subcategory) {
+                let opt = document.createElement('option');
+                opt.value = subcategory.id;
+                opt.textContent = subcategory.name;
+                subCatSelect.appendChild(opt);
+              });
+
+              // Set preselected value if provided
+              if (preselectedSubcategoryId) {
+                subCatSelect.value = preselectedSubcategoryId;
+              }
+            } else {
+              let opt = document.createElement('option');
+              opt.value = '';
+              opt.textContent = 'No subcategories available';
+              opt.disabled = true;
+              subCatSelect.appendChild(opt);
+            }
+          })
+          .catch(error => {
+            console.error('Error fetching subcategories:', error);
+            loadingDiv.style.display = 'none';
+            subCatSelect.disabled = false;
+
+            let opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'Error loading subcategories';
+            opt.disabled = true;
+            subCatSelect.appendChild(opt);
+          });
+      } else {
+        subCatDiv.style.display = 'none';
+        loadingDiv.style.display = 'none';
+      }
+    }
+
+    function saveChanges() {
+      const formData = new FormData(document.getElementById('editForm'));
+      const jsonData = {};
+
+      for (let [key, value] of formData.entries()) {
+        jsonData[key] = value;
+      }
+
+      // Show loading state
+      const saveBtn = document.getElementById('saveChangesBtn');
+      const originalText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+      saveBtn.disabled = true;
+
+      fetch(`/update_misc_item/${currentEditingItemId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(jsonData)
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            showAlert('success', data.message);
+
+            // Close modal
+            editModal.hide();
+
+            // Reload the page to reflect changes
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else {
+            showAlert('danger', data.message || 'Error updating item');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showAlert('danger', 'Network error occurred');
+        })
+        .finally(() => {
+          // Restore button state
+          saveBtn.innerHTML = originalText;
+          saveBtn.disabled = false;
+        });
+    }
+
+    function deleteItem() {
+      if (!currentDeletingItemId) return;
+
+      // Show loading state
+      const deleteBtn = document.getElementById('confirmDeleteBtn');
+      const originalText = deleteBtn.innerHTML;
+      deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+      deleteBtn.disabled = true;
+
+      fetch(`/delete_misc_item/${currentDeletingItemId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then(async response => {
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`HTTP ${response.status}: ${text}`);
+          }
+          console.log("Delete response:", response);
+          return response.json();
+        })
+        .then(data => {
+          if (data.success) {
+            // Show success message
+            showAlert('success', data.message);
+
+            // Close modal
+            deleteModal.hide();
+
+            // Reload the page to reflect changes (like we do for edit)
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else {
+            showAlert('danger', data.message || 'Error deleting item');
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          showAlert('danger', 'Network error occurred');
+        })
+        .finally(() => {
+          // Restore button state
+          deleteBtn.innerHTML = originalText;
+          deleteBtn.disabled = false;
+          currentDeletingItemId = null;
+        });
+    }
+
+    function updateTableNumbering() {
+      const rows = document.querySelectorAll('#miscTable tbody tr:not(.dataTables_empty)');
+      rows.forEach((row, index) => {
+        const firstCell = row.querySelector('td:first-child');
+        if (firstCell) {
+          firstCell.textContent = index + 1;
+        }
+      });
+    }
+
+    function showAlert(type, message) {
+      // Remove existing alerts
+      const existingAlerts = document.querySelectorAll('.custom-alert');
+      existingAlerts.forEach(alert => alert.remove());
+
+      // Create new alert
+      const alertDiv = document.createElement('div');
+      alertDiv.className = `alert alert-${type} alert-dismissible fade show custom-alert`;
+      alertDiv.innerHTML = `
+            <strong>${message}</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+
+      // Add to page
+      document.querySelector('.content').insertBefore(alertDiv, document.querySelector('.content').firstChild);
+
+      // Auto dismiss after 5 seconds
+      setTimeout(() => {
+        if (alertDiv.parentElement) {
+          alertDiv.remove();
+        }
+      }, 5000);
+    }
+
+    // Clear form when edit modal is hidden
+    document.getElementById('editModal').addEventListener('hidden.bs.modal', function () {
+      document.getElementById('editForm').reset();
+      currentEditingItemId = null;
+    });
+
+    // Clear delete state when delete modal is hidden
+    document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function () {
+      currentDeletingItemId = null;
+    });
+
+    // Print functionality - Use the same updateGrandTotal function
+    const printButton = document.getElementById('printButton');
+    const totalCost = "{{ '%.2f' % total_cost }}";
 
     // Listen for search events on DataTable
     $('#miscTable').on('search.dt', function () {
@@ -161,7 +600,6 @@
       const table = $('#miscTable').dataTable().api();
       let allRows = table.rows({ search: 'applied' }).data();
       const currentUrl = window.location.href.split('?')[0];
-
 
       const printTotalCost = updateGrandTotal();
 

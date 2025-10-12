@@ -6,48 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0">
     <meta name="description" content="Restaurant Inventory Management">
     <meta name="keywords"
-        content="admin, estimates, bootstrap, business, corporate, creative, management, minimal, modern,  html5, responsive">
+        content="admin, estimates, bootstrap, business, corporate, creative, management, minimal, modern, html5, responsive">
     <meta name="author" content="Restaurant Inventory Management">
     <meta name="robots" content="noindex, nofollow">
     <title>Dharani Inventory Solution</title>
-
     <link rel="shortcut icon" type="image/x-icon" href="../static/img/applogo.jpg">
-
     <link rel="stylesheet" href="../static/css/bootstrap.min.css">
-
     <link rel="stylesheet" href="../static/css/animate.css">
-
     <link rel="stylesheet" href="../static/plugins/select2/css/select2.min.css">
-
     <link rel="stylesheet" href="../static/css/dataTables.bootstrap4.min.css">
-
     <link rel="stylesheet" href="../static/plugins/fontawesome/css/fontawesome.min.css">
     <link rel="stylesheet" href="../static/plugins/fontawesome/css/all.min.css">
-
     <link rel="stylesheet" href="../static/css/style.css">
     <link rel="stylesheet" href="../static/css/customstyle.css">
 </head>
 
 <body>
-    <!-- <div id="global-loader">
-            <div class="whirly-loader"> </div>
-        </div> -->
-
     <div class="main-wrapper">
-
         <div class="header">
-
             <div class="header-left active">
                 <a href="/index" class="logo">
                     <img src="../static/img/applogo.jpg" alt="">
                 </a>
-                <!-- <a href="/index" class="logo-small">
-                        <img src="../static/img/logo-small.png" alt="">
-                    </a> -->
-                <!-- <a id="toggle_btn" href="javascript:void(0);">
-                    </a> -->
             </div>
-
             <a id="mobile_btn" class="mobile_btn" href="#sidebar">
                 <span class="bar-icon">
                     <span></span>
@@ -55,71 +36,52 @@
                     <span></span>
                 </span>
             </a>
-
             <ul class="nav user-menu">
-
                 <li class="nav-item dropdown has-arrow main-drop">
                     <a href="javascript:void(0);" class="dropdown-toggle nav-link userset" data-bs-toggle="dropdown">
-                        <button class="btn btn-profile"> Hello, <b> {{ user.username }} </b>
+                        <button class="btn btn-profile">
+                            Hello, <b>{{ user.username }}</b>
                             <span class="dropdown-icon">&#9662;</span>
                         </button>
                     </a>
                     <div class="dropdown-menu menu-drop-user">
                         <div class="profilename">
                             <hr class="m-0">
-                            <a class="dropdown-item" href="/profile"> <i class="me-2" data-feather="user"></i>
-                                My Profile</a>
+                            <a class="dropdown-item" href="/profile">
+                                <i class="me-2" data-feather="user"></i> My Profile
+                            </a>
                             <hr class="m-0">
-                            <a class="dropdown-item" href="/changepassword"><i class="me-2"
-                                    data-feather="lock"></i>Change Password</a>
-                            <!-- <hr class="m-0">
-                                <a class="dropdown-item" href="generalsettings.html"><i class="me-2"
-                                        data-feather="settings"></i>Settings</a> -->
+                            <a class="dropdown-item" href="/changepassword">
+                                <i class="me-2" data-feather="lock"></i>Change Password
+                            </a>
                             <hr class="m-0">
-                            <a class="dropdown-item logout pb-0" href="/logout"><img
-                                    src="../static/img/icons/log-out.svg" class="me-2" alt="img">Logout</a>
+                            <a class="dropdown-item logout pb-0" href="/logout">
+                                <img src="../static/img/icons/log-out.svg" class="me-2" alt="img">Logout
+                            </a>
                         </div>
                     </div>
                 </li>
             </ul>
-
-
-            <!-- <div class="dropdown mobile-user-menu">
-                    <a href="javascript:void(0);" class="nav-link dropdown-toggle" data-bs-toggle="dropdown"
-                        aria-expanded="false"><i class="fa fa-ellipsis-v"></i></a>
-                    <div class="dropdown-menu dropdown-menu-right">
-                        <a class="dropdown-item" href="profile.html">My Profile</a>
-                        <a class="dropdown-item" href="generalsettings.html">Settings</a>
-                        <a class="dropdown-item" href="/logout">Logout</a>
-                    </div>
-                </div> -->
-
         </div>
-
 
         <div class="sidebar" id="sidebar">
             <div class="sidebar-inner slimscroll">
                 <div id="sidebar-menu" class="sidebar-menu">
                     <ul>
+                        <!-- Dashboard - Show for All -->
                         <li class="{{ 'active' if request.path == '/index' else '' }}">
-                            <a href="/index"><img src="../static/img/icons/dashboard.svg"
-                                    alt="img"><span>Dashboard</span></a>
+                            <a href="/index">
+                                <img src="../static/img/icons/dashboard.svg" alt="img">
+                                <span>Dashboard</span>
+                            </a>
                         </li>
-                        <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/places.svg"
-                                    alt="img"><span>Storage Room</span><span class="menu-arrow"></span></a>
-                            <ul>
-                                {% if user.role=='admin' %}
-                                <li><a href="/addstorageroom"
-                                        class="{{ 'active' if request.path == '/addstorageroom' else '' }}">Add
-                                        Storage Room</a></li>
-                                {% endif %}
-                                <li><a href="/storageroomlist"
-                                        class="{{ 'active' if request.path == '/storageroomlist' else '' }}">Storage
-                                        Room
-                                        List</a></li>
-                            </ul>
-                        </li>
+
+                        <!-- ========================================= -->
+                        <!-- BRANCH MANAGER & STORE MANAGER VIEW -->
+                        <!-- ========================================= -->
+                        {% if user.role in ['branch_manager', 'store_manager'] %}
+
+                        <!-- Miscellaneous Expense -->
                         <li class="submenu">
                             <a href="javascript:void(0);">
                                 <img src="../static/img/icons/sales1.svg" alt="img">
@@ -127,38 +89,69 @@
                                 <span class="menu-arrow"></span>
                             </a>
                             <ul>
-                                {% if user.role in ['admin', 'branch_manager', 'store_manager'] %}
                                 <li>
                                     <a href="/addmiscitem"
                                         class="{{ 'active' if request.path == '/addmiscitem' else '' }}">
                                         Add Miscellaneous Expense
                                     </a>
                                 </li>
-                                {% endif %}
                                 <li>
                                     <a href="/miscitemlist"
                                         class="{{ 'active' if request.path == '/miscitemlist' else '' }}">
                                         Miscellaneous Expense List
                                     </a>
                                 </li>
-                                {% if user.role == 'admin' %}
-                                <li>
-                                    <a href="/manage-expense-types"
-                                        class="{{ 'active' if request.path == '/manage-expense-types' else '' }}">
-                                        Manage Expense Types
-                                    </a>
-                                </li>
+                            </ul>
+                        </li>
 
+                        <!-- Transfer Section -->
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/transfer1.svg" alt="img">
+                                <span>Transfer</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                {% if user.role == 'branch_manager' %}
                                 <li>
-                                    <a href="/misc_item_report"
-                                        class="{{ 'active' if request.path == '/misc_item_report' else '' }}">
-                                        Miscellaneous Expense Report
+                                    <a href="/transfer_raw_material"
+                                        class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">
+                                        Request Raw Materials
                                     </a>
                                 </li>
                                 {% endif %}
+
+                                {% if user.role == 'store_manager' %}
+                                <li>
+                                    <a href="/raw_material_transfers"
+                                        class="{{ 'active' if request.path == '/raw_material_transfers' else '' }}">
+                                        Transfer Requests
+                                    </a>
+                                </li>
+                                {% endif %}
+
+                                <li>
+                                    <a href="/list_rawmaterial_transfers"
+                                        class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">
+                                        List Raw Material Transfers
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/list_rawmaterial_transfers_range"
+                                        class="{{ 'active' if request.path == '/list_rawmaterial_transfers_range' else '' }}">
+                                        Get Transfers By Range
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="/transfer_raw_material_report"
+                                        class="{{ 'active' if request.path == '/transfer_raw_material_report' else '' }}">
+                                        Transfer Report
+                                    </a>
+                                </li>
                             </ul>
                         </li>
-                        {% if user.role in ['admin', 'branch_manager'] %}
+
+                        <!-- Daily Report -->
                         <li class="submenu">
                             <a href="javascript:void(0);">
                                 <img src="../static/img/icons/sales1.svg" alt="img">
@@ -166,137 +159,184 @@
                                 <span class="menu-arrow"></span>
                             </a>
                             <ul>
-                                <li>
-                                    <a href="/add-nbs-report"
-                                        class="{{ 'active' if request.path == '/add-nbs-report' else '' }}">
-                                        Add NBS Daily Report
-                                    </a>
-                                </li>
-                                <li>
-                                    <a href="/nbs-reports"
-                                        class="{{ 'active' if request.path == '/nbs-reports' else '' }}">
-                                        NBS Daily Report
-                                    </a>
-                                </li>
+                                <li><a href="/add-nbs-report"
+                                        class="{{ 'active' if request.path == '/add-nbs-report' else '' }}">Add NBS
+                                        Daily Report</a></li>
+                                <li><a href="/nbs-reports"
+                                        class="{{ 'active' if request.path == '/nbs-reports' else '' }}">NBS Daily
+                                        Report</a></li>
                             </ul>
                         </li>
+
                         {% endif %}
+
+                        <!-- ========================================= -->
+                        <!-- ADMIN FULL ACCESS VIEW -->
+                        <!-- ========================================= -->
+                        {% if user.role == 'admin' or user.role == 'store_manager' %}
+
+                        <!-- Storage Room -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
-                                    Kitchen</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/places.svg" alt="img">
+                                <span>Storage Room</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' %}
+                                <li><a href="/addstorageroom"
+                                        class="{{ 'active' if request.path == '/addstorageroom' else '' }}">Add Storage
+                                        Room</a></li>
+                                <li><a href="/storageroomlist"
+                                        class="{{ 'active' if request.path == '/storageroomlist' else '' }}">Storage
+                                        Room List</a></li>
+                            </ul>
+                        </li>
+
+                        <!-- Miscellaneous Expense -->
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
+                                <span>Miscellaneous Expense</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="/addmiscitem"
+                                        class="{{ 'active' if request.path == '/addmiscitem' else '' }}">Add
+                                        Miscellaneous Expense</a></li>
+                                <li><a href="/miscitemlist"
+                                        class="{{ 'active' if request.path == '/miscitemlist' else '' }}">Miscellaneous
+                                        Expense List</a></li>
+                                <li><a href="/manage-expense-types"
+                                        class="{{ 'active' if request.path == '/manage-expense-types' else '' }}">Manage
+                                        Expense Types</a></li>
+                                <li><a href="/misc_item_report"
+                                        class="{{ 'active' if request.path == '/misc_item_report' else '' }}">Miscellaneous
+                                        Expense Report</a></li>
+                            </ul>
+                        </li>
+
+                        <!-- Daily Report -->
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
+                                <span>Daily Report</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
+                                <li><a href="/add-nbs-report"
+                                        class="{{ 'active' if request.path == '/add-nbs-report' else '' }}">Add NBS
+                                        Daily Report</a></li>
+                                <li><a href="/nbs-reports"
+                                        class="{{ 'active' if request.path == '/nbs-reports' else '' }}">NBS Daily
+                                        Report</a></li>
+                            </ul>
+                        </li>
+
+                        <!-- Kitchen -->
+                        <li class="submenu">
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/places.svg" alt="img">
+                                <span>Kitchen</span>
+                                <span class="menu-arrow"></span>
+                            </a>
+                            <ul>
                                 <li><a href="/addkitchen"
-                                        class="{{ 'active' if request.path == '/addkitchen' else '' }}">Add
-                                        Kitchen</a></li>
-                                {% endif %}
+                                        class="{{ 'active' if request.path == '/addkitchen' else '' }}">Add Kitchen</a>
+                                </li>
                                 <li><a href="/kitchenlist"
                                         class="{{ 'active' if request.path == '/kitchenlist' else '' }}">Kitchen
                                         List</a></li>
                             </ul>
                         </li>
+
+                        <!-- Restaurant -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/places.svg" alt="img"><span>
-                                    Restaurant</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/places.svg" alt="img">
+                                <span>Restaurant</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' %}
                                 <li><a href="/addrestaurant"
                                         class="{{ 'active' if request.path == '/addrestaurant' else '' }}">Add
                                         Restaurant</a></li>
-                                {% endif %}
                                 <li><a href="/restaurantlist"
                                         class="{{ 'active' if request.path == '/restaurantlist' else '' }}">Restaurant
                                         List</a></li>
                             </ul>
                         </li>
+
+                        <!-- Raw Materials -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/product.svg" alt="img"><span>
-                                    Raw Materials</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/product.svg" alt="img">
+                                <span>Raw Materials</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='store_manager' %}
                                 <li><a href="/addrawmaterials"
                                         class="{{ 'active' if request.path == '/addrawmaterials' else '' }}">Add Raw
                                         Material</a></li>
-                                {% endif %}
                                 <li><a href="/rawmaterialslist"
                                         class="{{ 'active' if request.path == '/rawmaterialslist' else '' }}">Raw
                                         Materials List</a></li>
                             </ul>
                         </li>
-                        <!-- <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/product.svg"
-                                        alt="img"><span>
-                                        Dish Recipe</span> <span class="menu-arrow"></span></a>
-                                <ul>
-                                    {% if user.role=='admin' or user.role=='store_manager' %}
-                                    <li><a href="/add_dish_recipe"
-                                            class="{{ 'active' if request.path == '/add_dish_recipe' else '' }}">Add
-                                            Dish Recipe</a>
-                                    </li>
-                                    {% endif %}
-                                    <li><a href="/list_dish_recipe"
-                                            class="{{ 'active' if request.path == '/list_dish_recipe' else '' }}">List
-                                            Dish Recipe</a></li>
-                                    {% if user.role=='admin' %}
-                                    <li><a href="/edit_dish_recipe"
-                                            class="{{ 'active' if request.path == '/edit_dish_recipe' else '' }}">Edit
-                                            Dish Recipe</a></li>
-                                    {% endif %}
-                                </ul>
-                            </li> -->
+
+                        <!-- Vendors -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg" alt="img"><span>
-                                    Vendors</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/quotation1.svg" alt="img">
+                                <span>Vendors</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='store_manager' or
-                                user.role=='branch_manager' %}
                                 <li><a href="/add_vendor"
-                                        class="{{ 'active' if request.path == '/add_vendor' else '' }}">Add
-                                        Vendor</a>
+                                        class="{{ 'active' if request.path == '/add_vendor' else '' }}">Add Vendor</a>
                                 </li>
-                                {% endif %}
                                 <li><a href="/list_vendors"
                                         class="{{ 'active' if request.path == '/list_vendors' else '' }}">Vendor
                                         List</a></li>
                             </ul>
                         </li>
+
+                        <!-- Purchase -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/purchase1.svg" alt="img"><span>
-                                    Purchase</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/purchase1.svg" alt="img">
+                                <span>Purchase</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='store_manager' %}
                                 <li><a href="/add_purchase"
                                         class="{{ 'active' if request.path == '/add_purchase' else '' }}">Add
                                         Purchase</a></li>
-                                {% endif %}
                                 <li><a href="/purchase_list"
                                         class="{{ 'active' if request.path == '/purchase_list' else '' }}">Purchase
                                         List</a></li>
                                 <li><a href="/purchase_record"
                                         class="{{ 'active' if request.path == '/purchase_record' else '' }}">Purchase
                                         Record</a></li>
-                                {% if user.role == 'admin' %}
                                 <li><a href="/delete_purchase_record"
                                         class="{{ 'active' if request.path == '/delete_purchase_record' else '' }}">Delete
-                                        Purchase
-                                        Record</a></li>
-                                {% endif %}
+                                        Purchase Record</a></li>
                             </ul>
                         </li>
+
+                        <!-- Payments -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/expense1.svg" alt="img"><span>
-                                    Payments</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/expense1.svg" alt="img">
+                                <span>Payments</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' or user.role=='branch_manager' %}
                                 <li><a href="/pay_vendor"
-                                        class="{{ 'active' if request.path == '/pay_vendor' else '' }}">Pay
-                                        Vendor</a></li>
-                                {% endif %}
-                                {% if user.role=='admin' or user.role=='branch_manager' %}
+                                        class="{{ 'active' if request.path == '/pay_vendor' else '' }}">Pay Vendor</a>
+                                </li>
                                 <li><a href="/payment_receipt"
                                         class="{{ 'active' if request.path == '/payment_receipt' else '' }}">Payment
                                         Receipt</a></li>
-                                {% endif %}
                                 <li><a href="/payment_record"
                                         class="{{ 'active' if request.path == '/payment_record' else '' }}">Payment
                                         Record</a></li>
@@ -305,168 +345,101 @@
                                         Payments</a></li>
                             </ul>
                         </li>
+
+                        <!-- Stock -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/sales1.svg" alt="img"><span>
-                                    Stock</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/sales1.svg" alt="img">
+                                <span>Stock</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
                                 <li><a href="/storageroom_stock"
                                         class="{{ 'active' if request.path == '/storageroom_stock' else '' }}">Storage
-                                        Room Stock
-                                    </a></li>
-                                <!-- <li><a href="/kitchen_inventory_stock"
-                                            class="{{ 'active' if request.path == '/kitchen_inventory_stock' else '' }}">Kitchen
-                                            Inventory
-                                            Stock
-                                        </a></li>
-                                    <li><a href="/restaurant_inventory_stock"
-                                            class="{{ 'active' if request.path == '/restaurant_inventory_stock' else '' }}">Restaurant
-                                            Inventory
-                                            Stock
-                                        </a></li> -->
-                                {% if user.role=='admin' %}
+                                        Room Stock</a></li>
                                 <li><a href="/set_minimum_stock"
                                         class="{{ 'active' if request.path == '/set_minimum_stock' else '' }}">Set
-                                        Minimum Stock
-                                    </a></li>
-                                {% endif %}
-                                {% if user.role=='admin' or user.role=='store_manager' or
-                                user.role=='branch_manager' %}
+                                        Minimum Stock</a></li>
                                 <li><a href="/stock_report"
                                         class="{{ 'active' if request.path == '/stock_report' else '' }}">Stock
-                                        Report
-                                    </a></li>
-                                {% endif %}
+                                        Report</a></li>
                             </ul>
                         </li>
+
+                        <!-- Transfer -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/transfer1.svg" alt="img"><span>
-                                    Transfer</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/transfer1.svg" alt="img">
+                                <span>Transfer</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
-                                {% if user.role=='admin' or
-                                user.role=='branch_manager' %}
                                 <li><a href="/transfer_raw_material"
                                         class="{{ 'active' if request.path == '/transfer_raw_material' else '' }}">Request
                                         Raw Materials</a></li>
-                                {% endif %}
-                                {% if user.role=='admin' or user.role=='store_manager' %}
                                 <li><a href="/raw_material_transfers"
                                         class="{{ 'active' if request.path == '/raw_material_transfers' else '' }}">Transfer
-                                        Requests</a>
-                                </li>
-                                {% endif %}
-                                <!-- {% if user.role=='admin' or user.role=='store_manager' or
-                                    user.role=='branch_manager' %}
-                                    <li><a href="/transfer_prepared_dishes"
-                                            class="{{ 'active' if request.path == '/transfer_prepared_dishes' else '' }}">Transfer
-                                            Prepared Dishes</a></li>
-                                    {% endif %} -->
+                                        Requests</a></li>
                                 <li><a href="/list_rawmaterial_transfers"
                                         class="{{ 'active' if request.path == '/list_rawmaterial_transfers' else '' }}">List
-                                        Raw
-                                        Material Transfers </a></li>
-                                {% if user.role=='admin' or user.role=='store_manager' or
-                                user.role=='branch_manager' %}
+                                        Raw Material Transfers</a></li>
                                 <li><a href="/list_rawmaterial_transfers_range"
                                         class="{{ 'active' if request.path == '/list_rawmaterial_transfers_range' else '' }}">Get
-                                        Raw Material Transfers By Range
-                                    </a></li>
-                                {% endif %}
-
-                                {% if user.role=='admin' or user.role=='store_manager' or
-                                user.role=='branch_manager' %}
+                                        Raw Material Transfers By Range</a></li>
                                 <li><a href="/transfer_raw_material_report"
                                         class="{{ 'active' if request.path == '/transfer_raw_material_report' else '' }}">Raw
-                                        Material Transfer
-                                        Report
-                                    </a></li>
-                                {% endif %}
-                                <!-- <li><a href="/list_prepared_dishes_transfers"
-                                            class="{{ 'active' if request.path == '/list_prepared_dishes_transfers' else '' }}">List
-                                            Prepared
-                                            Dishes Transfers </a></li> -->
+                                        Material Transfer Report</a></li>
                             </ul>
                         </li>
-                        <!-- <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/quotation1.svg"
-                                        alt="img"><span> Prepared Dishes</span> <span class="menu-arrow"></span></a>
-                                <ul>
-                                    {% if user.role=='admin' or user.role=='store_manager' or
-                                    user.role=='branch_manager' %}
-                                    <li><a href="/add_prepared_dishes"
-                                            class="{{ 'active' if request.path == '/add_prepared_dishes' else '' }}">Add
-                                            Prepared Dishes</a></li>
-                                    {% endif %}
-                                    <li><a href="/list_prepared_dishes"
-                                            class="{{ 'active' if request.path == '/list_prepared_dishes' else '' }}">List
-                                            Prepared Dishes</a></li>
-                                </ul>
-                            </li> -->
-                        <!-- <li class="submenu">
-                                <a href="javascript:void(0);"><img src="../static/img/icons/time.svg" alt="img"><span>
-                                        Report</span> <span class="menu-arrow"></span></a>
-                                <ul>
-                                    {% if user.role=='admin' or user.role=='store_manager' or
-                                    user.role=='branch_manager' %}
-                                    <li><a href="/upload_sales_report"
-                                            class="{{ 'active' if request.path == '/upload_sales_report' else '' }}">Upload
-                                            Sales Report
-                                        </a></li>
-                                    {% endif %}
-                                    <li><a href="/restaurant_consumption"
-                                            class="{{ 'active' if request.path == '/restaurant_consumption' else '' }}">Restaurant
-                                            Raw Material Consumption
-                                        </a></li>
-                                    <li><a href="/kitchen_consumption"
-                                            class="{{ 'active' if request.path == '/kitchen_consumption' else '' }}">Kitchen
-                                            Raw Material Consumption
-                                        </a></li>
-                                </ul>
-                            </li> -->
-                        {% if user.role=='admin' %}
+
+                        <!-- Settings -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/settings.svg" alt="img"><span>
-                                    Settings</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/settings.svg" alt="img">
+                                <span>Settings</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
                                 <li><a href="/contact_details"
                                         class="{{ 'active' if request.path == '/contact_details' else '' }}">Contact
-                                        Details</a>
-                                </li>
+                                        Details</a></li>
                             </ul>
                         </li>
-                        {% endif %}
+
+                        <!-- Users -->
                         <li class="submenu">
-                            <a href="javascript:void(0);"><img src="../static/img/icons/users1.svg" alt="img"><span>
-                                    Users</span> <span class="menu-arrow"></span></a>
+                            <a href="javascript:void(0);">
+                                <img src="../static/img/icons/users1.svg" alt="img">
+                                <span>Users</span>
+                                <span class="menu-arrow"></span>
+                            </a>
                             <ul>
                                 <li><a href="/userlist"
                                         class="{{ 'active' if request.path == '/userlist' else '' }}">Users List</a>
                                 </li>
                             </ul>
                         </li>
+
+                        {% endif %}
+
                     </ul>
                 </div>
             </div>
         </div>
+
         {% block content %}
         <!-- page specific content can go here -->
         {% endblock %}
     </div>
 
-
     <script src="../static/js/jquery-3.6.0.min.js"></script>
-
     <script src="../static/js/feather.min.js"></script>
-
     <script src="../static/js/jquery.slimscroll.min.js"></script>
-
     <script src="../static/js/jquery.dataTables.min.js"></script>
     <script src="../static/js/dataTables.bootstrap4.min.js"></script>
-
     <script src="../static/js/bootstrap.bundle.min.js"></script>
-
     <script src="../static/plugins/apexchart/apexcharts.min.js"></script>
     <script src="../static/plugins/apexchart/chart-data.js"></script>
-
     <script src="../static/js/script.js"></script>
     <script src="../static/plugins/select2/js/select2.min.js"></script>
     <script src="../static/plugins/sweetalert/sweetalert2.all.min.js"></script>

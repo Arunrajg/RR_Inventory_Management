@@ -29,6 +29,51 @@
 
     <div class="card">
       <div class="card-body">
+        <form method="get" action="/nbs-reports" class="row g-3 mb-3">
+          <div class="col-md-4">
+            <label for="restaurant_id" class="form-label">Restaurant</label>
+
+            {% if user.role == 'admin' %}
+            <!-- Admin can select any restaurant -->
+            <select id="restaurant_id" name="restaurant_id" class="form-select">
+              <option value="">All Restaurants</option>
+              {% for r in restaurants %}
+              <option value="{{ r.id }}" {% if selected_restaurant==r.id|string %}selected{% endif %}>
+                {{ r.restaurantname }}
+              </option>
+              {% endfor %}
+            </select>
+
+            {% else %}
+            <!-- Non-admin users: restaurant fixed and disabled -->
+            <select id="restaurant_id" name="restaurant_id" class="form-select" disabled>
+              {% for r in restaurants %}
+              {% if r.id == selected_restaurant|int %}
+              <option value="{{ r.id }}" selected>{{ r.restaurantname }}</option>
+              {% endif %}
+              {% endfor %}
+            </select>
+            <!-- Hidden input to still send restaurant_id in GET -->
+            <input type="hidden" name="restaurant_id" value="{{ selected_restaurant }}">
+            {% endif %}
+          </div>
+
+          <div class="col-md-3">
+            <label for="start_date" class="form-label">Start Date</label>
+            <input type="date" id="start_date" name="start_date" class="form-control" value="{{ start_date or '' }}">
+          </div>
+
+          <div class="col-md-3">
+            <label for="end_date" class="form-label">End Date</label>
+            <input type="date" id="end_date" name="end_date" class="form-control" value="{{ end_date or '' }}">
+          </div>
+
+          <div class="col-md-2 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="fas fa-filter me-1"></i> Filter
+            </button>
+          </div>
+        </form>
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         <div class="flash-messages">

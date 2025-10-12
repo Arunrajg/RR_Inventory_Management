@@ -381,7 +381,6 @@ def get_subcategories(expense_type_id):
 
 
 # Miscellaneous Item List
-
 @app.route("/miscitemlist", methods=["GET"])
 def miscitemlist():
     if "user" not in session:
@@ -397,6 +396,9 @@ def miscitemlist():
     query = """
     SELECT
         mi.id,
+        mi.expense_type_id,
+        mi.expense_subcategory_id,
+        mi.restaurant_id,
         et.type_name AS type_of_expense,
         es.subcategory_name AS sub_category,
         mi.cost,
@@ -407,10 +409,10 @@ def miscitemlist():
         mi.manual_date,
         mi.created_at
     FROM miscellaneous_items mi
-    LEFT JOIN expense_types et ON mi.expense_type_id = et.id
-    LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id
-    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
-    WHERE 1=1
+    LEFT JOIN expense_types et ON mi.expense_type_id = et.id AND et.status = 'active'
+    LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id AND es.status = 'active'
+    LEFT JOIN restaurant r ON mi.restaurant_id = r.id AND r.status = 'active'
+    WHERE mi.status = 'active'
     """
     params = []
 
@@ -430,7 +432,7 @@ def miscitemlist():
     if role in ["branch_manager", "store_manager"]:
         query += " AND mi.manual_date IS NULL"
 
-    # Show only today’s records for admin, branch manager, store manager
+    # Show only today's records for admin, branch manager, store manager
     if role in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(mi.created_at) = CURDATE()"
 
@@ -442,6 +444,9 @@ def miscitemlist():
     restaurants = fetch_all(
         "SELECT id, restaurantname FROM restaurant WHERE status = 'active'"
     )
+    
+    # Add expense types for the edit modal
+    expense_types = fetch_all("SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name")
 
     return render_template(
         "miscitemlist.html",
@@ -449,96 +454,134 @@ def miscitemlist():
         contact_details=contact_details,
         misc_items=misc_items,
         total_cost=sum(float(item['cost']) for item in misc_items if item['cost']),
-        restaurants=restaurants
+        restaurants=restaurants,
+        expense_types=expense_types  # Add this
     )
 
 
 # Edit Miscellaneous Item
-@app.route("/editmiscitem", methods=["POST"])
-def edit_misc_item():
+@app.route("/update_misc_item/<int:item_id>", methods=["POST"])
+def update_misc_item(item_id):
     if "user" not in session:
-        return redirect("/login")
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
 
+    try:
+        data = request.get_json()
+        
+        # Extract form data
+        expense_type_id = data.get("expense_type_id")
+        expense_subcategory_id = data.get("expense_subcategory_id") or None
+        restaurant_id = data.get("restaurant_id") or None
+        branch_manager = data.get("branch_manager", "").strip()
+        cost = data.get("cost")
+        notes = data.get("notes", "").strip()
+        manual_date_str = data.get("manual_date", "").strip()
 
-    # Get all form data (removed status)
-    item_id = request.form.get('id')
-    type_of_expense = request.form.get('type_of_expense', '').strip()
-    sub_category = request.form.get('sub_category', '').strip()
-    restaurant_id = request.form.get('restaurant_id', '').strip()
-    branch_manager = request.form.get('branch_manager', '').strip()
-    cost = request.form.get('cost', '').strip()
-    notes = request.form.get('notes', '').strip()
+        # Validate required fields
+        if not all([expense_type_id, cost]):
+            return jsonify({"success": False, "message": "Missing required fields"}), 400
 
+        # Get current IST datetime for updated_at
+        current_datetime_ist = datetime.now(pytz.timezone('Asia/Kolkata'))
+        updated_at_str = current_datetime_ist.strftime("%Y-%m-%d %H:%M:%S")
 
-    # Validate required fields
-    if not item_id or not type_of_expense:
-        flash("Type of expense is required.", "error")
-        return redirect(url_for('miscitemlist'))
+        # Manual date handling
+        manual_date = None
+        if manual_date_str:
+            selected_date = datetime.strptime(manual_date_str, "%Y-%m-%d").date()
+            current_time = current_datetime_ist.time()
+            manual_date = datetime.combine(selected_date, current_time)
+            ist = pytz.timezone('Asia/Kolkata')
+            manual_date = ist.localize(manual_date)
+            manual_date_str = manual_date.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            manual_date_str = None
 
+        # Update query
+        update_query = """
+        UPDATE miscellaneous_items 
+        SET expense_type_id = %s, 
+            expense_subcategory_id = %s, 
+            restaurant_id = %s, 
+            branch_manager = %s, 
+            cost = %s, 
+            notes = %s, 
+            manual_date = %s, 
+            updated_at = %s
+        WHERE id = %s
+        """
 
-    # Convert empty strings to None for optional fields
-    sub_category = sub_category if sub_category else None
-    restaurant_id = int(restaurant_id) if restaurant_id else None
-    branch_manager = branch_manager if branch_manager else None
-    notes = notes if notes else None
+        if execute_query(update_query, (
+            expense_type_id, expense_subcategory_id, restaurant_id, 
+            branch_manager, cost, notes, manual_date_str, 
+            updated_at_str, item_id
+        )):
+            return jsonify({
+                "success": True, 
+                "message": "Item updated successfully!"
+            })
+        else:
+            return jsonify({
+                "success": False, 
+                "message": "Error updating item"
+            }), 500
 
+    except Exception as e:
+        print(f"Error updating misc item: {str(e)}")
+        return jsonify({
+            "success": False, 
+            "message": f"Server error: {str(e)}"
+        }), 500
 
-    # Build the update query (removed status)
-    query = """
-    UPDATE miscellaneous_items
-    SET
-        type_of_expense = %s,
-        sub_category = %s,
-        restaurant_id = %s,
-        branch_manager = %s,
-        cost = %s,
-        notes = %s,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = %s
-    """
-    params = (
-        type_of_expense,
-        sub_category,
-        restaurant_id,
-        branch_manager,
-        cost,
-        notes,
-        item_id
-    )
+@app.route("/delete_misc_item/<int:item_id>", methods=["DELETE"])
+def delete_misc_item(item_id):
+    if "user" not in session:
+        return jsonify({"success": False, "message": "Unauthorized"}), 401
 
+    try:
+        # First, check if the item exists
+        check_query = "SELECT id FROM miscellaneous_items WHERE id = %s AND status = 'active'"
+        item_exists = fetch_one(check_query, (item_id,))
+        
+        if not item_exists:
+            return jsonify({"success": False, "message": "Item not found"}), 404
 
-    # Execute the query
-    success = execute_query(query, params)
+        # Soft delete (update status to 'inactive')
+        delete_query = "UPDATE miscellaneous_items SET status = 'inactive', updated_at = CURRENT_TIMESTAMP WHERE id = %s"
 
+        if execute_query(delete_query, (item_id,)):
+            return jsonify({
+                "success": True,
+                "message": "Item deleted successfully!"
+            }), 200
+        else:
+            return jsonify({
+                "success": False, 
+                "message": "Error deleting item"
+            }), 500
 
-    if success:
-        flash("Miscellaneous item updated successfully.", "success")
-    else:
-        flash("Failed to update miscellaneous item.", "danger")
-
-
-    return redirect(url_for('miscitemlist'))
-
-
+    except Exception as e:
+        print(f"Error deleting misc item: {str(e)}")
+        return jsonify({
+            "success": False, 
+            "message": f"Server error: {str(e)}"
+        }), 500
+    
 @app.route("/misc_item_report", methods=["GET"])
 def misc_item_report():
     if "user" not in session:
         return redirect("/login")
 
-
     user = session["user"]
     contact_details = get_contact_details()
-
 
     # Get filter parameters
     search = request.args.get("search", "").strip()
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
 
-
     # DEBUG: Print filter parameters
     print(f"Filter params - search: '{search}', date_from: '{date_from}', date_to: '{date_to}'")
-
 
     # Base query with dynamic joins
     query = """
@@ -549,60 +592,60 @@ def misc_item_report():
         r.restaurantname AS branch_name,
         COALESCE(mi.manual_date, mi.created_at) AS effective_date
     FROM miscellaneous_items mi
-    LEFT JOIN expense_types et ON mi.expense_type_id = et.id
-    LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id
-    LEFT JOIN restaurant r ON mi.restaurant_id = r.id
-    WHERE 1=1
+    LEFT JOIN expense_types et ON mi.expense_type_id = et.id AND et.status = 'active'
+    LEFT JOIN expense_subcategories es ON mi.expense_subcategory_id = es.id AND es.status = 'active'
+    LEFT JOIN restaurant r ON mi.restaurant_id = r.id AND r.status = 'active'
+    WHERE mi.status = 'active'
     """
     params = []
-
 
     # Apply search filter
     if search:
         query += " AND (et.type_name LIKE %s OR es.subcategory_name LIKE %s)"
         params.extend([f"%{search}%", f"%{search}%"])
 
-
     # Apply date filters - Use COALESCE to prefer manual_date, fall back to created_at
     if date_from:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) >= %s"
         params.append(date_from)
 
-
     if date_to:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) <= %s"
         params.append(date_to)
-
 
     # For non-admin roles, only show today's records
     if user["role"] not in ["admin", "branch_manager", "store_manager"]:
         query += " AND DATE(COALESCE(mi.manual_date, mi.created_at)) = CURDATE()"
 
-
     query += " ORDER BY COALESCE(mi.manual_date, mi.created_at) DESC"
-
 
     # DEBUG: Print the final query
     print(f"Final query: {query}")
     print(f"Query params: {params}")
 
-
     # Fetch records
     misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
-
 
     # DEBUG: Print the results with effective dates
     for item in misc_items:
         effective_date = item.get('manual_date') or item.get('created_at')
         print(f"Item {item.get('id')}: {item.get('type_of_expense')} - Effective Date: {effective_date}")
 
+    # Fetch records
+    misc_items = fetch_all(query, tuple(params)) if params else fetch_all(query)
+    
+    # Fetch expense types and restaurants for the edit modal
+    expense_types = fetch_all("SELECT id, type_name, has_subcategory FROM expense_types WHERE status = 'active' ORDER BY type_name")
+    restaurants = fetch_all("SELECT id, restaurantname FROM restaurant WHERE status = 'active'")
 
     return render_template(
-        "misc_item_report.html",
-        user=user,
-        misc_items=misc_items,
-        contact_details=contact_details,
-        total_cost=sum(float(item.get('cost', 0)) for item in misc_items)
+        "misc_item_report.html", 
+        user=user, 
+        misc_items=misc_items, 
+        contact_details=contact_details, 
+        total_cost=sum(float(item.get('cost', 0)) for item in misc_items),
+        expense_types=expense_types,
+        restaurants=restaurants
     )
 
 
@@ -4078,7 +4121,7 @@ def edit_nbs_report(report_id):
         selected_restaurant_id=report['restaurant_id']
     )
 
-@app.route('/nbs-reports')
+@app.route('/nbs-reports', methods=['GET', 'POST'])
 def nbs_reports():
     if "user" not in session:
         return redirect("/login")
@@ -4090,6 +4133,15 @@ def nbs_reports():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
+    # Fetch restaurants (for filter dropdown)
+    cursor.execute("SELECT id, restaurantname FROM restaurant ORDER BY restaurantname")
+    restaurants = cursor.fetchall()
+
+    # Filters
+    restaurant_id = request.args.get("restaurant_id")
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
     # Base query
     query = """
     SELECT n.*, r.restaurantname
@@ -4099,70 +4151,69 @@ def nbs_reports():
     """
     params = []
 
-    # Restrict by user → branch manager only sees their restaurant
+    # Branch/store manager restriction
     if role in ["branch_manager", "store_manager"]:
         if email == "bmktcnagar@gmail.com":
-            query += " AND n.restaurant_id = %s"
-            params.append(1)
+            fixed_restaurant_id = 1
         elif email == "bmnewbs@gmail.com":
-            query += " AND n.restaurant_id = %s"
-            params.append(2)
+            fixed_restaurant_id = 2
         elif email == "dharanistorekeeper@gmail.com":
+            fixed_restaurant_id = 4
+        else:
+            fixed_restaurant_id = None
+
+        if fixed_restaurant_id:
             query += " AND n.restaurant_id = %s"
-            params.append(4)
+            params.append(fixed_restaurant_id)
+            restaurant_id = str(fixed_restaurant_id)  # ✅ ensure value for frontend
+
+    # Admin filter
+    elif restaurant_id and restaurant_id.isdigit():
+        query += " AND n.restaurant_id = %s"
+        params.append(restaurant_id)
+
+    # Date filters
+    if start_date and end_date:
+        query += " AND n.report_date BETWEEN %s AND %s"
+        params.extend([start_date, end_date])
+    elif start_date:
+        query += " AND n.report_date >= %s"
+        params.append(start_date)
+    elif end_date:
+        query += " AND n.report_date <= %s"
+        params.append(end_date)
 
     query += " ORDER BY n.report_date DESC"
 
     cursor.execute(query, params)
     reports = cursor.fetchall() or []
 
-    # Initialize totals
-    total_income_sum = 0.0
-    total_net_counter_sum = 0.0
-    total_net_sales_sum = 0.0
-    total_difference_sum = 0.0
-
+    # Totals
+    total_income_sum = total_net_counter_sum = total_net_sales_sum = total_difference_sum = 0.0
     for report in reports:
-        try:
-            swiggy = float(report.get('swiggy') or 0)
-            zomato = float(report.get('zomato') or 0)
+        pet = float(report.get('petpooja_total') or 0)
+        ns = float(report.get('ns_total') or 0)
+        outdoor = float(report.get('outdoor_catering') or 0)
+        swiggy = float(report.get('swiggy') or 0)
+        zomato = float(report.get('zomato') or 0)
+        upi = float(report.get('upi') or 0)
+        cash = float(report.get('cash') or 0)
+        r_expense = float(report.get('r_expense') or 0)
 
-            # Calculate total_income if missing
-            if report.get('total_income') is None:
-                pet = float(report.get('petpooja_total') or 0)
-                ns = float(report.get('ns_total') or 0)
-                outdoor = float(report.get('outdoor_catering') or 0)
-                total_income = pet + ns + outdoor
-                report['total_income'] = total_income
-            else:
-                total_income = float(report.get('total_income') or 0)
+        total_income = pet + ns + outdoor
+        net_sales = total_income - (swiggy + zomato)
+        net_counter = upi + cash + r_expense
+        difference = net_counter - net_sales
 
-            # Net Sales
-            net_sales = total_income - (swiggy + zomato)
-            report['net_petpooja'] = net_sales
+        report['total_income'] = total_income
+        report['net_petpooja'] = net_sales
+        report['net_counter'] = net_counter
+        report['difference'] = difference
 
-            # Net Counter
-            upi = float(report.get('upi') or 0)
-            cash = float(report.get('cash') or 0)
-            r_expense = float(report.get('r_expense') or 0)
-            net_counter = upi + cash + r_expense
-            report['net_counter'] = net_counter
-
-            # Difference
-            difference = net_counter - net_sales
-            report['difference'] = difference
-
-            # Add to totals
-            total_income_sum += total_income
-            total_net_counter_sum += net_counter
-            total_net_sales_sum += net_sales
-            total_difference_sum += difference
-
-        except Exception:
-            report.setdefault('net_petpooja', 0.0)
-            report.setdefault('total_income', 0.0)
-            report.setdefault('net_counter', 0.0)
-            report.setdefault('difference', 0.0)
+        total_income_sum += total_income
+        total_net_counter_sum += net_counter
+        total_net_sales_sum += net_sales
+        total_difference_sum += difference
 
     cursor.close()
     conn.close()
@@ -4174,7 +4225,18 @@ def nbs_reports():
         'difference': total_difference_sum
     }
 
-    return render_template('nbs_reports.html', reports=reports, user=user, totals=totals)
+    return render_template(
+        'nbs_reports.html',
+        reports=reports,
+        user=user,
+        totals=totals,
+        restaurants=restaurants,
+        selected_restaurant=restaurant_id,
+        start_date=start_date,
+        end_date=end_date
+    )
+
+
 
 @app.route('/view-nbs-report/<int:report_id>')
 def view_nbs_report(report_id):

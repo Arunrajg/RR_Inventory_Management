@@ -2,6 +2,8 @@
 {% block content %}
 <div class="page-wrapper">
     <div class="content">
+        {% if user.role == 'admin' %}
+        <!-- ===================== ADMIN DASHBOARD ===================== -->
         <div class="row">
             <div class="col-lg-4 col-sm-6 col-12">
                 <div class="dash-widget">
@@ -95,9 +97,22 @@
                 </div>
             </div>
         </div>
+        {% else %}
+        <!-- ===================== WELCOME SCREEN FOR NON-ADMINS ===================== -->
+        <div class="d-flex justify-content-center align-items-center" style="height: 70vh; flex-direction: column;">
+            <img src="../static/img/applogo.jpg" alt="Logo" width="120" class="mb-4">
+            <h2 class="mb-3">Welcome, {{ user.username }} 👋</h2>
+            <p class="text-muted">
+                You are logged in as a <b>{{ user.role.replace('_', ' ') | title }}</b>.<br>
+                Use the sidebar to manage your tasks such as <b>Miscellaneous Expenses</b> and <b>Transfers</b>.
+            </p>
+        </div>
+        {% endif %}
     </div>
 </div>
 
+{% if user.role == 'admin' %}
+<!-- Admin Dashboard Scripts -->
 
 <!-- Chart.js Library -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -245,4 +260,5 @@
         amountElement.textContent = amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
 </script>
+{% endif %}
 {% endblock %}
