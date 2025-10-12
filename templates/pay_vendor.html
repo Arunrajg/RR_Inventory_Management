@@ -73,6 +73,13 @@
             </div>
             <div class="modal-body">
                 <h5>Vendor: <span id="vendorName"></span></h5>
+                <h6 style="margin-top: 10px; font-weight: bold;">
+                    Total Pay Amount: ₹ <span id="totalPayAmount">0.00</span>
+                </h6>
+                <h6 style="margin-top: 5px; font-weight: bold;">
+                    Total Due: ₹ <span id="totalDueAmount">0.00</span>
+                </h6>
+                <hr>
                 <form id="payForm">
                     <input type="hidden" id="vendorId" name="vendorId">
                     <div class="table-responsive">
@@ -171,6 +178,8 @@
                         paymentDetailsTable.appendChild(row);
                     });
 
+                    updateCumulativePayAmount();
+
                     // Attach event listener to each pay-amount input to update dueAmount and validate input
                     document.querySelectorAll('.pay-amount').forEach(input => {
                         input.addEventListener('input', function () {
@@ -178,14 +187,17 @@
                             const row = input.closest('tr');
                             const outstandingCost = parseFloat(row.querySelector('.outstanding-cost').textContent.replace(/,/g, ''));
 
-                            // Validate input: if payAmount exceeds outstandingCost, reset the input to max value
+                            // Validate input
                             if (payAmount > outstandingCost) {
                                 input.value = outstandingCost.toFixed(2);
                             }
 
-                            // Recalculate and update dueAmount
+                            // Update due amount per row
                             const newDueAmount = (outstandingCost - parseFloat(input.value || 0)).toFixed(2);
                             row.querySelector('.due-amount').textContent = formatIndianCurrency(newDueAmount);
+
+                            // 🔹 Update cumulative total
+                            updateCumulativePayAmount();
                         });
                     });
                 } catch (error) {
@@ -194,6 +206,30 @@
                 }
             });
         });
+
+        function updateCumulativePayAmount() {
+            const payInputs = document.querySelectorAll('.pay-amount');
+            let totalPay = 0;
+            let totalDue = 0;
+
+            // Loop over all rows to compute both pay total and current total due
+            payInputs.forEach(input => {
+                const payAmount = parseFloat(input.value || 0);
+                totalPay += payAmount;
+
+                const row = input.closest('tr');
+                const outstandingCost = parseFloat(row.querySelector('.outstanding-cost').textContent.replace(/,/g, ''));
+                const currentDue = outstandingCost - payAmount;
+                totalDue += currentDue;
+            });
+
+            // Update display
+            document.getElementById('totalPayAmount').textContent =
+                new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalPay);
+
+            document.getElementById('totalDueAmount').textContent =
+                new Intl.NumberFormat('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(totalDue);
+        }
 
         // Handle form submission
         payForm.addEventListener('submit', async function (e) {
